@@ -3,7 +3,9 @@ import { assertClinicScope, normalizeSupabaseError, supabase } from "@/services/
 import type {
   ClinicalRecord,
   ClinicalRecordType,
+  ExamCategory,
   OdontogramEntry,
+  PatientExamFile,
   ToothConditionStatus,
   ToothSurface,
   TreatmentPlan,
@@ -740,5 +742,232 @@ export function buildPrintableDocumentHtml(input: ClinicalDocumentInput): string
 </body>
 </html>`;
 }
+
+// =============================================================================
+// GALERIA DE EXAMES E RADIOGRAFIAS (SUPABASE STORAGE COM RLS MULTI-TENANT)
+// =============================================================================
+
+export const CLINICAL_EXAMS_BUCKET = "clinical-exams" as const;
+export const MAX_EXAM_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
+
+export const ALLOWED_EXAM_MIME_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+] as const;
+
+export const EXAM_CATEGORIES: ExamCategory[] = [
+  "periapical",
+  "panoramic",
+  "bitewing",
+  "tomography",
+  "intraoral_before",
+  "intraoral_after",
+  "document",
+];
+
+export const EXAM_CATEGORY_LABELS: Record<ExamCategory, string> = {
+  periapical: "Radiografia Periapical",
+  panoramic: "Radiografia Panorâmica",
+  bitewing: "Interproximal / Bitewing",
+  tomography: "Tomografia Cone Beam (TCFC)",
+  intraoral_before: "Foto Intraoral — Antes",
+  intraoral_after: "Foto Intraoral — Depois",
+  document: "Laudo / Exame em PDF",
+};
+
+export const patientExamUploadSchema = z.object({
+  patient_id: z.string().uuid("Paciente inválido."),
+  professional_id: z.string().uuid().nullable().optional(),
+  tooth_number: z
+    .number()
+    .int()
+    .refine(isValidFdiTooth, "Número de dente FDI inválido.")
+    .nullable()
+    .optional(),
+  exam_category: z.enum([
+    "periapical",
+    "panoramic",
+    "bitewing",
+    "tomography",
+    "intraoral_before",
+    "intraoral_after",
+    "document",
+  ]),
+  title: z.string().trim().min(2, "Informe o título do exame (mín. 2 caracteres).").max(160),
+  notes: z.string().trim().max(2000).optional(),
+  exam_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data do exame inválida."),
+  file_name: z.string().trim().min(1, "Nome de arquivo inválido.").max(240),
+  mime_type: z.enum(["image/jpeg", "image/png", "image/webp", "application/pdf"], {
+    message: "Formato não permitido. Envie JPG, PNG, WEBP ou PDF.",
+  }),
+  file_size_bytes: z
+    .number()
+    .int()
+    .positive("O arquivo está vazio.")
+    .max(MAX_EXAM_FILE_SIZE_BYTES, "O arquivo excede o limite máximo de 15 MB."),
+});
+
+export type PatientExamUploadInput = z.infer<typeof patientExamUploadSchema>;
+
+/**
+ * Higieniza o nome original do arquivo removendo caracteres especiais e prevenindo Path Traversal.
+ */
+export function sanitizeExamFileName(fileName: string): string {
+  const base = fileName.split(/[\\/]/).pop() ?? "exame";
+  const cleaned = base
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^\.+/, "")
+    .slice(0, 100);
+  return cleaned || "exame.jpg";
+}
+
+/**
+ * Constrói o caminho de armazenamento isolado por clínica e paciente:
+ * `<clinic_id>/<patient_id>/<uniqueId>-<sanitizedFileName>`
+ * O primeiro segmento DEVE ser `clinic_id` para satisfazer as políticas RLS em `storage.objects`.
+ */
+export function buildTenantExamStoragePath(
+  clinicId: string,
+  patientId: string,
+  fileName: string,
+  uniquePrefix?: string,
+): string {
+  assertClinicScope(clinicId);
+  const parsedPatient = z.string().uuid().safeParse(patientId);
+  if (!parsedPatient.success) {
+    throw new Error("Identificador de paciente inválido para armazenamento.");
+  }
+  const safeName = sanitizeExamFileName(fileName);
+  const prefix =
+    uniquePrefix?.trim() ||
+    (typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}`);
+  return `${clinicId}/${patientId}/${prefix}-${safeName}`;
+}
+
+/**
+ * Garante que um `storage_path` pertence estritamente ao `clinicId` ativo (prevenção de acesso Cross-Tenant).
+ */
+export function verifyExamStoragePathTenant(clinicId: string, storagePath: string): boolean {
+  assertClinicScope(clinicId);
+  if (!storagePath || storagePath.includes("..")) return false;
+  const parts = storagePath.split("/");
+  return parts.length >= 3 && parts[0] === clinicId;
+}
+
+export async function fetchPatientExamFiles(
+  clinicId: string,
+  patientId: string,
+): Promise<PatientExamFile[]> {
+  assertClinicScope(clinicId);
+  const { data, error } = await db
+    .from("patient_exam_files")
+    .select("*,professionals(name)")
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .order("exam_date", { ascending: false });
+
+  if (error) {
+    const norm = normalizeSupabaseError(error);
+    if (norm.isSchemaPending) return [];
+    throw new Error(norm.message);
+  }
+  return (data ?? []) as PatientExamFile[];
+}
+
+export async function uploadPatientExamFile(
+  clinicId: string,
+  input: PatientExamUploadInput,
+  file: Blob,
+): Promise<void> {
+  assertClinicScope(clinicId);
+  const parsed = patientExamUploadSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Dados do exame inválidos.");
+  }
+
+  const d = parsed.data;
+  const storagePath = buildTenantExamStoragePath(clinicId, d.patient_id, d.file_name);
+
+  // 1. Upload do binário para o bucket privado 'clinical-exams' no Supabase Storage
+  const { error: uploadErr } = await supabase.storage
+    .from(CLINICAL_EXAMS_BUCKET)
+    .upload(storagePath, file, {
+      contentType: d.mime_type,
+      upsert: false,
+    });
+
+  if (uploadErr) {
+    throw new Error(`Falha ao enviar arquivo ao Storage: ${uploadErr.message}`);
+  }
+
+  // 2. Registro dos metadados auditados na tabela patient_exam_files
+  const { error: dbErr } = await db.from("patient_exam_files").insert({
+    clinic_id: clinicId,
+    patient_id: d.patient_id,
+    professional_id: d.professional_id ?? null,
+    tooth_number: d.tooth_number ?? null,
+    exam_category: d.exam_category,
+    title: d.title,
+    notes: d.notes?.trim() || null,
+    file_name: d.file_name,
+    mime_type: d.mime_type,
+    file_size_bytes: d.file_size_bytes,
+    storage_path: storagePath,
+    exam_date: d.exam_date,
+  });
+
+  if (dbErr) {
+    // Rollback do objeto no Storage caso a inserção no banco falhe
+    await supabase.storage.from(CLINICAL_EXAMS_BUCKET).remove([storagePath]);
+    throw new Error(normalizeSupabaseError(dbErr).message);
+  }
+}
+
+export async function createSignedExamUrl(
+  clinicId: string,
+  storagePath: string,
+  expiresInSeconds = 3600,
+): Promise<string> {
+  if (!verifyExamStoragePathTenant(clinicId, storagePath)) {
+    throw new Error("Acesso negado: o arquivo solicitado não pertence à clínica ativa.");
+  }
+  const { data, error } = await supabase.storage
+    .from(CLINICAL_EXAMS_BUCKET)
+    .createSignedUrl(storagePath, expiresInSeconds);
+
+  if (error || !data?.signedUrl) {
+    throw new Error(error?.message ?? "Não foi possível gerar link temporário do exame.");
+  }
+  return data.signedUrl;
+}
+
+export async function deletePatientExamFile(
+  clinicId: string,
+  exam: Pick<PatientExamFile, "id" | "storage_path">,
+): Promise<void> {
+  if (!verifyExamStoragePathTenant(clinicId, exam.storage_path)) {
+    throw new Error("Operação bloqueada: arquivo fora do escopo da clínica ativa.");
+  }
+
+  const { error: dbErr } = await db
+    .from("patient_exam_files")
+    .delete()
+    .eq("clinic_id", clinicId)
+    .eq("id", exam.id);
+
+  if (dbErr) {
+    throw new Error(normalizeSupabaseError(dbErr).message);
+  }
+
+  await supabase.storage.from(CLINICAL_EXAMS_BUCKET).remove([exam.storage_path]);
+}
+
 
 

@@ -5,6 +5,7 @@ import { AlertTriangle, ClipboardList, UserPlus } from "lucide-react";
 import { supabase, normalizeSupabaseError } from "@/services/supabase";
 import {
   fetchPatientClinicalRecords,
+  fetchPatientExamFiles,
   fetchPatientOdontogram,
   fetchPatientTreatmentPlans,
 } from "@/modules/records";
@@ -18,6 +19,7 @@ import { OdontogramChart } from "@/components/records/OdontogramChart";
 import { ClinicalEvolutionsPanel } from "@/components/records/ClinicalEvolutionsPanel";
 import { TreatmentPlansPanel } from "@/components/records/TreatmentPlansPanel";
 import { ClinicalDocumentsPanel } from "@/components/records/ClinicalDocumentsPanel";
+import { PatientExamsGalleryPanel } from "@/components/records/PatientExamsGalleryPanel";
 
 export const Route = createFileRoute("/_authenticated/app/records")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -107,6 +109,12 @@ function ClinicalRecordsPage() {
     queryFn: () => fetchPatientTreatmentPlans(clinicId, activePatient!.id),
   });
 
+  const examsQuery = useQuery({
+    queryKey: ["patientExams", clinicId, activePatient?.id],
+    enabled: canRead && !!activePatient,
+    queryFn: () => fetchPatientExamFiles(clinicId, activePatient!.id),
+  });
+
   if (!canRead) {
     return <p className="text-muted-foreground">{t("common.noPermission")}</p>;
   }
@@ -181,10 +189,11 @@ function ClinicalRecordsPage() {
             </div>
 
             <Tabs defaultValue="odontogram" className="space-y-5">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:w-[780px]">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 lg:w-[980px]">
                 <TabsTrigger value="odontogram">{t("rec.tabOdontogram")}</TabsTrigger>
                 <TabsTrigger value="evolutions">{t("rec.tabEvolutions")}</TabsTrigger>
                 <TabsTrigger value="plans">{t("rec.tabPlans")}</TabsTrigger>
+                <TabsTrigger value="exams">Exames & Radiografias</TabsTrigger>
                 <TabsTrigger value="documents">Receitas, Atestados & TCLE</TabsTrigger>
               </TabsList>
 
@@ -221,6 +230,18 @@ function ClinicalRecordsPage() {
                   items={plansQuery.data?.items ?? []}
                   professionals={professionals}
                   canWrite={canWrite}
+                  dateLocale={dateLocale}
+                />
+              </TabsContent>
+
+              <TabsContent value="exams">
+                <PatientExamsGalleryPanel
+                  clinicId={clinicId}
+                  patientId={activePatient.id}
+                  exams={examsQuery.data ?? []}
+                  professionals={professionals}
+                  canWrite={canWrite}
+                  selectedTooth={selectedTooth}
                   dateLocale={dateLocale}
                 />
               </TabsContent>

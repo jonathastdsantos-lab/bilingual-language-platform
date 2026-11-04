@@ -353,3 +353,31 @@ export interface AdministrativeAlert {
     | "/app/whatsapp";
   actionLabelKey?: string;
 }
+
+export type ExamCategory =
+  | "periapical"
+  | "panoramic"
+  | "bitewing"
+  | "tomography"
+  | "intraoral_before"
+  | "intraoral_after"
+  | "document";
+
+export interface PatientExamFile {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  professional_id: string | null;
+  tooth_number: number | null;
+  exam_category: ExamCategory;
+  title: string;
+  notes: string | null;
+  file_name: string;
+  mime_type: "image/jpeg" | "image/png" | "image/webp" | "application/pdf";
+  file_size_bytes: number;
+  storage_path: string;
+  exam_date: string;
+  created_by: string | null;
+  created_at: string;
+  professionals?: { name: string | null } | null;
+}

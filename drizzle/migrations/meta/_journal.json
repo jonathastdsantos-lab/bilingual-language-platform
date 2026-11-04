@@ -43,6 +43,13 @@
       "when": 1793816400000,
       "tag": "0005_reports_and_whatsapp",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793820000000,
+      "tag": "0006_patient_exams_and_storage",
+      "breakpoints": true
     }
   ]
 }

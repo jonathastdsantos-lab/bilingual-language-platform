@@ -31,10 +31,14 @@ import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
   buildPrintableDocumentHtml,
+  buildTenantExamStoragePath,
   calculateTreatmentPlanSummary,
   clinicalRecordSchema,
   isValidFdiTooth,
   odontogramEntrySchema,
+  patientExamUploadSchema,
+  sanitizeExamFileName,
+  verifyExamStoragePathTenant,
 } from "@/modules/records";
 import { formatCurrencyBRL, getDashboardPeriodRange, toSaoPauloDateKey } from "@/utils/timezone";
 import { formatCNPJ, formatCPF, hasTimeOverlap, isValidCNPJ, isValidCPF } from "@/utils/validators";
@@ -847,5 +851,74 @@ describe("Automação Clínica → Financeiro e Emissão de Receituário, Atesta
     expect(htmlControlled).toContain("IDENTIFICAÇÃO DO COMPRADOR");
     expect(htmlControlled).toContain("IDENTIFICAÇÃO DO FORNECEDOR");
     expect(htmlControlled).toContain("CRO-SP 98765");
+  });
+});
+
+describe("Galeria de Exames e Radiografias (Supabase Storage com Isolamento Multi-Tenant)", () => {
+  it("higieniza nomes de arquivo contra Path Traversal e força prefixo <clinic_id>/<patient_id>", () => {
+    const patientId = "44444444-4444-4444-8444-444444444444";
+    expect(sanitizeExamFileName("../../segredo/Rx Panorâmica #36 (Inicial).png")).toBe(
+      "Rx_Panoramica_36_Inicial_.png",
+    );
+
+    const pathA = buildTenantExamStoragePath(
+      CLINIC_A,
+      patientId,
+      "Rx Periapical #11.jpg",
+      "fixed-uuid",
+    );
+    expect(pathA).toBe(
+      `${CLINIC_A}/${patientId}/fixed-uuid-Rx_Periapical_11.jpg`,
+    );
+
+    // Isolamento Cross-Tenant no Storage: Clínica A jamais valida caminhos da Clínica B
+    expect(verifyExamStoragePathTenant(CLINIC_A, pathA)).toBe(true);
+    expect(verifyExamStoragePathTenant(CLINIC_B, pathA)).toBe(false);
+    expect(verifyExamStoragePathTenant(CLINIC_A, `${CLINIC_A}/../${CLINIC_B}/hack.jpg`)).toBe(false);
+  });
+
+  it("valida MIME types permitidos (JPG/PNG/WEBP/PDF), limite de 15 MB e dente FDI no schema de exames", () => {
+    const patientId = "44444444-4444-4444-8444-444444444444";
+
+    expect(
+      patientExamUploadSchema.safeParse({
+        patient_id: patientId,
+        tooth_number: 36,
+        exam_category: "periapical",
+        title: "Rx Periapical Pré-Endo #36",
+        exam_date: "2026-11-04",
+        file_name: "rx36.png",
+        mime_type: "image/png",
+        file_size_bytes: 2 * 1024 * 1024,
+      }).success,
+    ).toBe(true);
+
+    // Rejeita arquivo acima de 15 MB
+    expect(
+      patientExamUploadSchema.safeParse({
+        patient_id: patientId,
+        tooth_number: null,
+        exam_category: "panoramic",
+        title: "Panorâmica Pesada",
+        exam_date: "2026-11-04",
+        file_name: "pan.png",
+        mime_type: "image/png",
+        file_size_bytes: 20 * 1024 * 1024,
+      }).success,
+    ).toBe(false);
+
+    // Rejeita dente FDI inexistente (ex.: 19)
+    expect(
+      patientExamUploadSchema.safeParse({
+        patient_id: patientId,
+        tooth_number: 19,
+        exam_category: "periapical",
+        title: "Rx Dente Inválido",
+        exam_date: "2026-11-04",
+        file_name: "rx.jpg",
+        mime_type: "image/jpeg",
+        file_size_bytes: 500000,
+      }).success,
+    ).toBe(false);
   });
 });
