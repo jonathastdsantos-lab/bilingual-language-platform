@@ -21,6 +21,8 @@ export const PERMISSION_DEFAULT_ROLES: Record<PermissionKey, ClinicRole[]> = {
   "records.write": ["owner", "admin", "dentist"],
   "appointments.read": ["owner", "admin", "dentist", "receptionist", "assistant", "finance"],
   "appointments.write": ["owner", "admin", "dentist", "receptionist"],
+  "stock.read": ["owner", "admin", "dentist", "assistant", "stock", "receptionist"],
+  "stock.write": ["owner", "admin", "stock", "assistant"],
   "team.manage": ["owner", "admin"],
   "settings.manage": ["owner", "admin"],
   "units.manage": ["owner", "admin"],
@@ -74,16 +76,61 @@ export async function fetchClinicMemberPermissions(clinicId: string): Promise<Cl
 }
 
 /**
- * Define ou atualiza uma permissão individual para um membro da clínica.
+ * Define, atualiza ou remove (quando granted === null) uma permissão individual para um membro da clínica.
  */
 export async function setMemberPermissionOverride(params: {
   clinicId: string;
   memberId: string;
   permission: PermissionKey;
   granted: boolean | null;
+  updatedBy?: string;
 }): Promise<void> {
   assertClinicScope(params.clinicId);
-  const client = supabase as unknown as {
+  if (params.granted === null) {
+    await removeMemberPermissionOverride({
+      clinicId: params.clinicId,
+      memberId: params.memberId,
+      permission: params.permission,
+    });
+    return;
+  }
+
+  const { error } = await (supabase as unknown as {
+    from: (table: string) => {
+      upsert: (
+        row: Record<string, unknown>,
+        opts: { onConflict: string },
+      ) => Promise<{ error: unknown }>;
+    };
+  })
+    .from("clinic_member_permissions")
+    .upsert(
+      {
+        clinic_id: params.clinicId,
+        member_id: params.memberId,
+        permission: params.permission,
+        granted: params.granted,
+        updated_at: new Date().toISOString(),
+        updated_by: params.updatedBy ?? null,
+      },
+      { onConflict: "member_id,permission" },
+    );
+
+  if (error) {
+    throw new Error(normalizeSupabaseError(error).message);
+  }
+}
+
+/**
+ * Remove uma customização individual para que o membro volte ao padrão do seu perfil.
+ */
+export async function removeMemberPermissionOverride(params: {
+  clinicId: string;
+  memberId: string;
+  permission: PermissionKey;
+}): Promise<void> {
+  assertClinicScope(params.clinicId);
+  const { error } = await (supabase as unknown as {
     from: (table: string) => {
       delete: () => {
         eq: (c1: string, v1: string) => {
@@ -92,40 +139,15 @@ export async function setMemberPermissionOverride(params: {
           };
         };
       };
-      upsert: (
-        row: Record<string, unknown>,
-        opts: { onConflict: string },
-      ) => Promise<{ error: unknown }>;
     };
-  };
-
-  if (params.granted === null) {
-    const { error } = await client
-      .from("clinic_member_permissions")
-      .delete()
-      .eq("clinic_id", params.clinicId)
-      .eq("member_id", params.memberId)
-      .eq("permission", params.permission);
-    if (error) {
-      const norm = normalizeSupabaseError(error);
-      throw new Error(norm.message);
-    }
-    return;
-  }
-
-  const { error } = await client.from("clinic_member_permissions").upsert(
-    {
-      clinic_id: params.clinicId,
-      member_id: params.memberId,
-      permission: params.permission,
-      granted: params.granted,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "member_id,permission" },
-  );
+  })
+    .from("clinic_member_permissions")
+    .delete()
+    .eq("clinic_id", params.clinicId)
+    .eq("member_id", params.memberId)
+    .eq("permission", params.permission);
 
   if (error) {
-    const norm = normalizeSupabaseError(error);
-    throw new Error(norm.message);
+    throw new Error(normalizeSupabaseError(error).message);
   }
 }

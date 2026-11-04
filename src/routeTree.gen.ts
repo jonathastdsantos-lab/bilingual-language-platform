@@ -20,6 +20,7 @@ import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppPatientsRouteImport } from './routes/_authenticated/app.patients'
 import { Route as AuthenticatedAppRecordsRouteImport } from './routes/_authenticated/app.records'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
+import { Route as AuthenticatedAppStockRouteImport } from './routes/_authenticated/app.stock'
 import { Route as AuthenticatedAppTeamRouteImport } from './routes/_authenticated/app.team'
 
 const IndexRoute = IndexRouteImport.update({
@@ -80,6 +81,11 @@ const AuthenticatedAppSettingsRoute =
     path: '/settings',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppStockRoute = AuthenticatedAppStockRouteImport.update({
+  id: '/stock',
+  path: '/stock',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppTeamRoute = AuthenticatedAppTeamRouteImport.update({
   id: '/team',
   path: '/team',
@@ -96,6 +102,7 @@ export interface FileRoutesByFullPath {
   '/app/patients': typeof AuthenticatedAppPatientsRoute
   '/app/records': typeof AuthenticatedAppRecordsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/app/stock': typeof AuthenticatedAppStockRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
   '/app/': typeof AuthenticatedAppIndexRoute
 }
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/app/patients': typeof AuthenticatedAppPatientsRoute
   '/app/records': typeof AuthenticatedAppRecordsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/app/stock': typeof AuthenticatedAppStockRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
   '/app': typeof AuthenticatedAppIndexRoute
 }
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/_authenticated/app/patients': typeof AuthenticatedAppPatientsRoute
   '/_authenticated/app/records': typeof AuthenticatedAppRecordsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
+  '/_authenticated/app/stock': typeof AuthenticatedAppStockRoute
   '/_authenticated/app/team': typeof AuthenticatedAppTeamRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
 }
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
     | '/app/patients'
     | '/app/records'
     | '/app/settings'
+    | '/app/stock'
     | '/app/team'
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/app/patients'
     | '/app/records'
     | '/app/settings'
+    | '/app/stock'
     | '/app/team'
     | '/app'
   id:
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/patients'
     | '/_authenticated/app/records'
     | '/_authenticated/app/settings'
+    | '/_authenticated/app/stock'
     | '/_authenticated/app/team'
     | '/_authenticated/app/'
   fileRoutesById: FileRoutesById
@@ -254,6 +266,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppSettingsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/stock': {
+      id: '/_authenticated/app/stock'
+      path: '/stock'
+      fullPath: '/app/stock'
+      preLoaderRoute: typeof AuthenticatedAppStockRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/team': {
       id: '/_authenticated/app/team'
       path: '/team'
@@ -270,6 +289,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppPatientsRoute: typeof AuthenticatedAppPatientsRoute
   AuthenticatedAppRecordsRoute: typeof AuthenticatedAppRecordsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
+  AuthenticatedAppStockRoute: typeof AuthenticatedAppStockRoute
   AuthenticatedAppTeamRoute: typeof AuthenticatedAppTeamRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
 }
@@ -280,6 +300,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppPatientsRoute: AuthenticatedAppPatientsRoute,
   AuthenticatedAppRecordsRoute: AuthenticatedAppRecordsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
+  AuthenticatedAppStockRoute: AuthenticatedAppStockRoute,
   AuthenticatedAppTeamRoute: AuthenticatedAppTeamRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
 }

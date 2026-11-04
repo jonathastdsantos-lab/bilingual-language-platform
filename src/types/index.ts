@@ -13,6 +13,8 @@ export type PermissionKey =
   | "records.write"
   | "appointments.read"
   | "appointments.write"
+  | "stock.read"
+  | "stock.write"
   | "team.manage"
   | "settings.manage"
   | "units.manage"
@@ -113,6 +115,67 @@ export interface ProfessionalCommissionSummary {
   pendingRevenue: number;
   realizedCommission: number;
   pendingCommission: number;
+}
+
+export type StockMovementType = "in" | "out" | "adjustment" | "expired_loss";
+
+export type StockAlertStatus =
+  | "ok"
+  | "low_stock"
+  | "out_of_stock"
+  | "expiring_soon"
+  | "expired";
+
+export interface StockItem {
+  id: string;
+  clinic_id: string;
+  unit_id: string | null;
+  name: string;
+  category: string;
+  sku: string | null;
+  unit_measure: string;
+  current_quantity: number;
+  min_quantity: number;
+  unit_cost: number;
+  supplier: string | null;
+  batch_number: string | null;
+  expiration_date: string | null;
+  storage_location: string | null;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StockMovement {
+  id: string;
+  clinic_id: string;
+  item_id: string;
+  unit_id: string | null;
+  movement_type: StockMovementType;
+  quantity: number;
+  previous_quantity: number;
+  resulting_quantity: number;
+  unit_cost: number;
+  batch_number: string | null;
+  expiration_date: string | null;
+  reason: string;
+  professional_id: string | null;
+  patient_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  stock_items?: { name: string | null; unit_measure: string | null } | null;
+  professionals?: { name: string | null } | null;
+  patients?: { full_name: string | null } | null;
+}
+
+export interface StockSummaryIndicators {
+  totalItemsCount: number;
+  totalInventoryValueBRL: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+  expiringSoonCount: number;
+  expiredCount: number;
 }
 
 export interface OdontogramEntry {
@@ -227,6 +290,6 @@ export interface AdministrativeAlert {
   titleKey: string;
   descriptionKey: string;
   count?: number;
-  actionRoute?: "/app/agenda" | "/app/patients" | "/app/settings" | "/app/team";
+  actionRoute?: "/app/agenda" | "/app/patients" | "/app/settings" | "/app/team" | "/app/stock";
   actionLabelKey?: string;
 }

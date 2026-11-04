@@ -10,6 +10,13 @@ import {
   financialEntryFormSchema,
   generateInstallmentRows,
 } from "@/modules/finance";
+import {
+  calculateStockSummary,
+  computeMovementResultingQuantity,
+  evaluateStockItemStatus,
+  stockItemFormSchema,
+  stockMovementFormSchema,
+} from "@/modules/stock";
 import { patientFormSchema } from "@/modules/patients";
 import { appointmentFormSchema } from "@/modules/appointments";
 import { authCredentialsSchema } from "@/modules/auth";
@@ -545,5 +552,123 @@ describe("Módulo Financeiro Completo: Fluxo de Caixa, Parcelamento Exato e Comi
     expect(evaluateMemberPermission("admin", "financial.write")).toBe(true);
     expect(evaluateMemberPermission("dentist", "financial.write")).toBe(false);
     expect(evaluateMemberPermission("assistant", "financial.write")).toBe(false);
+  });
+});
+
+describe("Módulo de Controle de Estoque, Lotes ANVISA e Kardex", () => {
+  it("avalia corretamente alertas de estoque mínimo, esgotado, vencimento próximo e lote vencido", () => {
+    const refDate = new Date("2026-11-04T12:00:00-03:00");
+
+    expect(
+      evaluateStockItemStatus(
+        { current_quantity: 20, min_quantity: 5, expiration_date: "2027-06-01" },
+        refDate,
+      ),
+    ).toBe("ok");
+
+    expect(
+      evaluateStockItemStatus(
+        { current_quantity: 4, min_quantity: 5, expiration_date: "2027-06-01" },
+        refDate,
+      ),
+    ).toBe("low_stock");
+
+    expect(
+      evaluateStockItemStatus(
+        { current_quantity: 0, min_quantity: 5, expiration_date: "2027-06-01" },
+        refDate,
+      ),
+    ).toBe("out_of_stock");
+
+    expect(
+      evaluateStockItemStatus(
+        { current_quantity: 12, min_quantity: 5, expiration_date: "2026-11-20" },
+        refDate,
+      ),
+    ).toBe("expiring_soon");
+
+    expect(
+      evaluateStockItemStatus(
+        { current_quantity: 12, min_quantity: 5, expiration_date: "2026-10-15" },
+        refDate,
+      ),
+    ).toBe("expired");
+  });
+
+  it("calcula movimentações do Kardex (entrada, saída, ajuste) e bloqueia saldo negativo", () => {
+    expect(computeMovementResultingQuantity(10, "in", 5)).toBe(15);
+    expect(computeMovementResultingQuantity(15, "out", 4)).toBe(11);
+    expect(computeMovementResultingQuantity(11, "expired_loss", 2)).toBe(9);
+    expect(computeMovementResultingQuantity(9, "adjustment", 25)).toBe(25);
+
+    expect(() => computeMovementResultingQuantity(3, "out", 5)).toThrow(/Saldo insuficiente/);
+  });
+
+  it("calcula valor financeiro total do estoque em BRL e contadores de criticidade", () => {
+    const refDate = new Date("2026-11-04T12:00:00-03:00");
+    const summary = calculateStockSummary(
+      [
+        {
+          current_quantity: 10,
+          min_quantity: 5,
+          unit_cost: 45.5,
+          expiration_date: "2027-08-01",
+          active: true,
+        },
+        {
+          current_quantity: 2,
+          min_quantity: 5,
+          unit_cost: 120,
+          expiration_date: "2026-11-15",
+          active: true,
+        },
+        {
+          current_quantity: 0,
+          min_quantity: 3,
+          unit_cost: 80,
+          expiration_date: "2026-10-01",
+          active: true,
+        },
+      ],
+      refDate,
+    );
+
+    expect(summary.totalItemsCount).toBe(3);
+    expect(summary.totalInventoryValueBRL).toBe(695); // (10 * 45.5) + (2 * 120) + 0
+    expect(summary.lowStockCount).toBe(1);
+    expect(summary.outOfStockCount).toBe(1);
+    expect(summary.expiringSoonCount).toBe(1);
+    expect(summary.expiredCount).toBe(1);
+  });
+
+  it("valida schemas de insumos, movimentações e permissões RBAC de estoque", () => {
+    expect(
+      stockItemFormSchema.safeParse({
+        name: "Resina Filtek Z350 XT A2",
+        category: "Resinas e Adesivos",
+        unit_measure: "seringa",
+        current_quantity: 8,
+        min_quantity: 3,
+        unit_cost: 139.9,
+        batch_number: "LOTE-3M-99",
+        expiration_date: "2027-12-31",
+      }).success,
+    ).toBe(true);
+
+    expect(
+      stockMovementFormSchema.safeParse({
+        item_id: "11111111-1111-4111-8111-111111111111",
+        movement_type: "out",
+        quantity: 2,
+        reason: "Consumo em restauração direta",
+      }).success,
+    ).toBe(true);
+
+    expect(evaluateMemberPermission("stock", "stock.read")).toBe(true);
+    expect(evaluateMemberPermission("stock", "stock.write")).toBe(true);
+    expect(evaluateMemberPermission("assistant", "stock.write")).toBe(true);
+    expect(evaluateMemberPermission("dentist", "stock.read")).toBe(true);
+    expect(evaluateMemberPermission("dentist", "stock.write")).toBe(false);
+    expect(evaluateMemberPermission("finance", "stock.write")).toBe(false);
   });
 });

@@ -34,12 +34,12 @@ const NAV_ITEMS: { to: string; icon: typeof Users; k: TKey; permission?: Permiss
   { to: "/app/patients", icon: Users, k: "nav.patients", permission: "patients.read" },
   { to: "/app/records", icon: ClipboardList, k: "nav.records", permission: "records.read" },
   { to: "/app/finance", icon: Wallet, k: "nav.finance", permission: "financial.view" },
+  { to: "/app/stock", icon: Package, k: "nav.stock", permission: "stock.read" },
   { to: "/app/team", icon: ShieldCheck, k: "nav.team", permission: "team.manage" },
   { to: "/app/settings", icon: Settings, k: "nav.settings", permission: "settings.manage" },
 ];
 
 const SOON_ITEMS: { icon: typeof Users; k: TKey }[] = [
-  { icon: Package, k: "nav.stock" },
   { icon: MessageCircle, k: "nav.whatsapp" },
   { icon: BarChart3, k: "nav.reports" },
 ];
