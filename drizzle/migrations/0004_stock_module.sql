@@ -138,6 +138,63 @@ CREATE TABLE IF NOT EXISTS public.stock_movements (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.stock_items TO authenticated;
+GRANT SELECT, INSERT ON public.stock_movements TO authenticated;
+GRANT ALL ON public.stock_items, public.stock_movements TO service_role;
+
 ALTER TABLE public.stock_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stock_movements ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "stock_items_select_policy" ON public.stock_items;
+CREATE POLICY "stock_items_select_policy"
+  ON public.stock_items
+  FOR SELECT
+  TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.read'));
+
+DROP POLICY IF EXISTS "stock_items_insert_policy" ON public.stock_items;
+CREATE POLICY "stock_items_insert_policy"
+  ON public.stock_items
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.write'));
+
+DROP POLICY IF EXISTS "stock_items_update_policy" ON public.stock_items;
+CREATE POLICY "stock_items_update_policy"
+  ON public.stock_items
+  FOR UPDATE
+  TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.write'))
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.write'));
+
+DROP POLICY IF EXISTS "stock_items_delete_policy" ON public.stock_items;
+CREATE POLICY "stock_items_delete_policy"
+  ON public.stock_items
+  FOR DELETE
+  TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.write'));
+
+DROP POLICY IF EXISTS "stock_movements_select_policy" ON public.stock_movements;
+CREATE POLICY "stock_movements_select_policy"
+  ON public.stock_movements
+  FOR SELECT
+  TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.read'));
+
+DROP POLICY IF EXISTS "stock_movements_insert_policy" ON public.stock_movements;
+CREATE POLICY "stock_movements_insert_policy"
+  ON public.stock_movements
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.write'));
+
+DROP TRIGGER IF EXISTS trg_audit_stock_items ON public.stock_items;
+CREATE TRIGGER trg_audit_stock_items
+  AFTER INSERT OR UPDATE OR DELETE ON public.stock_items
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
+
+DROP TRIGGER IF EXISTS trg_audit_stock_movements ON public.stock_movements;
+CREATE TRIGGER trg_audit_stock_movements
+  AFTER INSERT ON public.stock_movements
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
 

@@ -123,7 +123,11 @@ CREATE TABLE IF NOT EXISTS public.whatsapp_dispatch_logs (
 CREATE INDEX IF NOT EXISTS idx_whatsapp_dispatch_logs_clinic_created
   ON public.whatsapp_dispatch_logs(clinic_id, created_at DESC);
 
--- 4. Habilitação de Row Level Security (RLS)
+-- 4. Permissões e Habilitação de Row Level Security (RLS)
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.whatsapp_templates TO authenticated;
+GRANT SELECT, INSERT ON public.whatsapp_dispatch_logs TO authenticated;
+GRANT ALL ON public.whatsapp_templates, public.whatsapp_dispatch_logs TO service_role;
+
 ALTER TABLE public.whatsapp_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.whatsapp_dispatch_logs ENABLE ROW LEVEL SECURITY;
 
@@ -174,10 +178,10 @@ CREATE POLICY "whatsapp_dispatch_logs_insert_policy"
 DROP TRIGGER IF EXISTS trg_audit_whatsapp_templates ON public.whatsapp_templates;
 CREATE TRIGGER trg_audit_whatsapp_templates
   AFTER INSERT OR UPDATE OR DELETE ON public.whatsapp_templates
-  FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
 
 DROP TRIGGER IF EXISTS trg_audit_whatsapp_dispatch_logs ON public.whatsapp_dispatch_logs;
 CREATE TRIGGER trg_audit_whatsapp_dispatch_logs
   AFTER INSERT ON public.whatsapp_dispatch_logs
-  FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
 

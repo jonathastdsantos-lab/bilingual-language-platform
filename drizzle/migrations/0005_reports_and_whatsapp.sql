@@ -113,6 +113,63 @@ CREATE TABLE IF NOT EXISTS public.whatsapp_dispatch_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.whatsapp_templates TO authenticated;
+GRANT SELECT, INSERT ON public.whatsapp_dispatch_logs TO authenticated;
+GRANT ALL ON public.whatsapp_templates, public.whatsapp_dispatch_logs TO service_role;
+
 ALTER TABLE public.whatsapp_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.whatsapp_dispatch_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "whatsapp_templates_select_policy" ON public.whatsapp_templates;
+CREATE POLICY "whatsapp_templates_select_policy"
+  ON public.whatsapp_templates
+  FOR SELECT
+  TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP POLICY IF EXISTS "whatsapp_templates_insert_policy" ON public.whatsapp_templates;
+CREATE POLICY "whatsapp_templates_insert_policy"
+  ON public.whatsapp_templates
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP POLICY IF EXISTS "whatsapp_templates_update_policy" ON public.whatsapp_templates;
+CREATE POLICY "whatsapp_templates_update_policy"
+  ON public.whatsapp_templates
+  FOR UPDATE
+  TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'))
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP POLICY IF EXISTS "whatsapp_templates_delete_policy" ON public.whatsapp_templates;
+CREATE POLICY "whatsapp_templates_delete_policy"
+  ON public.whatsapp_templates
+  FOR DELETE
+  TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP POLICY IF EXISTS "whatsapp_dispatch_logs_select_policy" ON public.whatsapp_dispatch_logs;
+CREATE POLICY "whatsapp_dispatch_logs_select_policy"
+  ON public.whatsapp_dispatch_logs
+  FOR SELECT
+  TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP POLICY IF EXISTS "whatsapp_dispatch_logs_insert_policy" ON public.whatsapp_dispatch_logs;
+CREATE POLICY "whatsapp_dispatch_logs_insert_policy"
+  ON public.whatsapp_dispatch_logs
+  FOR INSERT
+  TO authenticated
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP TRIGGER IF EXISTS trg_audit_whatsapp_templates ON public.whatsapp_templates;
+CREATE TRIGGER trg_audit_whatsapp_templates
+  AFTER INSERT OR UPDATE OR DELETE ON public.whatsapp_templates
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
+
+DROP TRIGGER IF EXISTS trg_audit_whatsapp_dispatch_logs ON public.whatsapp_dispatch_logs;
+CREATE TRIGGER trg_audit_whatsapp_dispatch_logs
+  AFTER INSERT ON public.whatsapp_dispatch_logs
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
 

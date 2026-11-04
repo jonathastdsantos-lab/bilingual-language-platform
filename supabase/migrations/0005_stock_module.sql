@@ -155,7 +155,11 @@ CREATE INDEX IF NOT EXISTS idx_stock_movements_clinic_created
 CREATE INDEX IF NOT EXISTS idx_stock_movements_item
   ON public.stock_movements(item_id, created_at DESC);
 
--- 5. Habilitação de Row Level Security (RLS)
+-- 5. Permissões e Habilitação de Row Level Security (RLS)
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.stock_items TO authenticated;
+GRANT SELECT, INSERT ON public.stock_movements TO authenticated;
+GRANT ALL ON public.stock_items, public.stock_movements TO service_role;
+
 ALTER TABLE public.stock_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.stock_movements ENABLE ROW LEVEL SECURITY;
 
@@ -208,10 +212,10 @@ CREATE POLICY "stock_movements_insert_policy"
 DROP TRIGGER IF EXISTS trg_audit_stock_items ON public.stock_items;
 CREATE TRIGGER trg_audit_stock_items
   AFTER INSERT OR UPDATE OR DELETE ON public.stock_items
-  FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
 
 DROP TRIGGER IF EXISTS trg_audit_stock_movements ON public.stock_movements;
 CREATE TRIGGER trg_audit_stock_movements
   AFTER INSERT ON public.stock_movements
-  FOR EACH ROW EXECUTE FUNCTION public.log_audit_event();
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
 
