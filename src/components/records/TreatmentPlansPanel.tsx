@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CheckCircle2, Plus } from "lucide-react";
+import { CheckCircle2, DollarSign, Plus } from "lucide-react";
 import {
   ALL_VALID_FDI_TEETH,
   TOOTH_SURFACES,
@@ -12,10 +12,19 @@ import {
   updateTreatmentPlanItemStatus,
   updateTreatmentPlanStatus,
 } from "@/modules/records";
+import { PAYMENT_METHODS, createFinancialEntriesWithInstallments } from "@/modules/finance";
 import { useT, type TKey } from "@/lib/i18n";
-import type { ToothSurface, TreatmentPlan, TreatmentPlanItem, TreatmentPlanStatus } from "@/types";
-import { formatCurrencyBRL } from "@/utils/timezone";
+import type {
+  FinancialEntryStatus,
+  PaymentMethod,
+  ToothSurface,
+  TreatmentPlan,
+  TreatmentPlanItem,
+  TreatmentPlanStatus,
+} from "@/types";
+import { formatCurrencyBRL, toSaoPauloDateKey } from "@/utils/timezone";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -47,6 +56,43 @@ export function TreatmentPlansPanel({
   const [itemDrafts, setItemDrafts] = useState<
     Record<string, { tooth: string; surface: ToothSurface; procedure: string; price: string }>
   >({});
+
+  const [billingPlan, setBillingPlan] = useState<{ plan: TreatmentPlan; netTotal: number } | null>(null);
+  const [billingInstallments, setBillingInstallments] = useState("1");
+  const [billingMethod, setBillingMethod] = useState<PaymentMethod>("pix");
+  const [billingStatus, setBillingStatus] = useState<FinancialEntryStatus>("pending");
+  const [billingDueDate, setBillingDueDate] = useState(() => toSaoPauloDateKey(new Date()));
+
+  const generateBillingMut = useMutation({
+    mutationFn: async () => {
+      if (!billingPlan) return;
+      const inst = Math.max(1, Math.min(24, Number(billingInstallments) || 1));
+      await createFinancialEntriesWithInstallments(clinicId, {
+        entry_type: "income",
+        category: "Orçamento / Plano",
+        description: `Orçamento: ${billingPlan.plan.title}`,
+        total_amount: billingPlan.netTotal,
+        payment_method: billingMethod,
+        status: billingStatus,
+        first_due_date: billingDueDate,
+        installments: inst,
+        patient_id: patientId,
+        professional_id: billingPlan.plan.professional_id ?? null,
+        treatment_plan_id: billingPlan.plan.id,
+        notes: `Gerado automaticamente a partir do Plano de Tratamento (${inst}x).`,
+      });
+      if (billingPlan.plan.status === "draft") {
+        await updateTreatmentPlanStatus(clinicId, billingPlan.plan.id, "approved");
+      }
+    },
+    onSuccess: () => {
+      toast.success("Parcelas geradas com sucesso no módulo Financeiro!");
+      setBillingPlan(null);
+      qc.invalidateQueries({ queryKey: ["treatmentPlans", clinicId, patientId] });
+      qc.invalidateQueries({ queryKey: ["financialEntries", clinicId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   const createPlanMut = useMutation({
     mutationFn: async () => {
@@ -182,6 +228,24 @@ export function TreatmentPlansPanel({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
+                  {canWrite && summary.netTotal > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 gap-1.5 border-primary/30 text-xs font-semibold text-primary hover:bg-primary/10"
+                      onClick={() => {
+                        setBillingPlan({ plan, netTotal: summary.netTotal });
+                        setBillingInstallments("1");
+                        setBillingMethod("pix");
+                        setBillingStatus("pending");
+                        setBillingDueDate(toSaoPauloDateKey(new Date()));
+                      }}
+                    >
+                      <DollarSign className="h-3.5 w-3.5" />
+                      Gerar Parcelas no Financeiro
+                    </Button>
+                  )}
                   {canWrite ? (
                     <Select
                       value={plan.status}
@@ -356,6 +420,106 @@ export function TreatmentPlansPanel({
           );
         })
       )}
+
+      {/* Modal de Geração Automática de Parcelas no Módulo Financeiro */}
+      <Dialog open={!!billingPlan} onOpenChange={(open) => !open && setBillingPlan(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-navy">Gerar Parcelas no Financeiro</DialogTitle>
+          </DialogHeader>
+          {billingPlan && (
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                generateBillingMut.mutate();
+              }}
+              className="space-y-4"
+            >
+              <div className="rounded-xl bg-primary/5 p-3 text-sm">
+                <p className="font-semibold text-navy">{billingPlan.plan.title}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Valor Líquido Total:{" "}
+                  <strong className="text-primary">{formatCurrencyBRL(billingPlan.netTotal, dateLocale)}</strong>
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Nº de Parcelas (1x a 24x)</Label>
+                  <Select value={billingInstallments} onValueChange={setBillingInstallments}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, idx) => idx + 1).map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n}x de {formatCurrencyBRL(billingPlan.netTotal / n, dateLocale)}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="18">
+                        18x de {formatCurrencyBRL(billingPlan.netTotal / 18, dateLocale)}
+                      </SelectItem>
+                      <SelectItem value="24">
+                        24x de {formatCurrencyBRL(billingPlan.netTotal / 24, dateLocale)}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>{t("fin.paymentMethod")}</Label>
+                  <Select value={billingMethod} onValueChange={(v) => setBillingMethod(v as PaymentMethod)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_METHODS.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {t(`fin.pm.${m}` as TKey)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>1º Vencimento</Label>
+                  <Input
+                    type="date"
+                    required
+                    value={billingDueDate}
+                    onChange={(e) => setBillingDueDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Status da 1ª Parcela</Label>
+                  <Select value={billingStatus} onValueChange={(v) => setBillingStatus(v as FinancialEntryStatus)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pending">Pendente (A receber)</SelectItem>
+                      <SelectItem value="paid">Recebida no ato (Paga)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setBillingPlan(null)}>
+                  {t("common.cancel")}
+                </Button>
+                <Button type="submit" variant="hero" disabled={generateBillingMut.isPending}>
+                  Confirmar e Gerar Parcelas
+                </Button>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

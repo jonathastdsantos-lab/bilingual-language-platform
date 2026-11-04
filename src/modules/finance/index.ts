@@ -71,6 +71,8 @@ export const financialEntryFormSchema = z.object({
   patient_id: z.string().uuid().nullable().optional(),
   professional_id: z.string().uuid().nullable().optional(),
   unit_id: z.string().uuid().nullable().optional(),
+  treatment_plan_id: z.string().uuid().nullable().optional(),
+  appointment_id: z.string().uuid().nullable().optional(),
   notes: z.string().trim().max(2000).optional(),
 });
 
@@ -79,6 +81,8 @@ export interface GeneratedInstallmentRow {
   unit_id: string | null;
   patient_id: string | null;
   professional_id: string | null;
+  treatment_plan_id: string | null;
+  appointment_id: string | null;
   entry_type: FinancialEntryType;
   category: string;
   description: string;
@@ -294,6 +298,8 @@ export function generateInstallmentRows(
       unit_id: d.unit_id ?? null,
       patient_id: d.patient_id ?? null,
       professional_id: d.professional_id ?? null,
+      treatment_plan_id: d.treatment_plan_id ?? null,
+      appointment_id: d.appointment_id ?? null,
       entry_type: d.entry_type,
       category: d.category,
       description: n > 1 ? `${d.description} (${instNum}/${n})` : d.description,

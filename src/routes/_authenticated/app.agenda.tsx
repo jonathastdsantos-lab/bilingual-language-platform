@@ -2,9 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, PackageMinus, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { fetchStockItems, recordStockMovement } from "@/modules/stock";
 import { useClinic } from "@/lib/clinic";
 import { useT, type TKey } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ function Agenda() {
   const qc = useQueryClient();
   const canRead = hasPermission("appointments.read");
   const canWrite = hasPermission("appointments.write");
+  const canStockWrite = hasPermission("stock.write");
   const [view, setView] = useState<"day" | "week" | "month">("week");
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -62,6 +64,40 @@ function Agenda() {
   });
   const [prof, setProf] = useState("all");
   const [form, setForm] = useState<FormState | null>(null);
+  const [kitItemId, setKitItemId] = useState<string>("none");
+  const [kitQty, setKitQty] = useState<string>("1");
+
+  const stockItemsQuery = useQuery({
+    queryKey: ["stockItems", clinicId],
+    enabled: canRead && canStockWrite,
+    queryFn: () => fetchStockItems(clinicId),
+  });
+  const availableStockItems = (stockItemsQuery.data ?? []).filter((i) => Number(i.current_quantity) > 0);
+
+  const consumeStockMut = useMutation({
+    mutationFn: async () => {
+      if (!form || kitItemId === "none") return;
+      const item = availableStockItems.find((i) => i.id === kitItemId);
+      if (!item) throw new Error("Selecione um insumo válido com saldo em estoque.");
+      const qty = Math.max(0.01, Number(kitQty.replace(",", ".")) || 1);
+      await recordStockMovement(clinicId, item, {
+        item_id: item.id,
+        movement_type: "out",
+        quantity: qty,
+        reason: `Consumo clínico no atendimento${form.procedure ? ` (${form.procedure})` : ""}`,
+        patient_id: form.patient_id || null,
+        professional_id: form.professional_id || null,
+      });
+    },
+    onSuccess: () => {
+      toast.success("Baixa de insumo registrada no Kardex do Estoque!");
+      setKitItemId("none");
+      setKitQty("1");
+      qc.invalidateQueries({ queryKey: ["stockItems", clinicId] });
+      qc.invalidateQueries({ queryKey: ["stockMovements", clinicId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   const [start, end, days] = useMemo(() => {
     const s = new Date(cursor);
@@ -443,6 +479,53 @@ function Agenda() {
                 <Label>{t("ag.notes")}</Label>
                 <Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
               </div>
+
+              {form.id && canStockWrite && availableStockItems.length > 0 && (
+                <div className="space-y-2 rounded-xl border border-primary/20 bg-primary/5 p-3 sm:col-span-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-navy">
+                    <PackageMinus className="h-3.5 w-3.5 text-primary" />
+                    Baixa Rápida de Kit Clínico / Insumo no Kardex
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-[1fr_90px_auto] sm:items-end">
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Insumo utilizado</Label>
+                      <Select value={kitItemId} onValueChange={setKitItemId}>
+                        <SelectTrigger className="h-8 bg-card text-xs">
+                          <SelectValue placeholder="Selecione o material..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Selecione o material...</SelectItem>
+                          {availableStockItems.map((it) => (
+                            <SelectItem key={it.id} value={it.id}>
+                              {it.name} (Saldo: {it.current_quantity} {it.unit_measure})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px]">Qtd.</Label>
+                      <Input
+                        className="h-8 bg-card text-xs"
+                        inputMode="decimal"
+                        value={kitQty}
+                        onChange={(e) => setKitQty(e.target.value)}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs font-semibold"
+                      disabled={kitItemId === "none" || consumeStockMut.isPending}
+                      onClick={() => consumeStockMut.mutate()}
+                    >
+                      Baixar no Estoque
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <DialogFooter className="sm:col-span-2">
                 <Button type="button" variant="outline" onClick={() => setForm(null)}>
                   {t("common.cancel")}

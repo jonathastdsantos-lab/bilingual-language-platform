@@ -1,0 +1,923 @@
+-- =============================================================================
+-- SONDAPRO — SCRIPT ÚNICO E IDEMPOTENTE DE CONFIGURAÇÃO DO BANCO DE DADOS
+-- Inclui todas as Migrations (0001 a 0006) na ordem exata de dependências.
+-- Cole e execute este arquivo inteiro no SQL Editor do Supabase / Lovable Cloud.
+-- =============================================================================
+
+-- =============================================================================
+-- PARTE 1 (0001): FUNDAÇÃO MULTI-TENANT, AUTENTICAÇÃO, RBAC, AGENDA E AUDITORIA
+-- =============================================================================
+
+create extension if not exists btree_gist;
+
+do $$ begin
+  create type public.clinic_role as enum ('owner','admin','dentist','receptionist','assistant','finance','stock');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type public.appointment_status as enum ('scheduled','confirmed','completed','cancelled','no_show');
+exception when duplicate_object then null; end $$;
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  full_name text,
+  locale text not null default 'pt',
+  created_at timestamptz not null default now()
+);
+grant select, insert, update on public.profiles to authenticated;
+grant all on public.profiles to service_role;
+alter table public.profiles enable row level security;
+
+drop policy if exists "own profile read" on public.profiles;
+create policy "own profile read" on public.profiles for select to authenticated using (id = auth.uid());
+
+drop policy if exists "own profile update" on public.profiles;
+create policy "own profile update" on public.profiles for update to authenticated using (id = auth.uid());
+
+drop policy if exists "own profile insert" on public.profiles;
+create policy "own profile insert" on public.profiles for insert to authenticated with check (id = auth.uid());
+
+create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  insert into public.profiles (id, full_name)
+  values (new.id, coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(new.email,'@',1)))
+  on conflict (id) do nothing;
+  return new;
+end $$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
+
+create table if not exists public.clinics (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (char_length(name) between 2 and 120),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.clinic_members (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  user_id uuid not null,
+  role public.clinic_role not null,
+  display_name text,
+  email text,
+  created_at timestamptz not null default now(),
+  unique (clinic_id, user_id)
+);
+
+grant select, insert, update, delete on public.clinics, public.clinic_members to authenticated;
+grant all on public.clinics, public.clinic_members to service_role;
+
+create or replace function public.is_clinic_member(_clinic uuid) returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from clinic_members where clinic_id = _clinic and user_id = auth.uid())
+$$;
+
+create or replace function public.has_clinic_role(_clinic uuid, _roles public.clinic_role[]) returns boolean language sql stable security definer set search_path = public as $$
+  select exists (select 1 from clinic_members where clinic_id = _clinic and user_id = auth.uid() and role = any(_roles))
+$$;
+
+alter table public.clinics enable row level security;
+alter table public.clinic_members enable row level security;
+
+drop policy if exists "members read clinic" on public.clinics;
+create policy "members read clinic" on public.clinics for select to authenticated using (public.is_clinic_member(id));
+
+drop policy if exists "owner update clinic" on public.clinics;
+create policy "owner update clinic" on public.clinics for update to authenticated using (public.has_clinic_role(id, array['owner','admin']::public.clinic_role[]));
+
+drop policy if exists "members read members" on public.clinic_members;
+create policy "members read members" on public.clinic_members for select to authenticated using (public.is_clinic_member(clinic_id));
+
+drop policy if exists "admins update members" on public.clinic_members;
+create policy "admins update members" on public.clinic_members for update to authenticated using (public.has_clinic_role(clinic_id, array['owner','admin']::public.clinic_role[]) and role <> 'owner');
+
+drop policy if exists "admins delete members" on public.clinic_members;
+create policy "admins delete members" on public.clinic_members for delete to authenticated using (public.has_clinic_role(clinic_id, array['owner','admin']::public.clinic_role[]) and role <> 'owner');
+
+create or replace function public.add_clinic_member(_clinic uuid, _email text, _role public.clinic_role) returns uuid language plpgsql security definer set search_path = public as $$
+declare uid uuid; uname text; mid uuid;
+begin
+  if not public.has_clinic_role(_clinic, array['owner','admin']::public.clinic_role[]) then raise exception 'forbidden'; end if;
+  if _role = 'owner' then raise exception 'cannot assign owner'; end if;
+  select id into uid from auth.users where lower(email) = lower(trim(_email));
+  if uid is null then raise exception 'user_not_found'; end if;
+  select full_name into uname from profiles where id = uid;
+  insert into clinic_members(clinic_id,user_id,role,display_name,email) values (_clinic, uid, _role, uname, lower(trim(_email))) returning id into mid;
+  return mid;
+end $$;
+
+create table if not exists public.professionals (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  name text not null,
+  specialty text,
+  color text not null default '#1e6bff',
+  commission_pct numeric(5,2) not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.rooms (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  name text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.patients (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  full_name text not null,
+  cpf text,
+  birth_date date,
+  phone text,
+  whatsapp text,
+  email text,
+  address text,
+  allergies text,
+  anamnesis text,
+  clinical_notes text,
+  created_at timestamptz not null default now(),
+  unique (clinic_id, cpf)
+);
+
+create table if not exists public.appointments (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  patient_id uuid not null references public.patients(id) on delete cascade,
+  professional_id uuid not null references public.professionals(id) on delete cascade,
+  room_id uuid references public.rooms(id) on delete set null,
+  starts_at timestamptz not null,
+  ends_at timestamptz not null,
+  status public.appointment_status not null default 'scheduled',
+  procedure text,
+  price numeric(12,2) not null default 0,
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  check (ends_at > starts_at),
+  constraint no_prof_overlap exclude using gist (professional_id with =, tstzrange(starts_at, ends_at) with &&) where (status not in ('cancelled','no_show')),
+  constraint no_room_overlap exclude using gist (room_id with =, tstzrange(starts_at, ends_at) with &&) where (status not in ('cancelled','no_show') and room_id is not null)
+);
+
+create table if not exists public.audit_logs (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  user_id uuid,
+  action text not null,
+  entity text not null,
+  entity_id uuid,
+  created_at timestamptz not null default now()
+);
+
+grant select, insert, update, delete on public.professionals, public.rooms, public.patients, public.appointments to authenticated;
+grant select on public.audit_logs to authenticated;
+grant all on public.professionals, public.rooms, public.patients, public.appointments, public.audit_logs to service_role;
+
+alter table public.professionals enable row level security;
+alter table public.rooms enable row level security;
+alter table public.patients enable row level security;
+alter table public.appointments enable row level security;
+alter table public.audit_logs enable row level security;
+
+drop policy if exists "read" on public.professionals;
+create policy "read" on public.professionals for select to authenticated using (public.is_clinic_member(clinic_id));
+
+drop policy if exists "write" on public.professionals;
+create policy "write" on public.professionals for all to authenticated using (public.has_clinic_role(clinic_id, array['owner','admin']::public.clinic_role[])) with check (public.has_clinic_role(clinic_id, array['owner','admin']::public.clinic_role[]));
+
+drop policy if exists "read" on public.rooms;
+create policy "read" on public.rooms for select to authenticated using (public.is_clinic_member(clinic_id));
+
+drop policy if exists "write" on public.rooms;
+create policy "write" on public.rooms for all to authenticated using (public.has_clinic_role(clinic_id, array['owner','admin']::public.clinic_role[])) with check (public.has_clinic_role(clinic_id, array['owner','admin']::public.clinic_role[]));
+
+drop policy if exists "read" on public.audit_logs;
+create policy "read" on public.audit_logs for select to authenticated using (public.has_clinic_role(clinic_id, array['owner','admin']::public.clinic_role[]));
+
+create or replace function public.log_audit() returns trigger language plpgsql security definer set search_path = public as $$
+declare r record;
+begin
+  r := coalesce(new, old);
+  insert into audit_logs(clinic_id,user_id,action,entity,entity_id) values (r.clinic_id, auth.uid(), lower(tg_op), tg_table_name, r.id);
+  return coalesce(new, old);
+end $$;
+
+drop trigger if exists audit_patients on public.patients;
+create trigger audit_patients after insert or update or delete on public.patients for each row execute function public.log_audit();
+
+drop trigger if exists audit_appointments on public.appointments;
+create trigger audit_appointments after insert or update or delete on public.appointments for each row execute function public.log_audit();
+
+drop trigger if exists audit_members on public.clinic_members;
+create trigger audit_members after insert or update or delete on public.clinic_members for each row execute function public.log_audit();
+
+-- =============================================================================
+-- PARTE 2 (0002): UNIDADES DA CLÍNICA, PERMISSÕES INDIVIDUAIS E AUDITORIA
+-- =============================================================================
+
+alter table public.clinics
+  add column if not exists cnpj text,
+  add column if not exists phone text,
+  add column if not exists email text,
+  add column if not exists timezone text not null default 'America/Sao_Paulo';
+
+create table if not exists public.clinic_units (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  name text not null check (char_length(name) between 2 and 120),
+  cnpj text,
+  phone text,
+  address text,
+  city text,
+  state text check (state is null or char_length(state) = 2),
+  is_main boolean not null default false,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_clinic_units_clinic_id on public.clinic_units(clinic_id);
+
+alter table public.rooms
+  add column if not exists unit_id uuid references public.clinic_units(id) on delete set null;
+
+alter table public.appointments
+  add column if not exists unit_id uuid references public.clinic_units(id) on delete set null;
+
+create table if not exists public.clinic_member_permissions (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  member_id uuid not null references public.clinic_members(id) on delete cascade,
+  permission text not null check (char_length(permission) between 3 and 80),
+  granted boolean not null default true,
+  updated_by uuid default auth.uid(),
+  updated_at timestamptz not null default now(),
+  unique (member_id, permission)
+);
+
+create index if not exists idx_member_permissions_clinic_member on public.clinic_member_permissions(clinic_id, member_id);
+
+grant select, insert, update, delete on public.clinic_units, public.clinic_member_permissions to authenticated;
+grant all on public.clinic_units, public.clinic_member_permissions to service_role;
+
+alter table public.clinic_units enable row level security;
+alter table public.clinic_member_permissions enable row level security;
+
+create or replace function public.has_clinic_permission(
+  _clinic uuid,
+  _permission text,
+  _default_roles public.clinic_role[]
+) returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  m_id uuid;
+  m_role public.clinic_role;
+  override_val boolean;
+begin
+  select id, role into m_id, m_role
+  from public.clinic_members
+  where clinic_id = _clinic and user_id = auth.uid()
+  limit 1;
+
+  if m_id is null then
+    return false;
+  end if;
+
+  if m_role = 'owner' then
+    return true;
+  end if;
+
+  select granted into override_val
+  from public.clinic_member_permissions
+  where clinic_id = _clinic and member_id = m_id and permission = _permission
+  limit 1;
+
+  if override_val is not null then
+    return override_val;
+  end if;
+
+  return m_role = any(_default_roles);
+end $$;
+
+drop policy if exists "units_read" on public.clinic_units;
+create policy "units_read" on public.clinic_units
+  for select to authenticated
+  using (public.is_clinic_member(clinic_id));
+
+drop policy if exists "units_write" on public.clinic_units;
+create policy "units_write" on public.clinic_units
+  for all to authenticated
+  using (public.has_clinic_permission(clinic_id, 'units.manage', array['owner','admin']::public.clinic_role[]))
+  with check (public.has_clinic_permission(clinic_id, 'units.manage', array['owner','admin']::public.clinic_role[]));
+
+drop policy if exists "member_permissions_read" on public.clinic_member_permissions;
+create policy "member_permissions_read" on public.clinic_member_permissions
+  for select to authenticated
+  using (public.is_clinic_member(clinic_id));
+
+drop policy if exists "member_permissions_write" on public.clinic_member_permissions;
+create policy "member_permissions_write" on public.clinic_member_permissions
+  for all to authenticated
+  using (public.has_clinic_permission(clinic_id, 'team.manage', array['owner','admin']::public.clinic_role[]))
+  with check (public.has_clinic_permission(clinic_id, 'team.manage', array['owner','admin']::public.clinic_role[]));
+
+drop policy if exists "read" on public.patients;
+create policy "read" on public.patients
+  for select to authenticated
+  using (public.has_clinic_permission(clinic_id, 'patients.read', array['owner','admin','dentist','receptionist','assistant','finance']::public.clinic_role[]));
+
+drop policy if exists "write" on public.patients;
+create policy "write" on public.patients
+  for all to authenticated
+  using (public.has_clinic_permission(clinic_id, 'patients.write', array['owner','admin','dentist','receptionist']::public.clinic_role[]))
+  with check (public.has_clinic_permission(clinic_id, 'patients.write', array['owner','admin','dentist','receptionist']::public.clinic_role[]));
+
+drop policy if exists "read" on public.appointments;
+create policy "read" on public.appointments
+  for select to authenticated
+  using (public.has_clinic_permission(clinic_id, 'appointments.read', array['owner','admin','dentist','receptionist','assistant','finance']::public.clinic_role[]));
+
+drop policy if exists "write" on public.appointments;
+create policy "write" on public.appointments
+  for all to authenticated
+  using (public.has_clinic_permission(clinic_id, 'appointments.write', array['owner','admin','dentist','receptionist']::public.clinic_role[]))
+  with check (public.has_clinic_permission(clinic_id, 'appointments.write', array['owner','admin','dentist','receptionist']::public.clinic_role[]));
+
+create or replace function public.create_clinic(_name text) returns uuid language plpgsql security definer set search_path = public as $$
+declare cid uuid; uemail text; uname text;
+begin
+  if auth.uid() is null then raise exception 'not authenticated'; end if;
+  insert into clinics(name) values (_name) returning id into cid;
+  select email into uemail from auth.users where id = auth.uid();
+  select full_name into uname from profiles where id = auth.uid();
+  insert into clinic_members(clinic_id,user_id,role,display_name,email) values (cid, auth.uid(), 'owner', uname, uemail);
+  insert into clinic_units(clinic_id, name, is_main, active) values (cid, 'Unidade Matriz', true, true);
+  return cid;
+end $$;
+
+insert into public.clinic_units (clinic_id, name, is_main, active)
+select c.id, 'Unidade Matriz', true, true
+from public.clinics c
+where not exists (
+  select 1 from public.clinic_units u where u.clinic_id = c.id
+);
+
+drop trigger if exists audit_units on public.clinic_units;
+create trigger audit_units after insert or update or delete on public.clinic_units for each row execute function public.log_audit();
+
+drop trigger if exists audit_professionals on public.professionals;
+create trigger audit_professionals after insert or update or delete on public.professionals for each row execute function public.log_audit();
+
+drop trigger if exists audit_rooms on public.rooms;
+create trigger audit_rooms after insert or update or delete on public.rooms for each row execute function public.log_audit();
+
+drop trigger if exists audit_member_permissions on public.clinic_member_permissions;
+create trigger audit_member_permissions after insert or update or delete on public.clinic_member_permissions for each row execute function public.log_audit();
+
+-- =============================================================================
+-- PARTE 3 (0003): PRONTUÁRIO ODONTOLÓGICO, ODONTOGRAMA FDI E PLANOS DE TRATAMENTO
+-- =============================================================================
+
+do $$ begin
+  create type public.tooth_surface as enum ('W', 'O', 'M', 'D', 'V', 'L');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type public.tooth_condition_status as enum (
+    'healthy',
+    'caries',
+    'restoration',
+    'planned',
+    'completed',
+    'endodontics',
+    'crown',
+    'implant',
+    'missing'
+  );
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type public.treatment_plan_status as enum (
+    'draft',
+    'approved',
+    'in_progress',
+    'completed',
+    'cancelled'
+  );
+exception when duplicate_object then null; end $$;
+
+create table if not exists public.odontogram_entries (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  patient_id uuid not null references public.patients(id) on delete cascade,
+  professional_id uuid references public.professionals(id) on delete set null,
+  tooth_number smallint not null check ((tooth_number between 11 and 48) or (tooth_number between 51 and 85)),
+  surface public.tooth_surface not null default 'W',
+  condition public.tooth_condition_status not null,
+  procedure text,
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_odontogram_clinic_patient on public.odontogram_entries(clinic_id, patient_id, created_at desc);
+
+create table if not exists public.clinical_records (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  patient_id uuid not null references public.patients(id) on delete cascade,
+  professional_id uuid references public.professionals(id) on delete set null,
+  appointment_id uuid references public.appointments(id) on delete set null,
+  tooth_number smallint check (tooth_number is null or (tooth_number between 11 and 48) or (tooth_number between 51 and 85)),
+  record_type text not null default 'evolution' check (record_type in ('evolution', 'anamnesis', 'prescription', 'certificate', 'exam')),
+  title text not null check (char_length(title) between 2 and 200),
+  content text not null check (char_length(content) between 2 and 10000),
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_clinical_records_clinic_patient on public.clinical_records(clinic_id, patient_id, created_at desc);
+
+create table if not exists public.treatment_plans (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  patient_id uuid not null references public.patients(id) on delete cascade,
+  professional_id uuid references public.professionals(id) on delete set null,
+  title text not null check (char_length(title) between 2 and 160),
+  status public.treatment_plan_status not null default 'draft',
+  discount_amount numeric(12,2) not null default 0 check (discount_amount >= 0),
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_treatment_plans_clinic_patient on public.treatment_plans(clinic_id, patient_id, created_at desc);
+
+create table if not exists public.treatment_plan_items (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  plan_id uuid not null references public.treatment_plans(id) on delete cascade,
+  tooth_number smallint check (tooth_number is null or (tooth_number between 11 and 48) or (tooth_number between 51 and 85)),
+  surface public.tooth_surface not null default 'W',
+  procedure_name text not null check (char_length(procedure_name) between 2 and 200),
+  price numeric(12,2) not null default 0 check (price >= 0),
+  status text not null default 'planned' check (status in ('planned', 'completed', 'cancelled')),
+  completed_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_treatment_items_plan on public.treatment_plan_items(clinic_id, plan_id);
+
+grant select, insert on public.clinical_records to authenticated;
+grant select, insert, update, delete on public.odontogram_entries, public.treatment_plans, public.treatment_plan_items to authenticated;
+grant all on public.odontogram_entries, public.clinical_records, public.treatment_plans, public.treatment_plan_items to service_role;
+
+alter table public.odontogram_entries enable row level security;
+alter table public.clinical_records enable row level security;
+alter table public.treatment_plans enable row level security;
+alter table public.treatment_plan_items enable row level security;
+
+drop policy if exists "odontogram_read" on public.odontogram_entries;
+create policy "odontogram_read" on public.odontogram_entries
+  for select to authenticated
+  using (public.has_clinic_permission(clinic_id, 'records.read', array['owner','admin','dentist','assistant']::public.clinic_role[]));
+
+drop policy if exists "odontogram_write" on public.odontogram_entries;
+create policy "odontogram_write" on public.odontogram_entries
+  for all to authenticated
+  using (public.has_clinic_permission(clinic_id, 'records.write', array['owner','admin','dentist']::public.clinic_role[]))
+  with check (public.has_clinic_permission(clinic_id, 'records.write', array['owner','admin','dentist']::public.clinic_role[]));
+
+drop policy if exists "clinical_records_read" on public.clinical_records;
+create policy "clinical_records_read" on public.clinical_records
+  for select to authenticated
+  using (public.has_clinic_permission(clinic_id, 'records.read', array['owner','admin','dentist','assistant']::public.clinic_role[]));
+
+drop policy if exists "clinical_records_insert" on public.clinical_records;
+create policy "clinical_records_insert" on public.clinical_records
+  for insert to authenticated
+  with check (public.has_clinic_permission(clinic_id, 'records.write', array['owner','admin','dentist']::public.clinic_role[]));
+
+drop policy if exists "treatment_plans_read" on public.treatment_plans;
+create policy "treatment_plans_read" on public.treatment_plans
+  for select to authenticated
+  using (public.has_clinic_permission(clinic_id, 'records.read', array['owner','admin','dentist','assistant','receptionist','finance']::public.clinic_role[]));
+
+drop policy if exists "treatment_plans_write" on public.treatment_plans;
+create policy "treatment_plans_write" on public.treatment_plans
+  for all to authenticated
+  using (public.has_clinic_permission(clinic_id, 'records.write', array['owner','admin','dentist']::public.clinic_role[]))
+  with check (public.has_clinic_permission(clinic_id, 'records.write', array['owner','admin','dentist']::public.clinic_role[]));
+
+drop policy if exists "treatment_items_read" on public.treatment_plan_items;
+create policy "treatment_items_read" on public.treatment_plan_items
+  for select to authenticated
+  using (public.has_clinic_permission(clinic_id, 'records.read', array['owner','admin','dentist','assistant','receptionist','finance']::public.clinic_role[]));
+
+drop policy if exists "treatment_items_write" on public.treatment_plan_items;
+create policy "treatment_items_write" on public.treatment_plan_items
+  for all to authenticated
+  using (public.has_clinic_permission(clinic_id, 'records.write', array['owner','admin','dentist']::public.clinic_role[]))
+  with check (public.has_clinic_permission(clinic_id, 'records.write', array['owner','admin','dentist']::public.clinic_role[]));
+
+drop trigger if exists audit_odontogram on public.odontogram_entries;
+create trigger audit_odontogram after insert or update or delete on public.odontogram_entries for each row execute function public.log_audit();
+
+drop trigger if exists audit_clinical_records on public.clinical_records;
+create trigger audit_clinical_records after insert on public.clinical_records for each row execute function public.log_audit();
+
+drop trigger if exists audit_treatment_plans on public.treatment_plans;
+create trigger audit_treatment_plans after insert or update or delete on public.treatment_plans for each row execute function public.log_audit();
+
+drop trigger if exists audit_treatment_items on public.treatment_plan_items;
+create trigger audit_treatment_items after insert or update or delete on public.treatment_plan_items for each row execute function public.log_audit();
+
+-- =============================================================================
+-- PARTE 4 (0004): MÓDULO FINANCEIRO COMPLETO (CONTAS A PAGAR/RECEBER E CAIXA)
+-- =============================================================================
+
+do $$ begin
+  create type public.financial_entry_type as enum ('income', 'expense');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type public.financial_entry_status as enum ('pending', 'paid', 'overdue', 'cancelled');
+exception when duplicate_object then null; end $$;
+
+do $$ begin
+  create type public.payment_method as enum (
+    'pix',
+    'credit_card',
+    'debit_card',
+    'cash',
+    'bank_slip',
+    'transfer',
+    'insurance'
+  );
+exception when duplicate_object then null; end $$;
+
+create table if not exists public.financial_entries (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  unit_id uuid references public.clinic_units(id) on delete set null,
+  patient_id uuid references public.patients(id) on delete set null,
+  professional_id uuid references public.professionals(id) on delete set null,
+  appointment_id uuid references public.appointments(id) on delete set null,
+  treatment_plan_id uuid references public.treatment_plans(id) on delete set null,
+  entry_type public.financial_entry_type not null,
+  category text not null default 'Procedimento' check (char_length(category) between 2 and 100),
+  description text not null check (char_length(description) between 2 and 240),
+  amount numeric(12,2) not null check (amount > 0),
+  payment_method public.payment_method not null default 'pix',
+  status public.financial_entry_status not null default 'pending',
+  due_date date not null,
+  paid_at timestamptz,
+  installment_number smallint not null default 1 check (installment_number >= 1),
+  total_installments smallint not null default 1 check (total_installments >= 1),
+  notes text,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_financial_entries_clinic_due on public.financial_entries(clinic_id, due_date desc);
+create index if not exists idx_financial_entries_clinic_status on public.financial_entries(clinic_id, status);
+
+create table if not exists public.cash_closings (
+  id uuid primary key default gen_random_uuid(),
+  clinic_id uuid not null references public.clinics(id) on delete cascade,
+  unit_id uuid references public.clinic_units(id) on delete set null,
+  closing_date date not null,
+  total_income numeric(12,2) not null default 0,
+  total_expense numeric(12,2) not null default 0,
+  net_balance numeric(12,2) not null default 0,
+  notes text,
+  closed_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  unique (clinic_id, closing_date)
+);
+
+create index if not exists idx_cash_closings_clinic_date on public.cash_closings(clinic_id, closing_date desc);
+
+grant select, insert, update, delete on public.financial_entries, public.cash_closings to authenticated;
+grant all on public.financial_entries, public.cash_closings to service_role;
+
+alter table public.financial_entries enable row level security;
+alter table public.cash_closings enable row level security;
+
+drop policy if exists "financial_entries_read" on public.financial_entries;
+create policy "financial_entries_read" on public.financial_entries
+  for select to authenticated
+  using (public.has_clinic_permission(clinic_id, 'financial.view', array['owner','admin','dentist','finance']::public.clinic_role[]));
+
+drop policy if exists "financial_entries_write" on public.financial_entries;
+create policy "financial_entries_write" on public.financial_entries
+  for all to authenticated
+  using (public.has_clinic_permission(clinic_id, 'financial.write', array['owner','admin','finance','receptionist']::public.clinic_role[]))
+  with check (public.has_clinic_permission(clinic_id, 'financial.write', array['owner','admin','finance','receptionist']::public.clinic_role[]));
+
+drop policy if exists "cash_closings_read" on public.cash_closings;
+create policy "cash_closings_read" on public.cash_closings
+  for select to authenticated
+  using (public.has_clinic_permission(clinic_id, 'financial.view', array['owner','admin','dentist','finance']::public.clinic_role[]));
+
+drop policy if exists "cash_closings_write" on public.cash_closings;
+create policy "cash_closings_write" on public.cash_closings
+  for all to authenticated
+  using (public.has_clinic_permission(clinic_id, 'financial.write', array['owner','admin','finance']::public.clinic_role[]))
+  with check (public.has_clinic_permission(clinic_id, 'financial.write', array['owner','admin','finance']::public.clinic_role[]));
+
+drop trigger if exists audit_financial_entries on public.financial_entries;
+create trigger audit_financial_entries after insert or update or delete on public.financial_entries for each row execute function public.log_audit();
+
+drop trigger if exists audit_cash_closings on public.cash_closings;
+create trigger audit_cash_closings after insert or update or delete on public.cash_closings for each row execute function public.log_audit();
+
+-- =============================================================================
+-- PARTE 5 (0005): CONTROLE DE ESTOQUE, INSUMOS ODONTOLÓGICOS E KARDEX
+-- =============================================================================
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'stock_movement_type') THEN
+    CREATE TYPE public.stock_movement_type AS ENUM (
+      'in',
+      'out',
+      'adjustment',
+      'expired_loss'
+    );
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS public.stock_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id UUID NOT NULL REFERENCES public.clinics(id) ON DELETE CASCADE,
+  unit_id UUID REFERENCES public.clinic_units(id) ON DELETE SET NULL,
+  name TEXT NOT NULL CHECK (char_length(trim(name)) >= 2),
+  category TEXT NOT NULL,
+  sku TEXT,
+  unit_measure TEXT NOT NULL DEFAULT 'un',
+  current_quantity NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (current_quantity >= 0),
+  min_quantity NUMERIC(12, 2) NOT NULL DEFAULT 5 CHECK (min_quantity >= 0),
+  unit_cost NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (unit_cost >= 0),
+  supplier TEXT,
+  batch_number TEXT,
+  expiration_date DATE,
+  storage_location TEXT,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL DEFAULT auth.uid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_items_clinic_name
+  ON public.stock_items(clinic_id, name);
+
+CREATE INDEX IF NOT EXISTS idx_stock_items_clinic_expiration
+  ON public.stock_items(clinic_id, expiration_date);
+
+CREATE TABLE IF NOT EXISTS public.stock_movements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id UUID NOT NULL REFERENCES public.clinics(id) ON DELETE CASCADE,
+  item_id UUID NOT NULL REFERENCES public.stock_items(id) ON DELETE CASCADE,
+  unit_id UUID REFERENCES public.clinic_units(id) ON DELETE SET NULL,
+  movement_type public.stock_movement_type NOT NULL,
+  quantity NUMERIC(12, 2) NOT NULL CHECK (quantity > 0),
+  previous_quantity NUMERIC(12, 2) NOT NULL CHECK (previous_quantity >= 0),
+  resulting_quantity NUMERIC(12, 2) NOT NULL CHECK (resulting_quantity >= 0),
+  unit_cost NUMERIC(12, 2) NOT NULL DEFAULT 0 CHECK (unit_cost >= 0),
+  batch_number TEXT,
+  expiration_date DATE,
+  reason TEXT NOT NULL CHECK (char_length(trim(reason)) >= 2),
+  professional_id UUID REFERENCES public.professionals(id) ON DELETE SET NULL,
+  patient_id UUID REFERENCES public.patients(id) ON DELETE SET NULL,
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL DEFAULT auth.uid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_movements_clinic_created
+  ON public.stock_movements(clinic_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_stock_movements_item
+  ON public.stock_movements(item_id, created_at DESC);
+
+-- =============================================================================
+-- PARTE 6 (0006): RELATÓRIOS GERENCIAIS (DRE) E CENTRAL WHATSAPP MULTI-TENANT
+-- =============================================================================
+
+CREATE OR REPLACE FUNCTION public.has_clinic_permission(
+  _user_id UUID,
+  _clinic_id UUID,
+  _permission TEXT
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_role public.clinic_role;
+  v_member_id UUID;
+  v_override BOOLEAN;
+BEGIN
+  IF _user_id IS NULL OR _clinic_id IS NULL OR _permission IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  SELECT id, role
+    INTO v_member_id, v_role
+    FROM public.clinic_members
+   WHERE user_id = _user_id
+     AND clinic_id = _clinic_id
+   LIMIT 1;
+
+  IF v_member_id IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  IF v_role = 'owner' THEN
+    RETURN TRUE;
+  END IF;
+
+  SELECT granted
+    INTO v_override
+    FROM public.clinic_member_permissions
+   WHERE clinic_id = _clinic_id
+     AND member_id = v_member_id
+     AND permission = _permission
+   LIMIT 1;
+
+  IF v_override IS NOT NULL THEN
+    RETURN v_override;
+  END IF;
+
+  CASE _permission
+    WHEN 'dashboard.view' THEN
+      RETURN TRUE;
+    WHEN 'financial.view' THEN
+      RETURN v_role IN ('admin', 'dentist', 'finance');
+    WHEN 'financial.write' THEN
+      RETURN v_role IN ('admin', 'finance', 'receptionist');
+    WHEN 'patients.read' THEN
+      RETURN v_role IN ('admin', 'dentist', 'receptionist', 'assistant', 'finance');
+    WHEN 'patients.write' THEN
+      RETURN v_role IN ('admin', 'dentist', 'receptionist');
+    WHEN 'records.read' THEN
+      RETURN v_role IN ('admin', 'dentist', 'assistant');
+    WHEN 'records.write' THEN
+      RETURN v_role IN ('admin', 'dentist');
+    WHEN 'appointments.read' THEN
+      RETURN v_role IN ('admin', 'dentist', 'receptionist', 'assistant', 'finance');
+    WHEN 'appointments.write' THEN
+      RETURN v_role IN ('admin', 'dentist', 'receptionist');
+    WHEN 'stock.read' THEN
+      RETURN v_role IN ('admin', 'dentist', 'assistant', 'stock', 'receptionist');
+    WHEN 'stock.write' THEN
+      RETURN v_role IN ('admin', 'stock', 'assistant');
+    WHEN 'reports.view' THEN
+      RETURN v_role IN ('admin', 'finance', 'dentist');
+    WHEN 'whatsapp.manage' THEN
+      RETURN v_role IN ('admin', 'receptionist', 'dentist', 'assistant');
+    WHEN 'team.manage' THEN
+      RETURN v_role IN ('admin');
+    WHEN 'settings.manage' THEN
+      RETURN v_role IN ('admin');
+    WHEN 'units.manage' THEN
+      RETURN v_role IN ('admin');
+    WHEN 'audit.view' THEN
+      RETURN v_role IN ('admin');
+    ELSE
+      RETURN FALSE;
+  END CASE;
+END;
+$$;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.stock_items TO authenticated;
+GRANT SELECT, INSERT ON public.stock_movements TO authenticated;
+GRANT ALL ON public.stock_items, public.stock_movements TO service_role;
+
+ALTER TABLE public.stock_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stock_movements ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "stock_items_select_policy" ON public.stock_items;
+CREATE POLICY "stock_items_select_policy"
+  ON public.stock_items FOR SELECT TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.read'));
+
+DROP POLICY IF EXISTS "stock_items_insert_policy" ON public.stock_items;
+CREATE POLICY "stock_items_insert_policy"
+  ON public.stock_items FOR INSERT TO authenticated
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.write'));
+
+DROP POLICY IF EXISTS "stock_items_update_policy" ON public.stock_items;
+CREATE POLICY "stock_items_update_policy"
+  ON public.stock_items FOR UPDATE TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.write'))
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.write'));
+
+DROP POLICY IF EXISTS "stock_items_delete_policy" ON public.stock_items;
+CREATE POLICY "stock_items_delete_policy"
+  ON public.stock_items FOR DELETE TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.write'));
+
+DROP POLICY IF EXISTS "stock_movements_select_policy" ON public.stock_movements;
+CREATE POLICY "stock_movements_select_policy"
+  ON public.stock_movements FOR SELECT TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.read'));
+
+DROP POLICY IF EXISTS "stock_movements_insert_policy" ON public.stock_movements;
+CREATE POLICY "stock_movements_insert_policy"
+  ON public.stock_movements FOR INSERT TO authenticated
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'stock.write'));
+
+DROP TRIGGER IF EXISTS trg_audit_stock_items ON public.stock_items;
+CREATE TRIGGER trg_audit_stock_items
+  AFTER INSERT OR UPDATE OR DELETE ON public.stock_items
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
+
+DROP TRIGGER IF EXISTS trg_audit_stock_movements ON public.stock_movements;
+CREATE TRIGGER trg_audit_stock_movements
+  AFTER INSERT ON public.stock_movements
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
+
+CREATE TABLE IF NOT EXISTS public.whatsapp_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id UUID NOT NULL REFERENCES public.clinics(id) ON DELETE CASCADE,
+  name TEXT NOT NULL CHECK (char_length(trim(name)) >= 2),
+  category TEXT NOT NULL CHECK (category IN ('confirmation', 'reminder', 'post_op', 'recall', 'financial')),
+  body_template TEXT NOT NULL CHECK (char_length(trim(body_template)) >= 5),
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL DEFAULT auth.uid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_templates_clinic
+  ON public.whatsapp_templates(clinic_id, category);
+
+CREATE TABLE IF NOT EXISTS public.whatsapp_dispatch_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id UUID NOT NULL REFERENCES public.clinics(id) ON DELETE CASCADE,
+  patient_id UUID REFERENCES public.patients(id) ON DELETE SET NULL,
+  appointment_id UUID REFERENCES public.appointments(id) ON DELETE SET NULL,
+  template_category TEXT NOT NULL,
+  phone_number TEXT NOT NULL,
+  rendered_message TEXT NOT NULL,
+  sent_by UUID REFERENCES auth.users(id) ON DELETE SET NULL DEFAULT auth.uid(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_dispatch_logs_clinic_created
+  ON public.whatsapp_dispatch_logs(clinic_id, created_at DESC);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.whatsapp_templates TO authenticated;
+GRANT SELECT, INSERT ON public.whatsapp_dispatch_logs TO authenticated;
+GRANT ALL ON public.whatsapp_templates, public.whatsapp_dispatch_logs TO service_role;
+
+ALTER TABLE public.whatsapp_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.whatsapp_dispatch_logs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "whatsapp_templates_select_policy" ON public.whatsapp_templates;
+CREATE POLICY "whatsapp_templates_select_policy"
+  ON public.whatsapp_templates FOR SELECT TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP POLICY IF EXISTS "whatsapp_templates_insert_policy" ON public.whatsapp_templates;
+CREATE POLICY "whatsapp_templates_insert_policy"
+  ON public.whatsapp_templates FOR INSERT TO authenticated
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP POLICY IF EXISTS "whatsapp_templates_update_policy" ON public.whatsapp_templates;
+CREATE POLICY "whatsapp_templates_update_policy"
+  ON public.whatsapp_templates FOR UPDATE TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'))
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP POLICY IF EXISTS "whatsapp_templates_delete_policy" ON public.whatsapp_templates;
+CREATE POLICY "whatsapp_templates_delete_policy"
+  ON public.whatsapp_templates FOR DELETE TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP POLICY IF EXISTS "whatsapp_dispatch_logs_select_policy" ON public.whatsapp_dispatch_logs;
+CREATE POLICY "whatsapp_dispatch_logs_select_policy"
+  ON public.whatsapp_dispatch_logs FOR SELECT TO authenticated
+  USING (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP POLICY IF EXISTS "whatsapp_dispatch_logs_insert_policy" ON public.whatsapp_dispatch_logs;
+CREATE POLICY "whatsapp_dispatch_logs_insert_policy"
+  ON public.whatsapp_dispatch_logs FOR INSERT TO authenticated
+  WITH CHECK (public.has_clinic_permission(auth.uid(), clinic_id, 'whatsapp.manage'));
+
+DROP TRIGGER IF EXISTS trg_audit_whatsapp_templates ON public.whatsapp_templates;
+CREATE TRIGGER trg_audit_whatsapp_templates
+  AFTER INSERT OR UPDATE OR DELETE ON public.whatsapp_templates
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
+
+DROP TRIGGER IF EXISTS trg_audit_whatsapp_dispatch_logs ON public.whatsapp_dispatch_logs;
+CREATE TRIGGER trg_audit_whatsapp_dispatch_logs
+  AFTER INSERT ON public.whatsapp_dispatch_logs
+  FOR EACH ROW EXECUTE FUNCTION public.log_audit();
+
