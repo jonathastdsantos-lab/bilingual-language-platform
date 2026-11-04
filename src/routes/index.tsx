@@ -3,7 +3,7 @@ import { CalendarClock, Users, ClipboardList, LineChart, Package, ShieldCheck } 
 import { Button } from "@/components/ui/button";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { useT } from "@/lib/i18n";
-import icon from "@/assets/sondapro-icon.png.asset.json";
+import { Logo, logoUrl } from "@/components/Logo";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -18,17 +18,6 @@ export const Route = createFileRoute("/")({
   }),
   component: Landing,
 });
-
-export function Logo({ light = false }: { light?: boolean }) {
-  return (
-    <div className="flex items-center gap-2.5">
-      <img src={icon.url} alt="SondaPro" className="h-9 w-9 rounded-xl" />
-      <span className={`font-display text-xl font-extrabold ${light ? "text-sidebar-accent-foreground" : "text-navy"}`}>
-        Sonda<span className="text-primary">Pro</span>
-      </span>
-    </div>
-  );
-}
 
 function Landing() {
   const { t } = useT();
@@ -63,7 +52,7 @@ function Landing() {
           </div>
           <div className="relative mx-auto">
             <div className="absolute inset-0 -z-10 rounded-[3rem] bg-brand opacity-30 blur-3xl" />
-            <img src={icon.url} alt="" className="w-72 rounded-[2.5rem] shadow-elegant md:w-80" />
+            <img src={logoUrl} alt="" className="w-72 rounded-[2.5rem] shadow-elegant md:w-80" />
           </div>
         </div>
         <div className="mt-20 grid grid-cols-2 gap-4 md:grid-cols-6">
