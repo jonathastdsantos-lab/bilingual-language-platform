@@ -18,7 +18,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 type Patient = Database["public"]["Tables"]["patients"]["Row"];
 
 export const Route = createFileRoute("/_authenticated/app/patients")({
-  validateSearch: (s: Record<string, unknown>): { q?: string } => ({
+  validateSearch: (s: Record<string, unknown>): { q?: string | undefined } => ({
     q: typeof s["q"] === "string" ? s["q"] : undefined,
   }),
   head: () => ({
