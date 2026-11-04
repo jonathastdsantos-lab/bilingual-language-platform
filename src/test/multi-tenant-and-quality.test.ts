@@ -29,6 +29,8 @@ import { appointmentFormSchema } from "@/modules/appointments";
 import { authCredentialsSchema } from "@/modules/auth";
 import {
   aggregateOdontogramState,
+  buildClinicalDocumentRecordPayload,
+  buildPrintableDocumentHtml,
   calculateTreatmentPlanSummary,
   clinicalRecordSchema,
   isValidFdiTooth,
@@ -777,5 +779,73 @@ describe("Relatórios Gerenciais, DRE Clínico e Central WhatsApp", () => {
     expect(evaluateMemberPermission("finance", "reports.view")).toBe(true);
     expect(evaluateMemberPermission("receptionist", "whatsapp.manage")).toBe(true);
     expect(evaluateMemberPermission("stock", "reports.view")).toBe(false);
+  });
+});
+
+describe("Automação Clínica → Financeiro e Emissão de Receituário, Atestado (CID-10) e TCLE", () => {
+  it("vincula treatment_plan_id, patient_id e professional_id ao gerar parcelas de orçamento aprovado", () => {
+    const planId = "33333333-3333-4333-8333-333333333333";
+    const patientId = "44444444-4444-4444-8444-444444444444";
+    const profId = "55555555-5555-4555-8555-555555555555";
+
+    const rows = generateInstallmentRows(CLINIC_A, {
+      entry_type: "income",
+      category: "Orçamento / Plano",
+      description: "Orçamento: Reabilitação Protética Superior",
+      total_amount: 1500,
+      payment_method: "credit_card",
+      status: "paid",
+      first_due_date: "2026-11-10",
+      installments: 3,
+      patient_id: patientId,
+      professional_id: profId,
+      treatment_plan_id: planId,
+    });
+
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.treatment_plan_id).toBe(planId);
+    expect(rows[0]?.patient_id).toBe(patientId);
+    expect(rows[0]?.professional_id).toBe(profId);
+    expect(rows[0]?.status).toBe("paid");
+    expect(rows[1]?.status).toBe("pending");
+    expect(rows[2]?.treatment_plan_id).toBe(planId);
+  });
+
+  it("gera payloads de prontuário e HTML de impressão A4/A5 para Receituário, Atestado CID-10 e TCLE", () => {
+    const certPayload = buildClinicalDocumentRecordPayload({
+      kind: "certificate",
+      pageSize: "A5",
+      clinicName: "SondaPro Odonto",
+      unitName: "Unidade Paulista",
+      patientName: "Roberto Carlos",
+      patientCpf: "529.982.247-25",
+      professionalName: "Dra. Camila Mendes",
+      professionalCro: "CRO-SP 98765",
+      issueDate: "2026-11-04",
+      bodyText: "Atesto necessidade de 2 dias de repouso pós-exodontia.",
+      cid10Code: "K01.1",
+      restDays: 2,
+      authorizeCidDisclosure: true,
+    });
+
+    expect(certPayload.recordType).toBe("certificate");
+    expect(certPayload.title).toContain("CID K01.1");
+    expect(certPayload.content).toContain("CRO-SP 98765");
+
+    const htmlControlled = buildPrintableDocumentHtml({
+      kind: "prescription_controlled",
+      pageSize: "A4",
+      clinicName: "SondaPro Odonto",
+      patientName: "Roberto Carlos",
+      professionalName: "Dra. Camila Mendes",
+      professionalCro: "CRO-SP 98765",
+      issueDate: "2026-11-04",
+      bodyText: "Amoxicilina 500mg — 1 cápsula de 8/8h por 7 dias.",
+    });
+
+    expect(htmlControlled).toContain("RECEITUÁRIO DE CONTROLE ESPECIAL (2 VIAS)");
+    expect(htmlControlled).toContain("IDENTIFICAÇÃO DO COMPRADOR");
+    expect(htmlControlled).toContain("IDENTIFICAÇÃO DO FORNECEDOR");
+    expect(htmlControlled).toContain("CRO-SP 98765");
   });
 });

@@ -481,3 +481,264 @@ export async function updateTreatmentPlanItemStatus(
   }
 }
 
+// =============================================================================
+// EMISSÃO DE RECEITUÁRIO, ATESTADOS ODONTOLÓGICOS (CID-10) E TCLE (A4 / A5)
+// =============================================================================
+
+export type PrintableDocumentKind =
+  | "prescription_simple"
+  | "prescription_controlled"
+  | "certificate"
+  | "tcle";
+
+export type PrintablePageSize = "A4" | "A5";
+
+export const DENTAL_CID10_CODES = [
+  { code: "Z01.2", description: "Exame odontológico" },
+  { code: "K02.9", description: "Cárie dentária não especificada" },
+  { code: "K04.0", description: "Pulpite (Urgência Endodôntica)" },
+  { code: "K04.7", description: "Abscesso periapical sem fístula" },
+  { code: "K01.1", description: "Dentes impactados (Exodontia de Siso)" },
+  { code: "K05.1", description: "Gengivite / Tratamento Periodontal" },
+  { code: "K08.1", description: "Perda de dentes / Implante Osteointegrado" },
+  { code: "K07.6", description: "Transtornos da ATM (DTM)" },
+] as const;
+
+export const DENTAL_PRESCRIPTION_PRESETS = [
+  {
+    id: "dipirona",
+    label: "Analgésico — Dipirona 500mg",
+    text: "1) Uso Interno (Via Oral)\nDipirona Monoidratada 500mg ------------------------ 1 caixa\nTomar 01 (um) comprimido de 6 em 6 horas, por 3 dias, em caso de dor.",
+  },
+  {
+    id: "ibuprofeno",
+    label: "Anti-inflamatório — Ibuprofeno 600mg",
+    text: "1) Uso Interno (Via Oral)\nIbuprofeno 600mg ---------------------------------- 1 caixa\nTomar 01 (um) comprimido de 8 em 8 horas, após as refeições, durante 3 dias.",
+  },
+  {
+    id: "amoxicilina",
+    label: "Antibiótico — Amoxicilina 500mg (7 dias)",
+    text: "1) Uso Interno (Via Oral)\nAmoxicilina 500mg --------------------------------- 21 cápsulas\nTomar 01 (uma) cápsula de 8 em 8 horas, rigorosamente no horário, durante 7 dias.",
+  },
+  {
+    id: "clindamicina",
+    label: "Antibiótico (Alérgicos a Penicilina) — Clindamicina 300mg",
+    text: "1) Uso Interno (Via Oral)\nCloridrato de Clindamicina 300mg ------------------ 21 cápsulas\nTomar 01 (uma) cápsula de 8 em 8 horas, durante 7 dias.",
+  },
+  {
+    id: "clorexidina",
+    label: "Antisséptico Bucal — Clorexidina 0,12%",
+    text: "1) Uso Tópico Bucal (Bochecho)\nDigluconato de Clorexidina 0,12% ------------------ 1 frasco (250ml)\nBochechar 15ml sem diluir durante 1 minuto, de 12 em 12 horas, por 7 dias (iniciar 24h após o procedimento).",
+  },
+] as const;
+
+export const clinicalDocumentInputSchema = z.object({
+  kind: z.enum(["prescription_simple", "prescription_controlled", "certificate", "tcle"]),
+  pageSize: z.enum(["A4", "A5"]).default("A4"),
+  clinicName: z.string().trim().min(2),
+  unitName: z.string().trim().optional(),
+  unitAddress: z.string().trim().optional(),
+  unitPhone: z.string().trim().optional(),
+  patientName: z.string().trim().min(2),
+  patientCpf: z.string().trim().optional(),
+  professionalName: z.string().trim().min(2),
+  professionalCro: z.string().trim().min(2, "Informe o número do CRO (ex.: CRO-SP 12345)."),
+  issueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida."),
+  bodyText: z.string().trim().min(5, "O conteúdo do documento deve ter ao menos 5 caracteres."),
+  cid10Code: z.string().trim().optional(),
+  restDays: z.number().int().min(0).max(60).optional(),
+  attendanceStartTime: z.string().trim().optional(),
+  attendanceEndTime: z.string().trim().optional(),
+  authorizeCidDisclosure: z.boolean().optional(),
+  procedureName: z.string().trim().optional(),
+});
+
+export type ClinicalDocumentInput = z.infer<typeof clinicalDocumentInputSchema>;
+
+/**
+ * Gera o título e o corpo estruturado para gravação no Prontuário Eletrônico (`clinical_records`).
+ */
+export function buildClinicalDocumentRecordPayload(input: ClinicalDocumentInput): {
+  recordType: ClinicalRecordType;
+  title: string;
+  content: string;
+} {
+  const parsed = clinicalDocumentInputSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Dados do documento clínico inválidos.");
+  }
+
+  const d = parsed.data;
+  const headerMeta = `Cirurgião-Dentista: ${d.professionalName} (${d.professionalCro}) | Data: ${d.issueDate} | Formato: ${d.pageSize}`;
+
+  if (d.kind === "prescription_simple") {
+    return {
+      recordType: "prescription",
+      title: `Receituário Simples — ${d.professionalName} (${d.professionalCro})`,
+      content: `${headerMeta}\n\n${d.bodyText}`,
+    };
+  }
+
+  if (d.kind === "prescription_controlled") {
+    return {
+      recordType: "prescription",
+      title: `Receituário de Controle Especial (2 Vias) — ${d.professionalName} (${d.professionalCro})`,
+      content: `${headerMeta}\n[1ª Via Farmácia / 2ª Via Paciente — Portaria SVS/MS 344/98]\n\n${d.bodyText}`,
+    };
+  }
+
+  if (d.kind === "certificate") {
+    const cidLine =
+      d.cid10Code && d.authorizeCidDisclosure
+        ? `CID-10 autorizado pelo paciente: ${d.cid10Code}`
+        : "CID-10: Oculto a pedido/sigilo odontológico";
+    const restLine =
+      d.restDays && d.restDays > 0
+        ? `Período de afastamento/repouso recomendado: ${d.restDays} dia(s).`
+        : "Declaração de comparecimento no horário indicado.";
+    return {
+      recordType: "certificate",
+      title: `Atestado Odontológico${d.cid10Code && d.authorizeCidDisclosure ? ` (CID ${d.cid10Code})` : ""} — ${d.professionalName}`,
+      content: `${headerMeta}\n${restLine}\n${cidLine}\n\n${d.bodyText}`,
+    };
+  }
+
+  return {
+    recordType: "evolution",
+    title: `Termo de Consentimento Livre e Esclarecido (TCLE)${d.procedureName ? ` — ${d.procedureName}` : ""}`,
+    content: `${headerMeta}\nProcedimento: ${d.procedureName || "Tratamento Odontológico"}\n\n${d.bodyText}`,
+  };
+}
+
+function escapeHtml(raw: string): string {
+  return raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Gera o HTML pronto para impressão em folha A4 ou A5 (com estilos @page e blocos de assinatura).
+ */
+export function buildPrintableDocumentHtml(input: ClinicalDocumentInput): string {
+  const parsed = clinicalDocumentInputSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Dados do documento inválidos.");
+  }
+  const d = parsed.data;
+  const [y, m, day] = d.issueDate.split("-");
+  const formattedDate = `${day}/${m}/${y}`;
+
+  const docTitle =
+    d.kind === "prescription_simple"
+      ? "RECEITUÁRIO ODONTOLÓGICO"
+      : d.kind === "prescription_controlled"
+        ? "RECEITUÁRIO DE CONTROLE ESPECIAL (2 VIAS)"
+        : d.kind === "certificate"
+          ? "ATESTADO ODONTOLÓGICO"
+          : "TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE)";
+
+  const cidBlock =
+    d.kind === "certificate" && d.cid10Code && d.authorizeCidDisclosure
+      ? `<div class="box"><strong>Classificação Internacional de Doenças (CID-10):</strong> ${escapeHtml(d.cid10Code)}<br/><small>Autorizo expressamente a inclusão do código CID-10 neste atestado. Assinatura do Paciente: ___________________________</small></div>`
+      : "";
+
+  const controlledBuyerSupplierBox =
+    d.kind === "prescription_controlled"
+      ? `<div class="controlled-grid">
+          <div class="box">
+            <strong>IDENTIFICAÇÃO DO COMPRADOR</strong><br/>
+            Nome: ___________________________________________<br/>
+            RG / Órgão Emissor: ______________________________<br/>
+            Endereço: ________________________________________<br/>
+            Cidade/UF: ___________________ Tel.: ______________
+          </div>
+          <div class="box">
+            <strong>IDENTIFICAÇÃO DO FORNECEDOR (FARMÁCIA)</strong><br/>
+            Data do aviamento: ____/____/________<br/><br/>
+            _________________________________________________<br/>
+            Assinatura do Farmacêutico e Carimbo do Estabelecimento<br/>
+            <small>1ª Via: Retenção da Farmácia | 2ª Via: Orientação ao Paciente</small>
+          </div>
+        </div>`
+      : "";
+
+  const tclePatientSignature =
+    d.kind === "tcle" || d.kind === "certificate"
+      ? `<div class="sig-col">
+          <div class="sig-line"></div>
+          <strong>${escapeHtml(d.patientName)}</strong>
+          <div>Paciente / Responsável Legal${d.patientCpf ? ` — CPF: ${escapeHtml(d.patientCpf)}` : ""}</div>
+        </div>`
+      : "";
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>${escapeHtml(docTitle)} — ${escapeHtml(d.patientName)}</title>
+  <style>
+    @page { size: ${d.pageSize}; margin: 14mm; }
+    * { box-sizing: border-box; font-family: 'Segoe UI', Arial, sans-serif; color: #0b1f3a; }
+    body { margin: 0; padding: 12px; font-size: ${d.pageSize === "A5" ? "12px" : "13.5px"}; line-height: 1.55; }
+    .header { border-bottom: 2px solid #0b3b75; padding-bottom: 10px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .clinic-name { font-size: 18px; font-weight: 800; color: #0b1f3a; }
+    .clinic-sub { font-size: 11.5px; color: #475569; margin-top: 2px; }
+    .doc-badge { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; }
+    .title { text-align: center; font-size: 16px; font-weight: 800; letter-spacing: 0.5px; margin: 14px 0; color: #0b3b75; }
+    .patient-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; }
+    .body-content { white-space: pre-wrap; min-height: ${d.pageSize === "A5" ? "140px" : "240px"}; padding: 8px 4px; font-size: ${d.pageSize === "A5" ? "12.5px" : "14px"}; }
+    .box { border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; margin-top: 12px; font-size: 11.5px; }
+    .controlled-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+    .footer-date { text-align: right; margin-top: 20px; font-size: 12.5px; }
+    .signatures { display: flex; justify-content: space-around; gap: 24px; margin-top: 38px; text-align: center; }
+    .sig-col { flex: 1; max-width: 280px; font-size: 12px; }
+    .sig-line { border-top: 1px solid #0b1f3a; margin-bottom: 6px; }
+    @media print { .no-print { display: none !important; } }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="clinic-name">${escapeHtml(d.clinicName)}</div>
+      <div class="clinic-sub">
+        ${d.unitName ? escapeHtml(d.unitName) : "Unidade Matriz"}
+        ${d.unitAddress ? ` • ${escapeHtml(d.unitAddress)}` : ""}
+        ${d.unitPhone ? ` • Tel: ${escapeHtml(d.unitPhone)}` : ""}
+      </div>
+    </div>
+    <div class="doc-badge">Folha ${d.pageSize}</div>
+  </div>
+
+  <div class="title">${escapeHtml(docTitle)}</div>
+
+  <div class="patient-box">
+    <strong>Paciente:</strong> ${escapeHtml(d.patientName)}
+    ${d.patientCpf ? ` &nbsp;|&nbsp; <strong>CPF:</strong> ${escapeHtml(d.patientCpf)}` : ""}
+    ${d.procedureName ? `<br/><strong>Procedimento / Referência:</strong> ${escapeHtml(d.procedureName)}` : ""}
+  </div>
+
+  <div class="body-content">${escapeHtml(d.bodyText)}</div>
+
+  ${cidBlock}
+  ${controlledBuyerSupplierBox}
+
+  <div class="footer-date">
+    Data de emissão: <strong>${formattedDate}</strong>
+  </div>
+
+  <div class="signatures">
+    <div class="sig-col">
+      <div class="sig-line"></div>
+      <strong>${escapeHtml(d.professionalName)}</strong>
+      <div>Cirurgião-Dentista — ${escapeHtml(d.professionalCro)}</div>
+    </div>
+    ${tclePatientSignature}
+  </div>
+</body>
+</html>`;
+}
+
+

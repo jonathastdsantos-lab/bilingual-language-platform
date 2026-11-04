@@ -119,6 +119,21 @@ export function TreatmentPlansPanel({
       await updateTreatmentPlanStatus(clinicId, planId, status);
       toast.success(t("common.saved"));
       qc.invalidateQueries({ queryKey: ["treatmentPlans", clinicId, patientId] });
+
+      if (status === "approved") {
+        const targetPlan = plans.find((p) => p.id === planId);
+        if (targetPlan) {
+          const planItems = items.filter((i) => i.plan_id === planId);
+          const summary = calculateTreatmentPlanSummary(targetPlan, planItems);
+          if (summary.netTotal > 0) {
+            setBillingPlan({ plan: { ...targetPlan, status: "approved" }, netTotal: summary.netTotal });
+            setBillingInstallments("1");
+            setBillingMethod("pix");
+            setBillingStatus("pending");
+            setBillingDueDate(toSaoPauloDateKey(new Date()));
+          }
+        }
+      }
     } catch (err) {
       toast.error((err as Error).message);
     }

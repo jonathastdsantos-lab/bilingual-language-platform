@@ -17,6 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OdontogramChart } from "@/components/records/OdontogramChart";
 import { ClinicalEvolutionsPanel } from "@/components/records/ClinicalEvolutionsPanel";
 import { TreatmentPlansPanel } from "@/components/records/TreatmentPlansPanel";
+import { ClinicalDocumentsPanel } from "@/components/records/ClinicalDocumentsPanel";
 
 export const Route = createFileRoute("/_authenticated/app/records")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -35,8 +36,10 @@ export const Route = createFileRoute("/_authenticated/app/records")({
 
 function ClinicalRecordsPage() {
   const { t, dateLocale } = useT();
-  const { clinicId, hasPermission } = useClinic();
+  const { clinicId, clinicName, units, activeUnitId, hasPermission } = useClinic();
   const { patientId: searchPatientId } = Route.useSearch();
+  const activeUnit =
+    units.find((u) => u.id === activeUnitId) ?? units.find((u) => u.is_main) ?? units[0] ?? null;
 
   const canRead = hasPermission("records.read");
   const canWrite = hasPermission("records.write");
@@ -178,10 +181,11 @@ function ClinicalRecordsPage() {
             </div>
 
             <Tabs defaultValue="odontogram" className="space-y-5">
-              <TabsList className="grid w-full grid-cols-3 lg:w-[580px]">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:w-[780px]">
                 <TabsTrigger value="odontogram">{t("rec.tabOdontogram")}</TabsTrigger>
                 <TabsTrigger value="evolutions">{t("rec.tabEvolutions")}</TabsTrigger>
                 <TabsTrigger value="plans">{t("rec.tabPlans")}</TabsTrigger>
+                <TabsTrigger value="documents">Receitas, Atestados & TCLE</TabsTrigger>
               </TabsList>
 
               <TabsContent value="odontogram">
@@ -218,6 +222,23 @@ function ClinicalRecordsPage() {
                   professionals={professionals}
                   canWrite={canWrite}
                   dateLocale={dateLocale}
+                />
+              </TabsContent>
+
+              <TabsContent value="documents">
+                <ClinicalDocumentsPanel
+                  clinicId={clinicId}
+                  clinicName={clinicName || "SondaPro Clínica Odontológica"}
+                  unitName={activeUnit?.name}
+                  unitAddress={activeUnit?.address ?? undefined}
+                  unitPhone={activeUnit?.phone ?? undefined}
+                  patient={{
+                    id: activePatient.id,
+                    full_name: activePatient.full_name,
+                    cpf: activePatient.cpf,
+                  }}
+                  professionals={professionals}
+                  canWrite={canWrite}
                 />
               </TabsContent>
             </Tabs>
