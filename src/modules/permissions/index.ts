@@ -23,6 +23,8 @@ export const PERMISSION_DEFAULT_ROLES: Record<PermissionKey, ClinicRole[]> = {
   "appointments.write": ["owner", "admin", "dentist", "receptionist"],
   "stock.read": ["owner", "admin", "dentist", "assistant", "stock", "receptionist"],
   "stock.write": ["owner", "admin", "stock", "assistant"],
+  "reports.view": ["owner", "admin", "finance", "dentist"],
+  "whatsapp.manage": ["owner", "admin", "receptionist", "dentist", "assistant"],
   "team.manage": ["owner", "admin"],
   "settings.manage": ["owner", "admin"],
   "units.manage": ["owner", "admin"],

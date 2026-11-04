@@ -35,13 +35,10 @@ const NAV_ITEMS: { to: string; icon: typeof Users; k: TKey; permission?: Permiss
   { to: "/app/records", icon: ClipboardList, k: "nav.records", permission: "records.read" },
   { to: "/app/finance", icon: Wallet, k: "nav.finance", permission: "financial.view" },
   { to: "/app/stock", icon: Package, k: "nav.stock", permission: "stock.read" },
+  { to: "/app/whatsapp", icon: MessageCircle, k: "nav.whatsapp", permission: "whatsapp.manage" },
+  { to: "/app/reports", icon: BarChart3, k: "nav.reports", permission: "reports.view" },
   { to: "/app/team", icon: ShieldCheck, k: "nav.team", permission: "team.manage" },
   { to: "/app/settings", icon: Settings, k: "nav.settings", permission: "settings.manage" },
-];
-
-const SOON_ITEMS: { icon: typeof Users; k: TKey }[] = [
-  { icon: MessageCircle, k: "nav.whatsapp" },
-  { icon: BarChart3, k: "nav.reports" },
 ];
 
 export function AppSidebar({
@@ -160,20 +157,6 @@ export function AppSidebar({
             }
             return linkEl;
           })}
-
-          {!collapsed && (
-            <>
-              <div className="px-3 pb-1 pt-6 text-[11px] font-semibold uppercase tracking-wider opacity-50">
-                {t("nav.soon")}
-              </div>
-              {SOON_ITEMS.map(({ icon: Icon, k }) => (
-                <div key={k} className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm opacity-50">
-                  <Icon className="h-4 w-4 shrink-0" />
-                  <span className="truncate">{t(k)}</span>
-                </div>
-              ))}
-            </>
-          )}
         </nav>
 
         <Dialog open={newClinicOpen} onOpenChange={setNewClinicOpen}>

@@ -19,9 +19,11 @@ import { Route as AuthenticatedAppAgendaRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authenticated/app.finance'
 import { Route as AuthenticatedAppPatientsRouteImport } from './routes/_authenticated/app.patients'
 import { Route as AuthenticatedAppRecordsRouteImport } from './routes/_authenticated/app.records'
+import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authenticated/app.reports'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppStockRouteImport } from './routes/_authenticated/app.stock'
 import { Route as AuthenticatedAppTeamRouteImport } from './routes/_authenticated/app.team'
+import { Route as AuthenticatedAppWhatsappRouteImport } from './routes/_authenticated/app.whatsapp'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -75,6 +77,12 @@ const AuthenticatedAppRecordsRoute =
     path: '/records',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppReportsRoute =
+  AuthenticatedAppReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppSettingsRoute =
   AuthenticatedAppSettingsRouteImport.update({
     id: '/settings',
@@ -91,6 +99,12 @@ const AuthenticatedAppTeamRoute = AuthenticatedAppTeamRouteImport.update({
   path: '/team',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppWhatsappRoute =
+  AuthenticatedAppWhatsappRouteImport.update({
+    id: '/whatsapp',
+    path: '/whatsapp',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -101,9 +115,11 @@ export interface FileRoutesByFullPath {
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/patients': typeof AuthenticatedAppPatientsRoute
   '/app/records': typeof AuthenticatedAppRecordsRoute
+  '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/stock': typeof AuthenticatedAppStockRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
+  '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/app/': typeof AuthenticatedAppIndexRoute
 }
 export interface FileRoutesByTo {
@@ -114,9 +130,11 @@ export interface FileRoutesByTo {
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/patients': typeof AuthenticatedAppPatientsRoute
   '/app/records': typeof AuthenticatedAppRecordsRoute
+  '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/stock': typeof AuthenticatedAppStockRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
+  '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/app': typeof AuthenticatedAppIndexRoute
 }
 export interface FileRoutesById {
@@ -130,9 +148,11 @@ export interface FileRoutesById {
   '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
   '/_authenticated/app/patients': typeof AuthenticatedAppPatientsRoute
   '/_authenticated/app/records': typeof AuthenticatedAppRecordsRoute
+  '/_authenticated/app/reports': typeof AuthenticatedAppReportsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/stock': typeof AuthenticatedAppStockRoute
   '/_authenticated/app/team': typeof AuthenticatedAppTeamRoute
+  '/_authenticated/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
 }
 export interface FileRouteTypes {
@@ -146,9 +166,11 @@ export interface FileRouteTypes {
     | '/app/finance'
     | '/app/patients'
     | '/app/records'
+    | '/app/reports'
     | '/app/settings'
     | '/app/stock'
     | '/app/team'
+    | '/app/whatsapp'
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -159,9 +181,11 @@ export interface FileRouteTypes {
     | '/app/finance'
     | '/app/patients'
     | '/app/records'
+    | '/app/reports'
     | '/app/settings'
     | '/app/stock'
     | '/app/team'
+    | '/app/whatsapp'
     | '/app'
   id:
     | '__root__'
@@ -174,9 +198,11 @@ export interface FileRouteTypes {
     | '/_authenticated/app/finance'
     | '/_authenticated/app/patients'
     | '/_authenticated/app/records'
+    | '/_authenticated/app/reports'
     | '/_authenticated/app/settings'
     | '/_authenticated/app/stock'
     | '/_authenticated/app/team'
+    | '/_authenticated/app/whatsapp'
     | '/_authenticated/app/'
   fileRoutesById: FileRoutesById
 }
@@ -259,6 +285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRecordsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/reports': {
+      id: '/_authenticated/app/reports'
+      path: '/reports'
+      fullPath: '/app/reports'
+      preLoaderRoute: typeof AuthenticatedAppReportsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/settings': {
       id: '/_authenticated/app/settings'
       path: '/settings'
@@ -280,6 +313,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppTeamRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/whatsapp': {
+      id: '/_authenticated/app/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/app/whatsapp'
+      preLoaderRoute: typeof AuthenticatedAppWhatsappRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
   }
 }
 
@@ -288,9 +328,11 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppFinanceRoute: typeof AuthenticatedAppFinanceRoute
   AuthenticatedAppPatientsRoute: typeof AuthenticatedAppPatientsRoute
   AuthenticatedAppRecordsRoute: typeof AuthenticatedAppRecordsRoute
+  AuthenticatedAppReportsRoute: typeof AuthenticatedAppReportsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppStockRoute: typeof AuthenticatedAppStockRoute
   AuthenticatedAppTeamRoute: typeof AuthenticatedAppTeamRoute
+  AuthenticatedAppWhatsappRoute: typeof AuthenticatedAppWhatsappRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
 }
 
@@ -299,9 +341,11 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppFinanceRoute: AuthenticatedAppFinanceRoute,
   AuthenticatedAppPatientsRoute: AuthenticatedAppPatientsRoute,
   AuthenticatedAppRecordsRoute: AuthenticatedAppRecordsRoute,
+  AuthenticatedAppReportsRoute: AuthenticatedAppReportsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppStockRoute: AuthenticatedAppStockRoute,
   AuthenticatedAppTeamRoute: AuthenticatedAppTeamRoute,
+  AuthenticatedAppWhatsappRoute: AuthenticatedAppWhatsappRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
 }
 

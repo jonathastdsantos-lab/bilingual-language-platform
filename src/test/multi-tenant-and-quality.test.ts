@@ -17,6 +17,13 @@ import {
   stockItemFormSchema,
   stockMovementFormSchema,
 } from "@/modules/stock";
+import { calculateClinicalDRE, serializeRowsToCsv } from "@/modules/reports";
+import {
+  buildWhatsAppWebUrl,
+  interpolateWhatsappTemplate,
+  normalizeBrazilianWhatsAppPhone,
+  whatsappTemplateFormSchema,
+} from "@/modules/whatsapp";
 import { patientFormSchema } from "@/modules/patients";
 import { appointmentFormSchema } from "@/modules/appointments";
 import { authCredentialsSchema } from "@/modules/auth";
@@ -670,5 +677,105 @@ describe("Módulo de Controle de Estoque, Lotes ANVISA e Kardex", () => {
     expect(evaluateMemberPermission("dentist", "stock.read")).toBe(true);
     expect(evaluateMemberPermission("dentist", "stock.write")).toBe(false);
     expect(evaluateMemberPermission("finance", "stock.write")).toBe(false);
+  });
+});
+
+describe("Relatórios Gerenciais, DRE Clínico e Central WhatsApp", () => {
+  it("calcula DRE Clínico (Receita Bruta, Custos Diretos, Comissões, Margem de Contribuição e Resultado Líquido)", () => {
+    const dre = calculateClinicalDRE(
+      [
+        {
+          entry_type: "income",
+          status: "paid",
+          category: "Implante / Prótese",
+          amount: 10000,
+        },
+        {
+          entry_type: "expense",
+          status: "paid",
+          category: "Laboratório de Prótese",
+          amount: 1500,
+        },
+        {
+          entry_type: "expense",
+          status: "paid",
+          category: "Material Odontológico",
+          amount: 500,
+        },
+        {
+          entry_type: "expense",
+          status: "paid",
+          category: "Aluguel / Condomínio",
+          amount: 2000,
+        },
+        {
+          entry_type: "expense",
+          status: "paid",
+          category: "Impostos / Taxas",
+          amount: 600,
+        },
+      ],
+      [{ realizedCommission: 2400 }],
+    );
+
+    expect(dre.grossRealizedRevenue).toBe(10000);
+    expect(dre.directClinicalCosts).toBe(2000); // 1500 + 500
+    expect(dre.professionalCommissions).toBe(2400);
+    expect(dre.contributionMargin).toBe(5600); // 10000 - 2000 - 2400
+    expect(dre.contributionMarginPct).toBe(56);
+    expect(dre.administrativeExpenses).toBe(2000);
+    expect(dre.taxesAndFees).toBe(600);
+    expect(dre.netOperatingResult).toBe(3000); // 5600 - 2000 - 600
+    expect(dre.netMarginPct).toBe(30);
+  });
+
+  it("serializa linhas para CSV com BOM UTF-8 e separador ponto-e-vírgula compatível com Excel", () => {
+    const csv = serializeRowsToCsv(
+      ["Indicador", "Valor (BRL)"],
+      [
+        ["Receita Bruta", "10000.00"],
+        ['Item com ; e "aspas"', "250.50"],
+      ],
+    );
+
+    expect(csv.startsWith("\uFEFF")).toBe(true);
+    expect(csv).toContain("Indicador;Valor (BRL)");
+    expect(csv).toContain('"Item com ; e ""aspas""";250.50');
+  });
+
+  it("normaliza telefones brasileiros, interpola variáveis de template e gera URL wa.me", () => {
+    expect(normalizeBrazilianWhatsAppPhone("(11) 98765-4321")).toBe("5511987654321");
+    expect(normalizeBrazilianWhatsAppPhone("5521999887766")).toBe("5521999887766");
+
+    const msg = interpolateWhatsappTemplate(
+      "Olá, {paciente}! Consulta em {data} às {hora} com Dr(a). {profissional} na {clinica}.",
+      {
+        paciente: "Juliana Mendes",
+        data: "05/11/2026",
+        hora: "14:30",
+        profissional: "Ana Costa",
+        clinica: "SondaPro Odonto",
+      },
+    );
+
+    expect(msg).toBe(
+      "Olá, Juliana Mendes! Consulta em 05/11/2026 às 14:30 com Dr(a). Ana Costa na SondaPro Odonto.",
+    );
+
+    const url = buildWhatsAppWebUrl("(11) 98765-4321", msg);
+    expect(url.startsWith("https://wa.me/5511987654321?text=")).toBe(true);
+    expect(decodeURIComponent(url.split("text=")[1] ?? "")).toBe(msg);
+
+    expect(
+      whatsappTemplateFormSchema.safeParse({
+        name: "Confirmação Ortodontia",
+        category: "confirmation",
+        body_template: "Olá {paciente}, sua manutenção é dia {data} às {hora}.",
+      }).success,
+    ).toBe(true);
+
+    expect(evaluateMemberPermission("finance", "reports.view")).toBe(true);
+    expect(evaluateMemberPermission("receptionist", "whatsapp.manage")).toBe(true);
+    expect(evaluateMemberPermission("stock", "reports.view")).toBe(false);
   });
 });

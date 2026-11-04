@@ -15,6 +15,8 @@ export type PermissionKey =
   | "appointments.write"
   | "stock.read"
   | "stock.write"
+  | "reports.view"
+  | "whatsapp.manage"
   | "team.manage"
   | "settings.manage"
   | "units.manage"
@@ -178,6 +180,57 @@ export interface StockSummaryIndicators {
   expiredCount: number;
 }
 
+export interface CategoryDreLine {
+  category: string;
+  amount: number;
+  sharePct: number;
+}
+
+export interface ClinicalDreReport {
+  grossRealizedRevenue: number;
+  directClinicalCosts: number;
+  professionalCommissions: number;
+  contributionMargin: number;
+  contributionMarginPct: number;
+  administrativeExpenses: number;
+  taxesAndFees: number;
+  netOperatingResult: number;
+  netMarginPct: number;
+  incomeByCategory: CategoryDreLine[];
+  expenseByCategory: CategoryDreLine[];
+}
+
+export type WhatsappTemplateCategory =
+  | "confirmation"
+  | "reminder"
+  | "post_op"
+  | "recall"
+  | "financial";
+
+export interface WhatsappTemplate {
+  id: string;
+  clinic_id: string;
+  name: string;
+  category: WhatsappTemplateCategory;
+  body_template: string;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface WhatsappDispatchLog {
+  id: string;
+  clinic_id: string;
+  patient_id: string | null;
+  appointment_id: string | null;
+  template_category: WhatsappTemplateCategory;
+  phone_number: string;
+  rendered_message: string;
+  sent_by: string | null;
+  created_at: string;
+  patients?: { full_name: string | null } | null;
+}
+
 export interface OdontogramEntry {
   id: string;
   clinic_id: string;
@@ -290,6 +343,13 @@ export interface AdministrativeAlert {
   titleKey: string;
   descriptionKey: string;
   count?: number;
-  actionRoute?: "/app/agenda" | "/app/patients" | "/app/settings" | "/app/team" | "/app/stock";
+  actionRoute?:
+    | "/app/agenda"
+    | "/app/patients"
+    | "/app/settings"
+    | "/app/team"
+    | "/app/stock"
+    | "/app/reports"
+    | "/app/whatsapp";
   actionLabelKey?: string;
 }
