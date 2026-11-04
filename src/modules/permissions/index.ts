@@ -14,6 +14,7 @@ export const ALL_ROLES: ClinicRole[] = [
 export const PERMISSION_DEFAULT_ROLES: Record<PermissionKey, ClinicRole[]> = {
   "dashboard.view": ["owner", "admin", "dentist", "receptionist", "assistant", "finance", "stock"],
   "financial.view": ["owner", "admin", "dentist", "finance"],
+  "financial.write": ["owner", "admin", "finance", "receptionist"],
   "patients.read": ["owner", "admin", "dentist", "receptionist", "assistant", "finance"],
   "patients.write": ["owner", "admin", "dentist", "receptionist"],
   "records.read": ["owner", "admin", "dentist", "assistant"],

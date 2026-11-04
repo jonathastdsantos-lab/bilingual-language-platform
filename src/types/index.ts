@@ -6,6 +6,7 @@ export type AppointmentStatus = Database["public"]["Enums"]["appointment_status"
 export type PermissionKey =
   | "dashboard.view"
   | "financial.view"
+  | "financial.write"
   | "patients.read"
   | "patients.write"
   | "records.read"
@@ -43,6 +44,76 @@ export type TreatmentPlanStatus =
   | "in_progress"
   | "completed"
   | "cancelled";
+
+export type FinancialEntryType = "income" | "expense";
+export type FinancialEntryStatus = "pending" | "paid" | "overdue" | "cancelled";
+export type PaymentMethod =
+  | "pix"
+  | "credit_card"
+  | "debit_card"
+  | "cash"
+  | "bank_slip"
+  | "transfer"
+  | "insurance";
+
+export interface FinancialEntry {
+  id: string;
+  clinic_id: string;
+  unit_id: string | null;
+  patient_id: string | null;
+  professional_id: string | null;
+  appointment_id: string | null;
+  treatment_plan_id: string | null;
+  entry_type: FinancialEntryType;
+  category: string;
+  description: string;
+  amount: number;
+  payment_method: PaymentMethod;
+  status: FinancialEntryStatus;
+  due_date: string;
+  paid_at: string | null;
+  installment_number: number;
+  total_installments: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  patients?: { full_name: string | null } | null;
+  professionals?: { name: string | null } | null;
+}
+
+export interface CashClosing {
+  id: string;
+  clinic_id: string;
+  unit_id: string | null;
+  closing_date: string;
+  total_income: number;
+  total_expense: number;
+  net_balance: number;
+  notes: string | null;
+  closed_by: string | null;
+  created_at: string;
+}
+
+export interface CashFlowSummary {
+  receivedIncome: number;
+  paidExpenses: number;
+  netCashBalance: number;
+  pendingReceivables: number;
+  pendingPayables: number;
+  overdueReceivables: number;
+  overduePayables: number;
+  overdueCount: number;
+}
+
+export interface ProfessionalCommissionSummary {
+  professionalId: string;
+  professionalName: string;
+  commissionPct: number;
+  realizedRevenue: number;
+  pendingRevenue: number;
+  realizedCommission: number;
+  pendingCommission: number;
+}
 
 export interface OdontogramEntry {
   id: string;

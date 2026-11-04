@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { assertClinicScope, normalizeSupabaseError } from "@/services/supabase";
 import { buildAdministrativeAlerts } from "@/services/notifications";
 import { evaluateMemberPermission } from "@/modules/permissions";
-import { calculateAttendanceIndicators, calculateFinancialIndicators } from "@/modules/finance";
+import {
+  calculateAttendanceIndicators,
+  calculateCashFlowSummary,
+  calculateFinancialIndicators,
+  calculateProfessionalCommissions,
+  financialEntryFormSchema,
+  generateInstallmentRows,
+} from "@/modules/finance";
 import { patientFormSchema } from "@/modules/patients";
 import { appointmentFormSchema } from "@/modules/appointments";
 import { authCredentialsSchema } from "@/modules/auth";
@@ -15,7 +22,7 @@ import {
 } from "@/modules/records";
 import { formatCurrencyBRL, getDashboardPeriodRange, toSaoPauloDateKey } from "@/utils/timezone";
 import { formatCNPJ, formatCPF, hasTimeOverlap, isValidCNPJ, isValidCPF } from "@/utils/validators";
-import type { ClinicRole, PermissionKey } from "@/types";
+import type { ClinicRole, FinancialEntry, PermissionKey } from "@/types";
 
 const CLINIC_A = "11111111-1111-4111-8111-111111111111";
 const CLINIC_B = "22222222-2222-4222-8222-222222222222";
@@ -403,3 +410,140 @@ describe("Prontuário Odontológico, Odontograma FDI e Planos de Tratamento", ()
   });
 });
 
+describe("Módulo Financeiro Completo: Fluxo de Caixa, Parcelamento Exato e Comissões", () => {
+  it("gera parcelas sem perda de centavos (R$ 100,00 em 3x = R$ 33,34 + R$ 33,33 + R$ 33,33)", () => {
+    const rows = generateInstallmentRows(CLINIC_A, {
+      entry_type: "income",
+      category: "Implante / Prótese",
+      description: "Implante Unitário",
+      total_amount: 100,
+      payment_method: "credit_card",
+      status: "paid",
+      first_due_date: "2026-11-10",
+      installments: 3,
+    });
+
+    expect(rows).toHaveLength(3);
+    expect(rows[0]?.amount).toBe(33.34);
+    expect(rows[1]?.amount).toBe(33.33);
+    expect(rows[2]?.amount).toBe(33.33);
+
+    const sum = rows.reduce((acc, r) => acc + r.amount, 0);
+    expect(Math.round(sum * 100) / 100).toBe(100);
+
+    expect(rows[0]?.description).toBe("Implante Unitário (1/3)");
+    expect(rows[0]?.due_date).toBe("2026-11-10");
+    expect(rows[1]?.due_date).toBe("2026-12-10");
+    expect(rows[2]?.due_date).toBe("2027-01-10");
+    expect(rows[0]?.status).toBe("paid");
+    expect(rows[1]?.status).toBe("pending");
+  });
+
+  it("calcula resumo de fluxo de caixa, saldo líquido e inadimplência", () => {
+    const sampleEntries: FinancialEntry[] = [
+      {
+        id: "fe-1",
+        clinic_id: CLINIC_A,
+        unit_id: null,
+        patient_id: "p1",
+        professional_id: "prof-1",
+        appointment_id: null,
+        treatment_plan_id: null,
+        entry_type: "income",
+        category: "Procedimento",
+        description: "Prótese protocolo",
+        amount: 2500,
+        status: "paid",
+        payment_method: "pix",
+        due_date: "2026-11-01",
+        paid_at: "2026-11-01T14:00:00Z",
+        installment_number: 1,
+        total_installments: 2,
+        notes: null,
+        created_by: USER_ALICE,
+        created_at: "2026-11-01T14:00:00Z",
+      },
+      {
+        id: "fe-2",
+        clinic_id: CLINIC_A,
+        unit_id: null,
+        patient_id: "p1",
+        professional_id: "prof-1",
+        appointment_id: null,
+        treatment_plan_id: null,
+        entry_type: "income",
+        category: "Procedimento",
+        description: "Prótese protocolo (2/2)",
+        amount: 2500,
+        status: "pending",
+        payment_method: "credit_card",
+        due_date: "2026-11-02", // Vencido em relação a 2026-11-04
+        paid_at: null,
+        installment_number: 2,
+        total_installments: 2,
+        notes: null,
+        created_by: USER_ALICE,
+        created_at: "2026-11-01T14:00:00Z",
+      },
+      {
+        id: "fe-3",
+        clinic_id: CLINIC_A,
+        unit_id: null,
+        patient_id: null,
+        professional_id: null,
+        appointment_id: null,
+        treatment_plan_id: null,
+        entry_type: "expense",
+        category: "Laboratório de Prótese",
+        description: "Laboratório DentalArt",
+        amount: 800,
+        status: "paid",
+        payment_method: "transfer",
+        due_date: "2026-11-03",
+        paid_at: "2026-11-03T10:00:00Z",
+        installment_number: 1,
+        total_installments: 1,
+        notes: null,
+        created_by: USER_ALICE,
+        created_at: "2026-11-03T10:00:00Z",
+      },
+    ];
+
+    const refDate = new Date("2026-11-04T12:00:00-03:00");
+    const summary = calculateCashFlowSummary(sampleEntries, refDate);
+    expect(summary.receivedIncome).toBe(2500);
+    expect(summary.paidExpenses).toBe(800);
+    expect(summary.netCashBalance).toBe(1700);
+    expect(summary.pendingReceivables).toBe(2500);
+    expect(summary.overdueReceivables).toBe(2500);
+    expect(summary.overdueCount).toBe(1);
+
+    const comms = calculateProfessionalCommissions(sampleEntries, [
+      { id: "prof-1", name: "Dra. Ana", commission_pct: 30 },
+    ]);
+    expect(comms).toHaveLength(1);
+    expect(comms[0]?.realizedRevenue).toBe(2500);
+    expect(comms[0]?.realizedCommission).toBe(750); // 30% de 2500 quitado
+    expect(comms[0]?.pendingCommission).toBe(750); // 30% de 2500 em aberto
+  });
+
+  it("valida schema de lançamentos financeiros e permissões RBAC de escrita financeira", () => {
+    expect(
+      financialEntryFormSchema.safeParse({
+        entry_type: "income",
+        category: "Ortodontia / Manutenção",
+        description: "Manutenção aparelho safira",
+        total_amount: 350,
+        payment_method: "pix",
+        status: "paid",
+        first_due_date: "2026-11-10",
+        installments: 1,
+      }).success,
+    ).toBe(true);
+
+    expect(evaluateMemberPermission("finance", "financial.write")).toBe(true);
+    expect(evaluateMemberPermission("admin", "financial.write")).toBe(true);
+    expect(evaluateMemberPermission("dentist", "financial.write")).toBe(false);
+    expect(evaluateMemberPermission("assistant", "financial.write")).toBe(false);
+  });
+});

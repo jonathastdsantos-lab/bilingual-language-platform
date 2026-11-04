@@ -16,6 +16,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppAgendaRouteImport } from './routes/_authenticated/app.agenda'
+import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authenticated/app.finance'
 import { Route as AuthenticatedAppPatientsRouteImport } from './routes/_authenticated/app.patients'
 import { Route as AuthenticatedAppRecordsRouteImport } from './routes/_authenticated/app.records'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
@@ -55,6 +56,12 @@ const AuthenticatedAppAgendaRoute = AuthenticatedAppAgendaRouteImport.update({
   path: '/agenda',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppFinanceRoute =
+  AuthenticatedAppFinanceRouteImport.update({
+    id: '/finance',
+    path: '/finance',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppPatientsRoute =
   AuthenticatedAppPatientsRouteImport.update({
     id: '/patients',
@@ -85,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
+  '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/patients': typeof AuthenticatedAppPatientsRoute
   '/app/records': typeof AuthenticatedAppRecordsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -96,6 +104,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
+  '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/patients': typeof AuthenticatedAppPatientsRoute
   '/app/records': typeof AuthenticatedAppRecordsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -110,6 +119,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/app/agenda': typeof AuthenticatedAppAgendaRoute
+  '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
   '/_authenticated/app/patients': typeof AuthenticatedAppPatientsRoute
   '/_authenticated/app/records': typeof AuthenticatedAppRecordsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/app'
     | '/app/agenda'
+    | '/app/finance'
     | '/app/patients'
     | '/app/records'
     | '/app/settings'
@@ -135,6 +146,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/app/agenda'
+    | '/app/finance'
     | '/app/patients'
     | '/app/records'
     | '/app/settings'
@@ -148,6 +160,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/app'
     | '/_authenticated/app/agenda'
+    | '/_authenticated/app/finance'
     | '/_authenticated/app/patients'
     | '/_authenticated/app/records'
     | '/_authenticated/app/settings'
@@ -213,6 +226,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppAgendaRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/finance': {
+      id: '/_authenticated/app/finance'
+      path: '/finance'
+      fullPath: '/app/finance'
+      preLoaderRoute: typeof AuthenticatedAppFinanceRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/patients': {
       id: '/_authenticated/app/patients'
       path: '/patients'
@@ -246,6 +266,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAgendaRoute: typeof AuthenticatedAppAgendaRoute
+  AuthenticatedAppFinanceRoute: typeof AuthenticatedAppFinanceRoute
   AuthenticatedAppPatientsRoute: typeof AuthenticatedAppPatientsRoute
   AuthenticatedAppRecordsRoute: typeof AuthenticatedAppRecordsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
@@ -255,6 +276,7 @@ interface AuthenticatedAppRouteChildren {
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAgendaRoute: AuthenticatedAppAgendaRoute,
+  AuthenticatedAppFinanceRoute: AuthenticatedAppFinanceRoute,
   AuthenticatedAppPatientsRoute: AuthenticatedAppPatientsRoute,
   AuthenticatedAppRecordsRoute: AuthenticatedAppRecordsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
