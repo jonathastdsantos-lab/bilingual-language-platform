@@ -29,7 +29,10 @@ function Reset() {
   async function save(e: React.FormEvent) {
     e.preventDefault();
     const { error } = await supabase.auth.updateUser({ password: pw });
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success(t("common.saved"));
     navigate({ to: "/app" });
   }
@@ -37,8 +40,13 @@ function Reset() {
     <div className="flex min-h-screen items-center justify-center bg-soft p-6">
       <form onSubmit={save} className="w-full max-w-sm space-y-4 rounded-2xl border bg-card p-8 shadow-card">
         <Logo />
-        <div className="space-y-1.5"><Label>{t("auth.newPassword")}</Label><Input type="password" minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} required /></div>
-        <Button variant="hero" className="w-full">{t("auth.save")}</Button>
+        <div className="space-y-1.5">
+          <Label>{t("auth.newPassword")}</Label>
+          <Input type="password" minLength={6} value={pw} onChange={(e) => setPw(e.target.value)} required />
+        </div>
+        <Button variant="hero" className="w-full">
+          {t("auth.save")}
+        </Button>
       </form>
     </div>
   );

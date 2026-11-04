@@ -64,7 +64,7 @@ function AuthPage() {
       }
       const parsed = schema.safeParse({ email, password, name: mode === "up" ? name : undefined });
       if (!parsed.success) {
-        toast.error(parsed.error.issues[0].message);
+        toast.error(parsed.error.issues[0]?.message ?? t("common.error"));
         return;
       }
       if (mode === "up") {
@@ -103,7 +103,9 @@ function AuthPage() {
       <div className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex items-center justify-between">
-            <Link to="/" className="lg:hidden"><Logo /></Link>
+            <Link to="/" className="lg:hidden">
+              <Logo />
+            </Link>
             <span className="hidden lg:block" />
             <LanguageToggle />
           </div>
@@ -116,17 +118,28 @@ function AuthPage() {
                 {t("auth.google")}
               </Button>
               <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-                <div className="h-px flex-1 bg-border" />{t("auth.or")}<div className="h-px flex-1 bg-border" />
+                <div className="h-px flex-1 bg-border" />
+                {t("auth.or")}
+                <div className="h-px flex-1 bg-border" />
               </div>
             </>
           )}
           <form onSubmit={submit} className="mt-4 space-y-4">
             {mode === "up" && (
-              <div className="space-y-1.5"><Label>{t("auth.name")}</Label><Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} /></div>
+              <div className="space-y-1.5">
+                <Label>{t("auth.name")}</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} required maxLength={100} />
+              </div>
             )}
-            <div className="space-y-1.5"><Label>{t("auth.email")}</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
+            <div className="space-y-1.5">
+              <Label>{t("auth.email")}</Label>
+              <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </div>
             {mode !== "forgot" && (
-              <div className="space-y-1.5"><Label>{t("auth.password")}</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} /></div>
+              <div className="space-y-1.5">
+                <Label>{t("auth.password")}</Label>
+                <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+              </div>
             )}
             <Button variant="hero" className="h-11 w-full" disabled={busy}>
               {mode === "up" ? t("auth.signup") : mode === "forgot" ? t("common.save") : t("auth.signin")}
@@ -134,7 +147,9 @@ function AuthPage() {
           </form>
           <div className="mt-5 space-y-2 text-center text-sm text-muted-foreground">
             {mode === "in" && (
-              <button className="text-primary hover:underline" onClick={() => setMode("forgot")}>{t("auth.forgot")}</button>
+              <button className="text-primary hover:underline" onClick={() => setMode("forgot")}>
+                {t("auth.forgot")}
+              </button>
             )}
             <p>
               {mode === "up" ? t("auth.hasAccount") : t("auth.noAccount")}{" "}
