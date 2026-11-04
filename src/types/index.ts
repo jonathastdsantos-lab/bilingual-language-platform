@@ -8,12 +8,98 @@ export type PermissionKey =
   | "financial.view"
   | "patients.read"
   | "patients.write"
+  | "records.read"
+  | "records.write"
   | "appointments.read"
   | "appointments.write"
   | "team.manage"
   | "settings.manage"
   | "units.manage"
   | "audit.view";
+
+export type ToothSurface = "W" | "O" | "M" | "D" | "V" | "L";
+
+export type ToothConditionStatus =
+  | "healthy"
+  | "caries"
+  | "restoration"
+  | "planned"
+  | "completed"
+  | "endodontics"
+  | "crown"
+  | "implant"
+  | "missing";
+
+export type ClinicalRecordType =
+  | "evolution"
+  | "anamnesis"
+  | "prescription"
+  | "certificate"
+  | "exam";
+
+export type TreatmentPlanStatus =
+  | "draft"
+  | "approved"
+  | "in_progress"
+  | "completed"
+  | "cancelled";
+
+export interface OdontogramEntry {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  professional_id: string | null;
+  tooth_number: number;
+  surface: ToothSurface;
+  condition: ToothConditionStatus;
+  procedure: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  professionals?: { name: string | null; color?: string | null } | null;
+}
+
+export interface ClinicalRecord {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  professional_id: string | null;
+  appointment_id: string | null;
+  tooth_number: number | null;
+  record_type: ClinicalRecordType;
+  title: string;
+  content: string;
+  created_by: string | null;
+  created_at: string;
+  professionals?: { name: string | null } | null;
+}
+
+export interface TreatmentPlan {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  professional_id: string | null;
+  title: string;
+  status: TreatmentPlanStatus;
+  discount_amount: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  professionals?: { name: string | null } | null;
+}
+
+export interface TreatmentPlanItem {
+  id: string;
+  clinic_id: string;
+  plan_id: string;
+  tooth_number: number | null;
+  surface: ToothSurface;
+  procedure_name: string;
+  price: number;
+  status: "planned" | "completed" | "cancelled";
+  completed_at: string | null;
+  created_at: string;
+}
 
 export interface ClinicUnit {
   id: string;
@@ -73,4 +159,3 @@ export interface AdministrativeAlert {
   actionRoute?: "/app/agenda" | "/app/patients" | "/app/settings" | "/app/team";
   actionLabelKey?: string;
 }
-

@@ -16,6 +16,8 @@ export const PERMISSION_DEFAULT_ROLES: Record<PermissionKey, ClinicRole[]> = {
   "financial.view": ["owner", "admin", "dentist", "finance"],
   "patients.read": ["owner", "admin", "dentist", "receptionist", "assistant", "finance"],
   "patients.write": ["owner", "admin", "dentist", "receptionist"],
+  "records.read": ["owner", "admin", "dentist", "assistant"],
+  "records.write": ["owner", "admin", "dentist"],
   "appointments.read": ["owner", "admin", "dentist", "receptionist", "assistant", "finance"],
   "appointments.write": ["owner", "admin", "dentist", "receptionist"],
   "team.manage": ["owner", "admin"],
@@ -51,7 +53,6 @@ export function evaluateMemberPermission(
  */
 export async function fetchClinicMemberPermissions(clinicId: string): Promise<ClinicMemberPermission[]> {
   assertClinicScope(clinicId);
-  // Usamos cast seguro caso a tabela ainda esteja sendo sincronizada
   const { data, error } = await (supabase as unknown as {
     from: (table: string) => {
       select: (cols: string) => {
@@ -127,4 +128,3 @@ export async function setMemberPermissionOverride(params: {
     throw new Error(norm.message);
   }
 }
-

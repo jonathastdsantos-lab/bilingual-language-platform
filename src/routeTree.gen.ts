@@ -17,6 +17,7 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppAgendaRouteImport } from './routes/_authenticated/app.agenda'
 import { Route as AuthenticatedAppPatientsRouteImport } from './routes/_authenticated/app.patients'
+import { Route as AuthenticatedAppRecordsRouteImport } from './routes/_authenticated/app.records'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppTeamRouteImport } from './routes/_authenticated/app.team'
 
@@ -60,6 +61,12 @@ const AuthenticatedAppPatientsRoute =
     path: '/patients',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppRecordsRoute =
+  AuthenticatedAppRecordsRouteImport.update({
+    id: '/records',
+    path: '/records',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppSettingsRoute =
   AuthenticatedAppSettingsRouteImport.update({
     id: '/settings',
@@ -79,6 +86,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/app/patients': typeof AuthenticatedAppPatientsRoute
+  '/app/records': typeof AuthenticatedAppRecordsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
   '/app/': typeof AuthenticatedAppIndexRoute
@@ -89,6 +97,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/app/patients': typeof AuthenticatedAppPatientsRoute
+  '/app/records': typeof AuthenticatedAppRecordsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
   '/app': typeof AuthenticatedAppIndexRoute
@@ -102,6 +111,7 @@ export interface FileRoutesById {
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/_authenticated/app/patients': typeof AuthenticatedAppPatientsRoute
+  '/_authenticated/app/records': typeof AuthenticatedAppRecordsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/team': typeof AuthenticatedAppTeamRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
@@ -115,6 +125,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/agenda'
     | '/app/patients'
+    | '/app/records'
     | '/app/settings'
     | '/app/team'
     | '/app/'
@@ -125,6 +136,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/app/agenda'
     | '/app/patients'
+    | '/app/records'
     | '/app/settings'
     | '/app/team'
     | '/app'
@@ -137,6 +149,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app'
     | '/_authenticated/app/agenda'
     | '/_authenticated/app/patients'
+    | '/_authenticated/app/records'
     | '/_authenticated/app/settings'
     | '/_authenticated/app/team'
     | '/_authenticated/app/'
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppPatientsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/records': {
+      id: '/_authenticated/app/records'
+      path: '/records'
+      fullPath: '/app/records'
+      preLoaderRoute: typeof AuthenticatedAppRecordsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/settings': {
       id: '/_authenticated/app/settings'
       path: '/settings'
@@ -227,6 +247,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAgendaRoute: typeof AuthenticatedAppAgendaRoute
   AuthenticatedAppPatientsRoute: typeof AuthenticatedAppPatientsRoute
+  AuthenticatedAppRecordsRoute: typeof AuthenticatedAppRecordsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppTeamRoute: typeof AuthenticatedAppTeamRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
@@ -235,6 +256,7 @@ interface AuthenticatedAppRouteChildren {
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAgendaRoute: AuthenticatedAppAgendaRoute,
   AuthenticatedAppPatientsRoute: AuthenticatedAppPatientsRoute,
+  AuthenticatedAppRecordsRoute: AuthenticatedAppRecordsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppTeamRoute: AuthenticatedAppTeamRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,

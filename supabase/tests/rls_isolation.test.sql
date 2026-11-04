@@ -56,6 +56,10 @@ begin
     raise exception 'FALHA DE SEGURANÇA: Usuário da Clínica A obteve permissão de leitura na Clínica B';
   end if;
 
+  if public.has_clinic_permission(clinic_b, 'records.read', array['owner','admin','dentist','assistant']::public.clinic_role[]) then
+    raise exception 'FALHA DE SEGURANÇA: Usuário da Clínica A obteve permissão de leitura de prontuário na Clínica B';
+  end if;
+
   -- Verifica que auditoria da Clínica B foi registrada automaticamente
   select count(*) into visible_count from public.audit_logs where clinic_id = clinic_b and entity = 'patients';
   if visible_count < 1 then

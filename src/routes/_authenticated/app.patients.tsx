@@ -1,9 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ClipboardList } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { useClinic } from "@/lib/clinic";
@@ -18,7 +18,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 type Patient = Database["public"]["Tables"]["patients"]["Row"];
 
 export const Route = createFileRoute("/_authenticated/app/patients")({
-  validateSearch: (s: Record<string, unknown>): { q?: string | undefined } => ({
+  validateSearch: (s: Record<string, unknown>): { q?: string } => ({
     q: typeof s["q"] === "string" ? s["q"] : undefined,
   }),
   head: () => ({
@@ -265,7 +265,17 @@ function Patients() {
           {view && (
             <>
               <SheetHeader>
-                <SheetTitle className="text-2xl">{view.full_name}</SheetTitle>
+                <div className="flex items-center justify-between gap-2 pr-6">
+                  <SheetTitle className="text-2xl">{view.full_name}</SheetTitle>
+                  {hasPermission("records.read") && (
+                    <Button variant="hero" size="sm" asChild>
+                      <Link to="/app/records" search={{ patientId: view.id }}>
+                        <ClipboardList className="h-4 w-4" />
+                        {t("pat.openRecord")}
+                      </Link>
+                    </Button>
+                  )}
+                </div>
               </SheetHeader>
               <dl className="mt-4 grid grid-cols-2 gap-3 px-4 text-sm">
                 {(

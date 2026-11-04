@@ -6,6 +6,13 @@ import { calculateAttendanceIndicators, calculateFinancialIndicators } from "@/m
 import { patientFormSchema } from "@/modules/patients";
 import { appointmentFormSchema } from "@/modules/appointments";
 import { authCredentialsSchema } from "@/modules/auth";
+import {
+  aggregateOdontogramState,
+  calculateTreatmentPlanSummary,
+  clinicalRecordSchema,
+  isValidFdiTooth,
+  odontogramEntrySchema,
+} from "@/modules/records";
 import { formatCurrencyBRL, getDashboardPeriodRange, toSaoPauloDateKey } from "@/utils/timezone";
 import { formatCNPJ, formatCPF, hasTimeOverlap, isValidCNPJ, isValidCPF } from "@/utils/validators";
 import type { ClinicRole, PermissionKey } from "@/types";
@@ -277,6 +284,122 @@ describe("Validação de Formulários e Integridade", () => {
         new Date("2026-11-04T11:30:00Z"),
       ),
     ).toBe(true);
+  });
+});
+
+describe("Prontuário Odontológico, Odontograma FDI e Planos de Tratamento", () => {
+  it("valida numeração internacional FDI (permanentes 11-48 e decíduos 51-85)", () => {
+    expect(isValidFdiTooth(11)).toBe(true);
+    expect(isValidFdiTooth(28)).toBe(true);
+    expect(isValidFdiTooth(36)).toBe(true);
+    expect(isValidFdiTooth(48)).toBe(true);
+    expect(isValidFdiTooth(51)).toBe(true);
+    expect(isValidFdiTooth(85)).toBe(true);
+
+    // Números inexistentes na notação FDI devem ser rejeitados
+    expect(isValidFdiTooth(10)).toBe(false);
+    expect(isValidFdiTooth(19)).toBe(false);
+    expect(isValidFdiTooth(56)).toBe(false);
+    expect(isValidFdiTooth(99)).toBe(false);
+
+    expect(
+      odontogramEntrySchema.safeParse({
+        patient_id: "11111111-1111-4111-8111-111111111111",
+        tooth_number: 19,
+        surface: "O",
+        condition: "caries",
+      }).success,
+    ).toBe(false);
+
+    expect(
+      clinicalRecordSchema.safeParse({
+        patient_id: "11111111-1111-4111-8111-111111111111",
+        tooth_number: 36,
+        record_type: "evolution",
+        title: "Restauração Classe I",
+        content: "Isolamento absoluto e restauração em resina composta A2.",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("agrega corretamente o estado cumulativo das 5 faces anatômicas no Odontograma", () => {
+    const state = aggregateOdontogramState([
+      {
+        id: "e1",
+        clinic_id: CLINIC_A,
+        patient_id: "p1",
+        professional_id: null,
+        tooth_number: 36,
+        surface: "O",
+        condition: "caries",
+        procedure: "Lesão oclusal",
+        notes: null,
+        created_by: null,
+        created_at: "2026-11-01T10:00:00Z",
+      },
+      {
+        id: "e2",
+        clinic_id: CLINIC_A,
+        patient_id: "p1",
+        professional_id: null,
+        tooth_number: 36,
+        surface: "M",
+        condition: "restoration",
+        procedure: "Resina mesial",
+        notes: null,
+        created_by: null,
+        created_at: "2026-11-02T10:00:00Z",
+      },
+      {
+        id: "e3",
+        clinic_id: CLINIC_A,
+        patient_id: "p1",
+        professional_id: null,
+        tooth_number: 36,
+        surface: "O",
+        condition: "completed",
+        procedure: "Restauração concluída",
+        notes: null,
+        created_by: null,
+        created_at: "2026-11-03T10:00:00Z",
+      },
+    ]);
+
+    const tooth36 = state[36];
+    expect(tooth36).toBeDefined();
+    expect(tooth36?.surfaces.O).toBe("completed");
+    expect(tooth36?.surfaces.M).toBe("restoration");
+    expect(tooth36?.surfaces.D).toBe("healthy");
+    expect(tooth36?.entriesCount).toBe(3);
+    expect(tooth36?.lastProcedure).toBe("Restauração concluída");
+  });
+
+  it("calcula subtotal, desconto, total líquido e progresso de planos de tratamento em BRL", () => {
+    const summary = calculateTreatmentPlanSummary(
+      { discount_amount: 150 },
+      [
+        { price: 400, status: "completed" },
+        { price: 600, status: "planned" },
+        { price: 300, status: "cancelled" },
+      ],
+    );
+
+    expect(summary.subtotal).toBe(1000);
+    expect(summary.discount).toBe(150);
+    expect(summary.netTotal).toBe(850);
+    expect(summary.completedTotal).toBe(400);
+    expect(summary.plannedCount).toBe(2);
+    expect(summary.completedCount).toBe(1);
+    expect(summary.progressPct).toBe(50);
+  });
+
+  it("restringe escrita no prontuário e odontograma apenas aos perfis clínicos autorizados", () => {
+    expect(evaluateMemberPermission("dentist", "records.read")).toBe(true);
+    expect(evaluateMemberPermission("dentist", "records.write")).toBe(true);
+    expect(evaluateMemberPermission("assistant", "records.read")).toBe(true);
+    expect(evaluateMemberPermission("assistant", "records.write")).toBe(false);
+    expect(evaluateMemberPermission("receptionist", "records.write")).toBe(false);
+    expect(evaluateMemberPermission("stock", "records.read")).toBe(false);
   });
 });
 
