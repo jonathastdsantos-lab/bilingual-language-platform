@@ -13,6 +13,58 @@ export interface CreateCallParams {
   priority?: CallPriority;
 }
 
+const LOCAL_STORAGE_KEY_PREFIX = "sondapro:waiting_room_calls:";
+
+/**
+ * Obtém chamadas salvas localmente como cache resiliente
+ */
+export function getLocalWaitingRoomCalls(clinicId: string): WaitingRoomCall[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}${clinicId}`);
+    return raw ? (JSON.parse(raw) as WaitingRoomCall[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Salva chamadas no cache local da clínica
+ */
+export function saveLocalWaitingRoomCalls(clinicId: string, calls: WaitingRoomCall[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}${clinicId}`, JSON.stringify(calls.slice(0, 50)));
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Dispara notificação entre abas e janelas em tempo real
+ */
+export function broadcastWaitingRoomCall(call: WaitingRoomCall): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    // 1. BroadcastChannel para comunicação instantânea entre abas no mesmo navegador
+    if ("BroadcastChannel" in window) {
+      const bc = new BroadcastChannel("sondapro_waiting_room");
+      bc.postMessage({ type: "CALL_PATIENT", call });
+      bc.close();
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    // 2. CustomEvent dentro da mesma aba
+    window.dispatchEvent(new CustomEvent("sondapro:waiting_room_call", { detail: call }));
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * Validador seguro de UUID para colunas do PostgreSQL
  */
@@ -23,40 +75,57 @@ export function isValidUuid(id?: string | null): boolean {
 
 /**
  * Busca as últimas chamadas de pacientes para a TV da clínica
+ * (Com fusão resiliente entre Supabase e cache local)
  */
 export async function fetchWaitingRoomCalls(
   clinicId: string,
   unitId?: string | null,
 ): Promise<WaitingRoomCall[]> {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const client = supabase as any;
-  let query = client
-    .from("waiting_room_calls")
-    .select("*")
-    .eq("clinic_id", clinicId)
-    .order("called_at", { ascending: false })
-    .limit(20);
+  const localCalls = getLocalWaitingRoomCalls(clinicId);
 
-  if (unitId && unitId !== "all" && isValidUuid(unitId)) {
-    query = query.eq("unit_id", unitId);
-  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = supabase as any;
+    let query = client
+      .from("waiting_room_calls")
+      .select("*")
+      .eq("clinic_id", clinicId)
+      .order("called_at", { ascending: false })
+      .limit(30);
 
-  const { data, error } = await query;
-
-  if (error) {
-    const norm = normalizeSupabaseError(error);
-    if (norm.isSchemaPending) {
-      return [];
+    if (unitId && unitId !== "all" && isValidUuid(unitId)) {
+      query = query.eq("unit_id", unitId);
     }
-    console.warn("fetchWaitingRoomCalls warning:", norm.message);
-    return [];
+
+    const { data, error } = await query;
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      // Mescla chamadas do banco com eventuais chamadas locais recentes
+      const map = new Map<string, WaitingRoomCall>();
+      for (const item of (data as WaitingRoomCall[])) {
+        map.set(item.id, item);
+      }
+      for (const loc of localCalls) {
+        if (!map.has(loc.id)) {
+          map.set(loc.id, loc);
+        }
+      }
+      const merged = Array.from(map.values()).sort(
+        (a, b) => new Date(b.called_at).getTime() - new Date(a.called_at).getTime(),
+      );
+      saveLocalWaitingRoomCalls(clinicId, merged);
+      return merged;
+    }
+  } catch (err) {
+    console.warn("fetchWaitingRoomCalls fallback to local calls:", err);
   }
 
-  return (data as WaitingRoomCall[]) ?? [];
+  return localCalls;
 }
 
 /**
  * Registra a chamada de um paciente para a sala de atendimento / TV
+ * (Persiste localmente, faz broadcast imediato e sincroniza com Supabase)
  */
 export async function createWaitingRoomCall(
   params: CreateCallParams,
@@ -67,42 +136,65 @@ export async function createWaitingRoomCall(
   const cleanProfName = (params.professionalName || "Dentista Responsável").trim();
   const cleanRoomName = (params.roomName || "Consultório 01").trim();
 
-  const payload = {
+  const generatedId = crypto.randomUUID();
+  const nowIso = new Date().toISOString();
+
+  const payload: WaitingRoomCall = {
+    id: generatedId,
     clinic_id: params.clinicId,
-    unit_id: isValidUuid(params.unitId) ? params.unitId : null,
-    patient_id: isValidUuid(params.patientId) ? params.patientId : null,
+    unit_id: isValidUuid(params.unitId) ? (params.unitId as string) : null,
+    patient_id: isValidUuid(params.patientId) ? (params.patientId as string) : null,
     patient_name: cleanPatientName,
-    professional_id: isValidUuid(params.professionalId) ? params.professionalId : null,
+    professional_id: isValidUuid(params.professionalId) ? (params.professionalId as string) : null,
     professional_name: cleanProfName,
-    room_id: isValidUuid(params.roomId) ? params.roomId : null,
+    room_id: isValidUuid(params.roomId) ? (params.roomId as string) : null,
     room_name: cleanRoomName,
     priority: params.priority || "normal",
     status: "called",
-    called_at: new Date().toISOString(),
+    called_at: nowIso,
+    created_at: nowIso,
+    updated_at: nowIso,
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const client = supabase as any;
-  const { data, error } = await client
-    .from("waiting_room_calls")
-    .insert(payload)
-    .select("*")
-    .single();
+  // 1. Salva imediatamente no cache local e dispara broadcast entre abas (garante funcionamento mesmo sem tabela)
+  const currentLocal = getLocalWaitingRoomCalls(params.clinicId);
+  const updatedLocal = [payload, ...currentLocal.filter((c) => c.id !== payload.id)].slice(0, 40);
+  saveLocalWaitingRoomCalls(params.clinicId, updatedLocal);
+  broadcastWaitingRoomCall(payload);
 
-  if (error) {
-    const norm = normalizeSupabaseError(error);
-    if (norm.isSchemaPending) {
-      return {
-        id: crypto.randomUUID(),
-        ...payload,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      } as WaitingRoomCall;
+  // 2. Tenta sincronizar com o banco de dados Supabase
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = supabase as any;
+    const { data, error } = await client
+      .from("waiting_room_calls")
+      .insert({
+        clinic_id: payload.clinic_id,
+        unit_id: payload.unit_id,
+        patient_id: payload.patient_id,
+        patient_name: payload.patient_name,
+        professional_id: payload.professional_id,
+        professional_name: payload.professional_name,
+        room_id: payload.room_id,
+        room_name: payload.room_name,
+        priority: payload.priority,
+        status: payload.status,
+        called_at: payload.called_at,
+      })
+      .select("*")
+      .single();
+
+    if (!error && data) {
+      const realCall = data as WaitingRoomCall;
+      const synced = [realCall, ...updatedLocal.filter((c) => c.id !== payload.id && c.id !== realCall.id)];
+      saveLocalWaitingRoomCalls(params.clinicId, synced);
+      return realCall;
     }
-    throw new Error(norm.message);
+  } catch (err) {
+    console.warn("createWaitingRoomCall: Supabase sync warning, kept local call:", err);
   }
 
-  return data as WaitingRoomCall;
+  return payload;
 }
 
 /**

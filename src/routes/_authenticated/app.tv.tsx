@@ -66,30 +66,59 @@ function AppTvManagementPage() {
     refetchInterval: 3000,
   });
 
-  // Atualização em tempo real via Supabase Realtime
+  // Atualização em tempo real via Supabase Realtime + BroadcastChannel + Eventos Locais
   useEffect(() => {
-    if (!clinicId) return;
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("sondapro_waiting_room");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "CALL_PATIENT") {
+            qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+          }
+        };
+      }
+    } catch {
+      // ignore
+    }
 
+    const handleLocalSync = () => {
+      qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+    };
+
+    window.addEventListener("sondapro:waiting_room_call", handleLocalSync);
+    window.addEventListener("storage", handleLocalSync);
+
+    // Supabase Realtime
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const channel = (supabase as any)
-      .channel(`app_tv_${clinicId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "waiting_room_calls",
-          filter: `clinic_id=eq.${clinicId}`,
-        },
-        () => {
-          qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
-        }
-      )
-      .subscribe();
+    let channel: any = null;
+    if (clinicId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      channel = (supabase as any)
+        .channel(`app_tv_${clinicId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "waiting_room_calls",
+            filter: `clinic_id=eq.${clinicId}`,
+          },
+          () => {
+            qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+          }
+        )
+        .subscribe();
+    }
 
     return () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any).removeChannel(channel);
+      if (bc) bc.close();
+      window.removeEventListener("sondapro:waiting_room_call", handleLocalSync);
+      window.removeEventListener("storage", handleLocalSync);
+      if (channel) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).removeChannel(channel);
+      }
     };
   }, [clinicId, qc]);
 
@@ -190,32 +219,53 @@ function AppTvManagementPage() {
 
           <Button
             type="button"
-            className="gap-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs"
+            className="gap-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-xs"
             asChild
           >
-            <a href={tvUrl} target="_blank" rel="noreferrer">
-              <ExternalLink className="h-4 w-4" />
-              <span>{isEn ? "Open TV Fullscreen Screen" : "Abrir Tela da TV na Recepção"}</span>
-            </a>
+            <Link to="/tv" search={{ clinicId, unitId: activeUnitId && activeUnitId !== "all" ? activeUnitId : undefined }}>
+              <Tv className="h-4 w-4" />
+              <span>{isEn ? "Open TV Here (This Tab)" : "Abrir TV Nesta Aba (Projetor)"}</span>
+            </Link>
+          </Button>
+
+          <Button
+            type="button"
+            className="gap-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-xs"
+            onClick={() => {
+              window.open(tvUrl, "_blank");
+            }}
+          >
+            <ExternalLink className="h-4 w-4" />
+            <span>{isEn ? "Open TV New Tab" : "Abrir TV (Nova Aba)"}</span>
           </Button>
         </div>
       </div>
 
       {/* 2. Destaque: Instrução de Configuração da TV na Recepção */}
-      <section className="rounded-2xl border bg-gradient-to-r from-sky-50/70 via-white to-blue-50/50 p-5 shadow-xs text-xs space-y-2">
+      <section className="rounded-2xl border bg-gradient-to-r from-sky-50/70 via-white to-blue-50/50 p-5 shadow-xs text-xs space-y-3">
         <div className="flex items-center gap-2 font-bold text-navy text-sm">
           <Sparkles className="h-4 w-4 text-sky-600" />
-          <span>Como usar na Smart TV ou Monitor do Consultório</span>
+          <span>Como Exibir na TV da Recepção ou Projetor</span>
         </div>
-        <p className="text-slate-600">
-          Abra o navegador da Smart TV, Totem ou Raspberry Pi e acesse o endereço direto:
-          <code className="ml-1.5 rounded-lg bg-sky-100 px-2 py-0.5 font-mono font-bold text-sky-800">
-            {typeof window !== "undefined" ? `${window.location.origin}${tvUrl}` : tvUrl}
-          </code>
-        </p>
-        <p className="text-slate-500">
-          A tela entrará em modo exibição contínua com atualização em tempo real, relógio digital, toque de campainha odontológica e anúncio por voz.
-        </p>
+
+        <div className="space-y-1.5">
+          <p className="text-slate-700 font-medium">
+            <strong>Opção 1 (Recomendada no Consultório):</strong> Conecte um cabo HDMI do computador da recepção à TV ou segundo monitor e clique no botão acima <strong>"Abrir TV Nesta Aba (Projetor)"</strong> ou <strong>"Abrir TV (Nova Aba)"</strong>. Pressione F11 para tela cheia.
+          </p>
+          <p className="text-slate-600">
+            <strong>Opção 2 (Smart TV / Totem Independente):</strong> Digite o endereço direto no navegador da TV:
+            <code className="ml-1.5 rounded-lg bg-sky-100 px-2 py-0.5 font-mono font-bold text-sky-800">
+              {typeof window !== "undefined" ? `${window.location.origin}${tvUrl}` : tvUrl}
+            </code>
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-[11px] text-amber-900 flex items-start gap-2.5">
+          <span className="font-bold text-amber-700 shrink-0">ℹ️ Nota sobre o Ambiente Lovable Preview:</span>
+          <span>
+            No ambiente de teste privado (com link <code>id-preview--...lovable.app</code>), se você tentar abrir em outro navegador (como Edge) ou na Smart TV onde você não está logado na Lovable, a plataforma Lovable exigirá login. Para testar sem login ou em produção, abra no mesmo navegador onde você está trabalhando (usando os botões azuis acima) ou acesse através do domínio publicado final da clínica.
+          </span>
+        </div>
       </section>
 
       {/* 3. Tabela de Histórico de Chamadas Recentes */}

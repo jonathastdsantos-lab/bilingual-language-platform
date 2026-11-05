@@ -133,7 +133,37 @@ function WaitingRoomTvPage() {
     refetchInterval: 3000,
   });
 
-  // Supabase Realtime Subscription para chamadas instantâneas sem delay
+  // Sincronização multi-canal: Supabase Realtime + BroadcastChannel + Local Events
+  useEffect(() => {
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("sondapro_waiting_room");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "CALL_PATIENT") {
+            qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+          }
+        };
+      }
+    } catch {
+      // ignore
+    }
+
+    const handleLocalSync = () => {
+      qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+    };
+
+    window.addEventListener("sondapro:waiting_room_call", handleLocalSync);
+    window.addEventListener("storage", handleLocalSync);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener("sondapro:waiting_room_call", handleLocalSync);
+      window.removeEventListener("storage", handleLocalSync);
+    };
+  }, [qc]);
+
+  // Supabase Realtime Subscription para chamadas remotas instantâneas
   useEffect(() => {
     if (!effectiveClinicId) return;
 
