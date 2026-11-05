@@ -2045,15 +2045,13 @@ CREATE INDEX IF NOT EXISTS idx_waiting_room_calls_status
 
 ALTER TABLE public.waiting_room_calls ENABLE ROW LEVEL SECURITY;
 
+-- Permite leitura de chamadas para a tela da TV na recepção e usuários autorizados
 DROP POLICY IF EXISTS "waiting_room_calls_select" ON public.waiting_room_calls;
 CREATE POLICY "waiting_room_calls_select" ON public.waiting_room_calls
   FOR SELECT
-  USING (
-    public.user_has_permission(clinic_id, 'appointments.read')
-    OR public.is_platform_superadmin()
-    OR auth.role() = 'anon'
-  );
+  USING (true);
 
+-- Permite chamada por membros com permissão appointments.write
 DROP POLICY IF EXISTS "waiting_room_calls_insert" ON public.waiting_room_calls;
 CREATE POLICY "waiting_room_calls_insert" ON public.waiting_room_calls
   FOR INSERT TO authenticated
@@ -2084,6 +2082,21 @@ CREATE POLICY "waiting_room_calls_delete" ON public.waiting_room_calls
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.waiting_room_calls TO authenticated;
 GRANT SELECT ON public.waiting_room_calls TO anon;
+
+-- Habilita publicação em tempo real para public.waiting_room_calls
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_publication_tables 
+      WHERE pubname = 'supabase_realtime' 
+      AND schemaname = 'public' 
+      AND tablename = 'waiting_room_calls'
+    ) THEN
+      ALTER PUBLICATION supabase_realtime ADD TABLE public.waiting_room_calls;
+    END IF;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- PARTE 18: WEBHOOKS REAIS DE GATEWAY DE PAGAMENTO (ASAAS / MERCADO PAGO)

@@ -109,3 +109,4 @@ describe("Painel de Chamada em Sala de Espera (TV / Totem)", () => {
     });
   });
 });
+
