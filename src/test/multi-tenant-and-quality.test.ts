@@ -32,6 +32,7 @@ import {
 } from "@/modules/whatsapp";
 import { patientFormSchema } from "@/modules/patients";
 import { appointmentFormSchema } from "@/modules/appointments";
+import { buildPublicConfirmationUrl } from "@/modules/appointments/tokens";
 import { authCredentialsSchema } from "@/modules/auth";
 import {
   calculatePlatformStats,
@@ -1245,5 +1246,21 @@ describe("Guias TISS / Faturamento de Convênios Odontológicos (GTO — ANS)", 
       items: [],
     });
     expect(emptyItems.success).toBe(false);
+  });
+});
+
+describe("Portal do Paciente / Confirmação de Consulta via WhatsApp sem Login", () => {
+  it("monta a URL segura de confirmação do paciente", () => {
+    const url = buildPublicConfirmationUrl("abc123xyz789", "https://sondapro.com.br");
+    expect(url).toBe("https://sondapro.com.br/confirm/abc123xyz789");
+  });
+
+  it("interpola a variável {link_confirmacao} no template de WhatsApp", () => {
+    const template = "Olá, {paciente}! Confirme sua consulta em: {link_confirmacao}";
+    const res = interpolateWhatsappTemplate(template, {
+      paciente: "Maria Silva",
+      link_confirmacao: "https://sondapro.com.br/confirm/token-123",
+    });
+    expect(res).toBe("Olá, Maria Silva! Confirme sua consulta em: https://sondapro.com.br/confirm/token-123");
   });
 });

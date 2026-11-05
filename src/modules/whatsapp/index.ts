@@ -14,6 +14,7 @@ export interface WhatsappTemplateVariables {
   procedimento?: string;
   clinica?: string;
   valor?: string;
+  link_confirmacao?: string;
 }
 
 export const WHATSAPP_CATEGORIES: WhatsappTemplateCategory[] = [
@@ -30,10 +31,10 @@ export const DEFAULT_WHATSAPP_TEMPLATES: Array<{
   body_template: string;
 }> = [
   {
-    name: "Confirmação de Consulta",
+    name: "Confirmação de Consulta (Link Seguro)",
     category: "confirmation",
     body_template:
-      "Olá, {paciente}! Tudo bem? Aqui é da clínica {clinica}. Confirmamos sua consulta com Dr(a). {profissional} no dia {data} às {hora} ({procedimento}). Podemos confirmar sua presença?",
+      "Olá, {paciente}! Aqui é da {clinica}. Confirmamos seu atendimento com Dr(a). {profissional} no dia {data} às {hora}. Para confirmar sua presença em 1 clique ou reagendar, acesse: {link_confirmacao}",
   },
   {
     name: "Lembrete no Dia do Atendimento",
@@ -102,10 +103,11 @@ export function interpolateWhatsappTemplate(
     "{procedimento}": vars.procedimento || "Avaliação Odontológica",
     "{clinica}": vars.clinica || "Clínica Odontológica",
     "{valor}": vars.valor || "",
+    "{link_confirmacao}": vars.link_confirmacao || "",
   };
 
   return template.replace(
-    /\{(paciente|data|hora|profissional|procedimento|clinica|valor)\}/g,
+    /\{(paciente|data|hora|profissional|procedimento|clinica|valor|link_confirmacao)\}/g,
     (match) => map[match] ?? match,
   );
 }

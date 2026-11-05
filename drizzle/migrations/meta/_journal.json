@@ -85,6 +85,13 @@
       "when": 1793838000000,
       "tag": "0011_tiss_dental_guides",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793841600000,
+      "tag": "0012_patient_portal_confirmation_tokens",
+      "breakpoints": true
     }
   ]
 }

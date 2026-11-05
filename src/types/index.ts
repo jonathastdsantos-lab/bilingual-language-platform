@@ -564,3 +564,28 @@ export interface TissGuide {
   professionals?: { name: string | null; cro?: string | null } | null;
   items?: TissGuideItem[];
 }
+
+export interface PublicAppointmentInfo {
+  valid: boolean;
+  error?: string;
+  token?: string;
+  token_status?: "pending" | "confirmed" | "cancelled" | "expired";
+  appointment_id?: string;
+  starts_at?: string;
+  ends_at?: string;
+  appointment_status?: string;
+  procedure?: string | null;
+  patient_name?: string;
+  clinic_name?: string;
+  clinic_phone?: string | null;
+  unit_name?: string | null;
+  unit_address?: string | null;
+  professional_name?: string | null;
+}
+
+export interface PublicConfirmationResponse {
+  success: boolean;
+  status?: "confirmed" | "cancelled";
+  message?: string;
+  error?: string;
+}
