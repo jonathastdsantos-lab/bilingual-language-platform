@@ -12,12 +12,14 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as PortalRouteImport } from './routes/portal'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
+import { Route as TvRouteImport } from './routes/tv'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
-import { Route as ConfirmTokenRouteImport } from './routes/confirm.$token'
-import { Route as AssinarTokenRouteImport } from './routes/assinar.$token'
-import { Route as ValidarCodeRouteImport } from './routes/validar.$code'
 import { Route as AgendarSlugRouteImport } from './routes/agendar.$slug'
+import { Route as AssinarTokenRouteImport } from './routes/assinar.$token'
+import { Route as ConfirmTokenRouteImport } from './routes/confirm.$token'
+import { Route as ValidarCodeRouteImport } from './routes/validar.$code'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppAgendaRouteImport } from './routes/_authenticated/app.agenda'
 import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authenticated/app.finance'
@@ -28,9 +30,8 @@ import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppStockRouteImport } from './routes/_authenticated/app.stock'
 import { Route as AuthenticatedAppSuperadminRouteImport } from './routes/_authenticated/app.superadmin'
 import { Route as AuthenticatedAppTeamRouteImport } from './routes/_authenticated/app.team'
-import { Route as AuthenticatedAppWhatsappRouteImport } from './routes/_authenticated/app.whatsapp'
 import { Route as AuthenticatedAppTvRouteImport } from './routes/_authenticated/app.tv'
-import { Route as TvRouteImport } from './routes/tv'
+import { Route as AuthenticatedAppWhatsappRouteImport } from './routes/_authenticated/app.whatsapp'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,9 +47,19 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortalRoute = PortalRouteImport.update({
+  id: '/portal',
+  path: '/portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TvRoute = TvRouteImport.update({
+  id: '/tv',
+  path: '/tv',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
@@ -56,9 +67,9 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
   path: '/app',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const ConfirmTokenRoute = ConfirmTokenRouteImport.update({
-  id: '/confirm/$token',
-  path: '/confirm/$token',
+const AgendarSlugRoute = AgendarSlugRouteImport.update({
+  id: '/agendar/$slug',
+  path: '/agendar/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AssinarTokenRoute = AssinarTokenRouteImport.update({
@@ -66,14 +77,14 @@ const AssinarTokenRoute = AssinarTokenRouteImport.update({
   path: '/assinar/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ConfirmTokenRoute = ConfirmTokenRouteImport.update({
+  id: '/confirm/$token',
+  path: '/confirm/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ValidarCodeRoute = ValidarCodeRouteImport.update({
   id: '/validar/$code',
   path: '/validar/$code',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AgendarSlugRoute = AgendarSlugRouteImport.update({
-  id: '/agendar/$slug',
-  path: '/agendar/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
@@ -129,32 +140,29 @@ const AuthenticatedAppTeamRoute = AuthenticatedAppTeamRouteImport.update({
   path: '/team',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppTvRoute = AuthenticatedAppTvRouteImport.update({
+  id: '/tv',
+  path: '/tv',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppWhatsappRoute =
   AuthenticatedAppWhatsappRouteImport.update({
     id: '/whatsapp',
     path: '/whatsapp',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppTvRoute = AuthenticatedAppTvRouteImport.update({
-  id: '/tv',
-  path: '/tv',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const TvRoute = TvRouteImport.update({
-  id: '/tv',
-  path: '/tv',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/portal': typeof PortalRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/tv': typeof TvRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
-  '/confirm/$token': typeof ConfirmTokenRoute
-  '/assinar/$token': typeof AssinarTokenRoute
-  '/validar/$code': typeof ValidarCodeRoute
   '/agendar/$slug': typeof AgendarSlugRoute
+  '/assinar/$token': typeof AssinarTokenRoute
+  '/confirm/$token': typeof ConfirmTokenRoute
+  '/validar/$code': typeof ValidarCodeRoute
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/patients': typeof AuthenticatedAppPatientsRoute
@@ -164,20 +172,20 @@ export interface FileRoutesByFullPath {
   '/app/stock': typeof AuthenticatedAppStockRoute
   '/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
-  '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/app/tv': typeof AuthenticatedAppTvRoute
-  '/tv': typeof TvRoute
+  '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/app/': typeof AuthenticatedAppIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/portal': typeof PortalRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/confirm/$token': typeof ConfirmTokenRoute
-  '/assinar/$token': typeof AssinarTokenRoute
-  '/validar/$code': typeof ValidarCodeRoute
-  '/agendar/$slug': typeof AgendarSlugRoute
   '/tv': typeof TvRoute
+  '/agendar/$slug': typeof AgendarSlugRoute
+  '/assinar/$token': typeof AssinarTokenRoute
+  '/confirm/$token': typeof ConfirmTokenRoute
+  '/validar/$code': typeof ValidarCodeRoute
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/patients': typeof AuthenticatedAppPatientsRoute
@@ -187,8 +195,8 @@ export interface FileRoutesByTo {
   '/app/stock': typeof AuthenticatedAppStockRoute
   '/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
-  '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/app/tv': typeof AuthenticatedAppTvRoute
+  '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/app': typeof AuthenticatedAppIndexRoute
 }
 export interface FileRoutesById {
@@ -196,13 +204,14 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/portal': typeof PortalRoute
   '/reset-password': typeof ResetPasswordRoute
-  '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
-  '/confirm/$token': typeof ConfirmTokenRoute
-  '/assinar/$token': typeof AssinarTokenRoute
-  '/validar/$code': typeof ValidarCodeRoute
-  '/agendar/$slug': typeof AgendarSlugRoute
   '/tv': typeof TvRoute
+  '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/agendar/$slug': typeof AgendarSlugRoute
+  '/assinar/$token': typeof AssinarTokenRoute
+  '/confirm/$token': typeof ConfirmTokenRoute
+  '/validar/$code': typeof ValidarCodeRoute
   '/_authenticated/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
   '/_authenticated/app/patients': typeof AuthenticatedAppPatientsRoute
@@ -212,8 +221,8 @@ export interface FileRoutesById {
   '/_authenticated/app/stock': typeof AuthenticatedAppStockRoute
   '/_authenticated/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/_authenticated/app/team': typeof AuthenticatedAppTeamRoute
-  '/_authenticated/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/_authenticated/app/tv': typeof AuthenticatedAppTvRoute
+  '/_authenticated/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
 }
 export interface FileRouteTypes {
@@ -221,10 +230,13 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/portal'
     | '/reset-password'
+    | '/tv'
     | '/app'
-    | '/confirm/$token'
+    | '/agendar/$slug'
     | '/assinar/$token'
+    | '/confirm/$token'
     | '/validar/$code'
     | '/app/agenda'
     | '/app/finance'
@@ -235,19 +247,20 @@ export interface FileRouteTypes {
     | '/app/stock'
     | '/app/superadmin'
     | '/app/team'
-    | '/app/whatsapp'
     | '/app/tv'
-    | '/tv'
+    | '/app/whatsapp'
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
+    | '/portal'
     | '/reset-password'
-    | '/confirm/$token'
-    | '/assinar/$token'
-    | '/validar/$code'
     | '/tv'
+    | '/agendar/$slug'
+    | '/assinar/$token'
+    | '/confirm/$token'
+    | '/validar/$code'
     | '/app/agenda'
     | '/app/finance'
     | '/app/patients'
@@ -257,20 +270,22 @@ export interface FileRouteTypes {
     | '/app/stock'
     | '/app/superadmin'
     | '/app/team'
-    | '/app/whatsapp'
     | '/app/tv'
+    | '/app/whatsapp'
     | '/app'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/portal'
     | '/reset-password'
-    | '/_authenticated/app'
-    | '/confirm/$token'
-    | '/assinar/$token'
-    | '/validar/$code'
     | '/tv'
+    | '/_authenticated/app'
+    | '/agendar/$slug'
+    | '/assinar/$token'
+    | '/confirm/$token'
+    | '/validar/$code'
     | '/_authenticated/app/agenda'
     | '/_authenticated/app/finance'
     | '/_authenticated/app/patients'
@@ -280,8 +295,8 @@ export interface FileRouteTypes {
     | '/_authenticated/app/stock'
     | '/_authenticated/app/superadmin'
     | '/_authenticated/app/team'
-    | '/_authenticated/app/whatsapp'
     | '/_authenticated/app/tv'
+    | '/_authenticated/app/whatsapp'
     | '/_authenticated/app/'
   fileRoutesById: FileRoutesById
 }
@@ -289,9 +304,13 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  PortalRoute: typeof PortalRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
-  ConfirmTokenRoute: typeof ConfirmTokenRoute
   TvRoute: typeof TvRoute
+  AgendarSlugRoute: typeof AgendarSlugRoute
+  AssinarTokenRoute: typeof AssinarTokenRoute
+  ConfirmTokenRoute: typeof ConfirmTokenRoute
+  ValidarCodeRoute: typeof ValidarCodeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -317,11 +336,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/portal': {
+      id: '/portal'
+      path: '/portal'
+      fullPath: '/portal'
+      preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/reset-password': {
       id: '/reset-password'
       path: '/reset-password'
       fullPath: '/reset-password'
       preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tv': {
+      id: '/tv'
+      path: '/tv'
+      fullPath: '/tv'
+      preLoaderRoute: typeof TvRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app': {
@@ -331,11 +364,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/confirm/$token': {
-      id: '/confirm/$token'
-      path: '/confirm/$token'
-      fullPath: '/confirm/$token'
-      preLoaderRoute: typeof ConfirmTokenRouteImport
+    '/agendar/$slug': {
+      id: '/agendar/$slug'
+      path: '/agendar/$slug'
+      fullPath: '/agendar/$slug'
+      preLoaderRoute: typeof AgendarSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/assinar/$token': {
@@ -345,18 +378,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AssinarTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/confirm/$token': {
+      id: '/confirm/$token'
+      path: '/confirm/$token'
+      fullPath: '/confirm/$token'
+      preLoaderRoute: typeof ConfirmTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/validar/$code': {
       id: '/validar/$code'
       path: '/validar/$code'
       fullPath: '/validar/$code'
       preLoaderRoute: typeof ValidarCodeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/agendar/$slug': {
-      id: '/agendar/$slug'
-      path: '/agendar/$slug'
-      fullPath: '/agendar/$slug'
-      preLoaderRoute: typeof AgendarSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app/': {
@@ -429,13 +462,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppTeamRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/whatsapp': {
-      id: '/_authenticated/app/whatsapp'
-      path: '/whatsapp'
-      fullPath: '/app/whatsapp'
-      preLoaderRoute: typeof AuthenticatedAppWhatsappRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
     '/_authenticated/app/tv': {
       id: '/_authenticated/app/tv'
       path: '/tv'
@@ -443,12 +469,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppTvRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/tv': {
-      id: '/tv'
-      path: '/tv'
-      fullPath: '/tv'
-      preLoaderRoute: typeof TvRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_authenticated/app/whatsapp': {
+      id: '/_authenticated/app/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/app/whatsapp'
+      preLoaderRoute: typeof AuthenticatedAppWhatsappRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
   }
 }
@@ -463,8 +489,8 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppStockRoute: typeof AuthenticatedAppStockRoute
   AuthenticatedAppSuperadminRoute: typeof AuthenticatedAppSuperadminRoute
   AuthenticatedAppTeamRoute: typeof AuthenticatedAppTeamRoute
-  AuthenticatedAppWhatsappRoute: typeof AuthenticatedAppWhatsappRoute
   AuthenticatedAppTvRoute: typeof AuthenticatedAppTvRoute
+  AuthenticatedAppWhatsappRoute: typeof AuthenticatedAppWhatsappRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
 }
 
@@ -478,8 +504,8 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppStockRoute: AuthenticatedAppStockRoute,
   AuthenticatedAppSuperadminRoute: AuthenticatedAppSuperadminRoute,
   AuthenticatedAppTeamRoute: AuthenticatedAppTeamRoute,
-  AuthenticatedAppWhatsappRoute: AuthenticatedAppWhatsappRoute,
   AuthenticatedAppTvRoute: AuthenticatedAppTvRoute,
+  AuthenticatedAppWhatsappRoute: AuthenticatedAppWhatsappRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
 }
 
@@ -501,12 +527,13 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  PortalRoute: PortalRoute,
   ResetPasswordRoute: ResetPasswordRoute,
-  ConfirmTokenRoute: ConfirmTokenRoute,
-  AssinarTokenRoute: AssinarTokenRoute,
-  ValidarCodeRoute: ValidarCodeRoute,
-  AgendarSlugRoute: AgendarSlugRoute,
   TvRoute: TvRoute,
+  AgendarSlugRoute: AgendarSlugRoute,
+  AssinarTokenRoute: AssinarTokenRoute,
+  ConfirmTokenRoute: ConfirmTokenRoute,
+  ValidarCodeRoute: ValidarCodeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
