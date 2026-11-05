@@ -53,6 +53,7 @@ import {
   PEDIATRIC_ERUPTION_TIMELINE,
   calculatePediatricCariesRisk,
 } from "@/modules/records";
+import { playWaitingRoomChime, speakPatientCall } from "@/modules/waiting-room";
 import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
@@ -1488,5 +1489,12 @@ describe("Prontuário Odontopediátrico Especializado (Dentição Decídua 51 a 
       mouth_breathing: false,
     });
     expect(lowRisk).toBe("low");
+  });
+});
+
+describe("Painel de Chamada em Sala de Espera (Display TV / Totem)", () => {
+  it("executa funções de áudio e síntese de voz de forma segura em qualquer ambiente", () => {
+    expect(() => playWaitingRoomChime()).not.toThrow();
+    expect(() => speakPatientCall("João Silva", "Consultório 01")).not.toThrow();
   });
 });

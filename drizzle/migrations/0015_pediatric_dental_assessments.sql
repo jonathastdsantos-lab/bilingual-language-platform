@@ -33,3 +33,4 @@ CREATE INDEX IF NOT EXISTS idx_pediatric_assessments_clinic
   ON public.pediatric_dental_assessments (clinic_id);
 
 ALTER TABLE public.pediatric_dental_assessments ENABLE ROW LEVEL SECURITY;
+

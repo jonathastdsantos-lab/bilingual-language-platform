@@ -26,6 +26,8 @@ import { Route as AuthenticatedAppStockRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppSuperadminRouteImport } from './routes/_authenticated/app.superadmin'
 import { Route as AuthenticatedAppTeamRouteImport } from './routes/_authenticated/app.team'
 import { Route as AuthenticatedAppWhatsappRouteImport } from './routes/_authenticated/app.whatsapp'
+import { Route as AuthenticatedAppTvRouteImport } from './routes/_authenticated/app.tv'
+import { Route as TvRouteImport } from './routes/tv'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -115,6 +117,16 @@ const AuthenticatedAppWhatsappRoute =
     path: '/whatsapp',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppTvRoute = AuthenticatedAppTvRouteImport.update({
+  id: '/tv',
+  path: '/tv',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const TvRoute = TvRouteImport.update({
+  id: '/tv',
+  path: '/tv',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -132,6 +144,8 @@ export interface FileRoutesByFullPath {
   '/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
   '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
+  '/app/tv': typeof AuthenticatedAppTvRoute
+  '/tv': typeof TvRoute
   '/app/': typeof AuthenticatedAppIndexRoute
 }
 export interface FileRoutesByTo {
@@ -139,6 +153,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/confirm/$token': typeof ConfirmTokenRoute
+  '/tv': typeof TvRoute
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/patients': typeof AuthenticatedAppPatientsRoute
@@ -149,6 +164,7 @@ export interface FileRoutesByTo {
   '/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
   '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
+  '/app/tv': typeof AuthenticatedAppTvRoute
   '/app': typeof AuthenticatedAppIndexRoute
 }
 export interface FileRoutesById {
@@ -159,6 +175,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/confirm/$token': typeof ConfirmTokenRoute
+  '/tv': typeof TvRoute
   '/_authenticated/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
   '/_authenticated/app/patients': typeof AuthenticatedAppPatientsRoute
@@ -169,6 +186,7 @@ export interface FileRoutesById {
   '/_authenticated/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/_authenticated/app/team': typeof AuthenticatedAppTeamRoute
   '/_authenticated/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
+  '/_authenticated/app/tv': typeof AuthenticatedAppTvRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
 }
 export interface FileRouteTypes {
@@ -189,6 +207,8 @@ export interface FileRouteTypes {
     | '/app/superadmin'
     | '/app/team'
     | '/app/whatsapp'
+    | '/app/tv'
+    | '/tv'
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -196,6 +216,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/confirm/$token'
+    | '/tv'
     | '/app/agenda'
     | '/app/finance'
     | '/app/patients'
@@ -206,6 +227,7 @@ export interface FileRouteTypes {
     | '/app/superadmin'
     | '/app/team'
     | '/app/whatsapp'
+    | '/app/tv'
     | '/app'
   id:
     | '__root__'
@@ -215,6 +237,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/app'
     | '/confirm/$token'
+    | '/tv'
     | '/_authenticated/app/agenda'
     | '/_authenticated/app/finance'
     | '/_authenticated/app/patients'
@@ -225,6 +248,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/superadmin'
     | '/_authenticated/app/team'
     | '/_authenticated/app/whatsapp'
+    | '/_authenticated/app/tv'
     | '/_authenticated/app/'
   fileRoutesById: FileRoutesById
 }
@@ -234,6 +258,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ConfirmTokenRoute: typeof ConfirmTokenRoute
+  TvRoute: typeof TvRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -357,6 +382,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppWhatsappRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/tv': {
+      id: '/_authenticated/app/tv'
+      path: '/tv'
+      fullPath: '/app/tv'
+      preLoaderRoute: typeof AuthenticatedAppTvRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/tv': {
+      id: '/tv'
+      path: '/tv'
+      fullPath: '/tv'
+      preLoaderRoute: typeof TvRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -371,6 +410,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppSuperadminRoute: typeof AuthenticatedAppSuperadminRoute
   AuthenticatedAppTeamRoute: typeof AuthenticatedAppTeamRoute
   AuthenticatedAppWhatsappRoute: typeof AuthenticatedAppWhatsappRoute
+  AuthenticatedAppTvRoute: typeof AuthenticatedAppTvRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
 }
 
@@ -385,6 +425,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppSuperadminRoute: AuthenticatedAppSuperadminRoute,
   AuthenticatedAppTeamRoute: AuthenticatedAppTeamRoute,
   AuthenticatedAppWhatsappRoute: AuthenticatedAppWhatsappRoute,
+  AuthenticatedAppTvRoute: AuthenticatedAppTvRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
 }
 
@@ -408,6 +449,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ConfirmTokenRoute: ConfirmTokenRoute,
+  TvRoute: TvRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

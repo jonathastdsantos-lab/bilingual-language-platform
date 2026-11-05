@@ -73,3 +73,4 @@ CREATE POLICY "pediatric_assessments_delete" ON public.pediatric_dental_assessme
   );
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.pediatric_dental_assessments TO authenticated;
+

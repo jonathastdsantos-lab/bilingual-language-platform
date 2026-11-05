@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, PackageMinus, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Megaphone, PackageMinus, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { STANDARD_TUSS_PROCEDURES, fetchProcedureCatalog } from "@/modules/clinics";
@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { CallPatientModal } from "@/components/waiting-room/CallPatientModal";
 
 type Status = Database["public"]["Enums"]["appointment_status"];
 const STATUSES: Status[] = ["scheduled", "confirmed", "completed", "cancelled", "no_show"];
@@ -52,7 +53,7 @@ type FormState = {
 
 function Agenda() {
   const { t, dateLocale } = useT();
-  const { clinicId, hasPermission } = useClinic();
+  const { clinicId, activeUnitId, hasPermission } = useClinic();
   const qc = useQueryClient();
   const canRead = hasPermission("appointments.read");
   const canWrite = hasPermission("appointments.write");
@@ -67,6 +68,8 @@ function Agenda() {
   const [form, setForm] = useState<FormState | null>(null);
   const [kitItemId, setKitItemId] = useState<string>("none");
   const [kitQty, setKitQty] = useState<string>("1");
+  const [callModalOpen, setCallModalOpen] = useState(false);
+  const [patientToCall, setPatientToCall] = useState<{ id?: string | undefined; name: string; profId?: string | undefined; roomId?: string | undefined } | null>(null);
 
   const stockItemsQuery = useQuery({
     queryKey: ["stockItems", clinicId],
@@ -579,18 +582,55 @@ function Agenda() {
                 </div>
               )}
 
-              <DialogFooter className="sm:col-span-2">
-                <Button type="button" variant="outline" onClick={() => setForm(null)}>
-                  {t("common.cancel")}
-                </Button>
-                <Button variant="hero" disabled={save.isPending}>
-                  {t("common.save")}
-                </Button>
+              <DialogFooter className="sm:col-span-2 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                {form.id && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 text-xs border-sky-300 text-sky-700 hover:bg-sky-50 mr-auto"
+                    onClick={() => {
+                      const pat = refs.data?.patients.find((p) => p.id === form.patient_id);
+                      setPatientToCall({
+                        id: form.patient_id,
+                        name: pat?.full_name || "",
+                        profId: form.professional_id,
+                        roomId: form.room_id !== "none" ? form.room_id : undefined,
+                      });
+                      setCallModalOpen(true);
+                    }}
+                  >
+                    <Megaphone className="h-4 w-4 text-sky-600" />
+                    <span>Chamar Paciente na TV</span>
+                  </Button>
+                )}
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" onClick={() => setForm(null)}>
+                    {t("common.cancel")}
+                  </Button>
+                  <Button variant="hero" disabled={save.isPending}>
+                    {t("common.save")}
+                  </Button>
+                </div>
               </DialogFooter>
             </form>
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Chamada para a TV */}
+      <CallPatientModal
+        open={callModalOpen}
+        onOpenChange={setCallModalOpen}
+        clinicId={clinicId}
+        unitId={activeUnitId}
+        patientId={patientToCall?.id}
+        defaultPatientName={patientToCall?.name}
+        professionals={refs.data?.profs ?? []}
+        rooms={refs.data?.rooms ?? []}
+        defaultProfessionalId={patientToCall?.profId}
+        defaultRoomId={patientToCall?.roomId}
+      />
     </div>
   );
 }

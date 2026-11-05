@@ -16,6 +16,7 @@ import {
   PanelLeftOpen,
   Plus,
   Terminal,
+  Tv,
 } from "lucide-react";
 import { supabase } from "@/services/supabase";
 import { isMasterDeveloperEmail } from "@/modules/superadmin";
@@ -38,6 +39,7 @@ const NAV_ITEMS: { to: string; icon: typeof Users; k: TKey; permission?: Permiss
   { to: "/app/finance", icon: Wallet, k: "nav.finance", permission: "financial.view" },
   { to: "/app/stock", icon: Package, k: "nav.stock", permission: "stock.read" },
   { to: "/app/whatsapp", icon: MessageCircle, k: "nav.whatsapp", permission: "whatsapp.manage" },
+  { to: "/app/tv", icon: Tv, k: "nav.tv", permission: "appointments.read" },
   { to: "/app/reports", icon: BarChart3, k: "nav.reports", permission: "reports.view" },
   { to: "/app/team", icon: ShieldCheck, k: "nav.team", permission: "team.manage" },
   { to: "/app/settings", icon: Settings, k: "nav.settings", permission: "settings.manage" },

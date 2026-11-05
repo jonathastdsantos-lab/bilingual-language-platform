@@ -511,6 +511,26 @@ export interface PediatricToothEruptionInfo {
   quadrant: number;
 }
 
+export type WaitingRoomCallStatus = "called" | "in_attendance" | "completed" | "cancelled";
+export type CallPriority = "normal" | "priority" | "urgent";
+
+export interface WaitingRoomCall {
+  id: string;
+  clinic_id: string;
+  unit_id: string | null;
+  patient_id: string | null;
+  patient_name: string;
+  professional_id: string | null;
+  professional_name: string;
+  room_id: string | null;
+  room_name: string;
+  priority: CallPriority;
+  status: WaitingRoomCallStatus;
+  called_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ProstheticLabOrder {
   id: string;
   clinic_id: string;

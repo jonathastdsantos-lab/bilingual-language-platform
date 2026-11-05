@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Building2, Code2, LogOut, Menu, Search, Shield } from "lucide-react";
+import { Bell, Building2, Code2, LogOut, Menu, Search, Shield, Tv } from "lucide-react";
 import { supabase } from "@/services/supabase";
 import { isMasterDeveloperEmail } from "@/modules/superadmin";
 import { useClinic } from "@/lib/clinic";
@@ -120,6 +120,16 @@ export function AppHeader({
         )}
 
         <LanguageToggle className="hidden sm:inline-flex" />
+
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate({ to: "/app/tv" })}
+          title="Painel TV da Recepção"
+          className="text-slate-600 hover:text-navy"
+        >
+          <Tv className="h-4 w-4" />
+        </Button>
 
         <Popover>
           <PopoverTrigger asChild>
