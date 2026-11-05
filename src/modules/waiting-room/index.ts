@@ -122,6 +122,23 @@ export function isValidUuid(id?: string | null): boolean {
 }
 
 /**
+ * Verifica se a tabela remota de chamadas já existe no banco Supabase
+ */
+export async function checkWaitingRoomTableExists(): Promise<boolean> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = supabase as any;
+    const { error } = await client.from("waiting_room_calls").select("id").limit(1);
+    if (error && (error.code === "PGRST205" || error.code === "42P01" || error.message?.includes("not find the table"))) {
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Busca as últimas chamadas de pacientes para a TV da clínica
  * (Com fusão resiliente entre Supabase e cache local)
  */

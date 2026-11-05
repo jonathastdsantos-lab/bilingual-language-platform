@@ -14,6 +14,7 @@ import {
   Play,
   Copy,
   Check,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,12 @@ import { Badge } from "@/components/ui/badge";
 import { useClinic } from "@/lib/clinic";
 import { useT } from "@/lib/i18n";
 import { CallPatientModal } from "@/components/waiting-room/CallPatientModal";
-import { fetchWaitingRoomCalls, playWaitingRoomChime, createWaitingRoomCall } from "@/modules/waiting-room";
+import {
+  fetchWaitingRoomCalls,
+  playWaitingRoomChime,
+  createWaitingRoomCall,
+  checkWaitingRoomTableExists,
+} from "@/modules/waiting-room";
 import { supabase } from "@/services/supabase";
 
 export const Route = createFileRoute("/_authenticated/app/tv")({
@@ -67,6 +73,13 @@ function AppTvManagementPage() {
     queryKey: ["waiting_room_calls", clinicId, activeUnitId],
     queryFn: () => fetchWaitingRoomCalls(clinicId, activeUnitId),
     refetchInterval: 3000,
+  });
+
+  // Query: Verifica se a tabela remota já foi criada no Supabase
+  const { data: isTableReady = true } = useQuery({
+    queryKey: ["waiting_room_table_status"],
+    queryFn: checkWaitingRoomTableExists,
+    refetchInterval: 8000,
   });
 
   // Atualização em tempo real via Supabase Realtime + BroadcastChannel + Eventos Locais
@@ -243,6 +256,27 @@ function AppTvManagementPage() {
           </Button>
         </div>
       </div>
+
+      {/* Alerta quando a migração remota do Supabase ainda não foi executada */}
+      {!isTableReady && (
+        <div className="rounded-2xl border border-amber-300 bg-amber-50/90 p-4 shadow-xs text-xs text-amber-950 space-y-2">
+          <div className="flex items-center gap-2 font-bold text-amber-900 text-sm">
+            <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+            <span>Sincronização entre Múltiplos Computadores Pendente</span>
+          </div>
+          <p className="text-amber-900 leading-relaxed">
+            As chamadas estão funcionando perfeitamente <strong>neste computador</strong> localmente (como visto no botão <em>"Abrir TV Nesta Aba (Projetor)"</em>).
+            Porém, para que a TV funcione em <strong>outro computador separado ou Smart TV</strong>, o banco remoto Supabase precisa ter a tabela criada.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 pt-1 font-medium">
+            <span>👉 Para ativar a sincronização em outros computadores, clique no botão</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-amber-200 font-mono font-bold text-amber-900 border border-amber-300">
+              "Corrigir migrações pendentes"
+            </span>
+            <span>na barra lateral da Lovable (ou execute a migração <code>0017_waiting_room_calls.sql</code> no SQL Editor do Supabase).</span>
+          </div>
+        </div>
+      )}
 
       {/* 2. Destaque: Instrução de Configuração da TV na Recepção */}
       <section className="rounded-2xl border bg-gradient-to-r from-sky-50/70 via-white to-blue-50/50 p-5 shadow-xs text-xs space-y-3">
