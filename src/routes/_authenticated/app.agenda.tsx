@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, PackageMinus, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { STANDARD_TUSS_PROCEDURES, fetchProcedureCatalog } from "@/modules/clinics";
 import { fetchStockItems, recordStockMovement } from "@/modules/stock";
 import { useClinic } from "@/lib/clinic";
 import { useT, type TKey } from "@/lib/i18n";
@@ -73,6 +74,26 @@ function Agenda() {
     queryFn: () => fetchStockItems(clinicId),
   });
   const availableStockItems = (stockItemsQuery.data ?? []).filter((i) => Number(i.current_quantity) > 0);
+
+  const catalogQuery = useQuery({
+    queryKey: ["procedureCatalog", clinicId],
+    enabled: canRead,
+    queryFn: () => fetchProcedureCatalog(clinicId),
+  });
+  const catalogOptions =
+    (catalogQuery.data ?? []).length > 0
+      ? (catalogQuery.data ?? []).map((c) => ({
+          key: c.id,
+          label: `${c.tuss_code ? `[${c.tuss_code}] ` : ""}${c.name}`,
+          price: Number(c.base_price) || 0,
+          duration: Number(c.default_duration_minutes) || 60,
+        }))
+      : STANDARD_TUSS_PROCEDURES.map((c) => ({
+          key: c.tuss_code,
+          label: `[${c.tuss_code}] ${c.name}`,
+          price: c.base_price,
+          duration: c.default_duration_minutes,
+        }));
 
   const consumeStockMut = useMutation({
     mutationFn: async () => {
@@ -451,6 +472,38 @@ function Agenda() {
               <div className="space-y-1.5">
                 <Label>{t("ag.end")}</Label>
                 <Input type="time" value={form.end} onChange={(e) => setForm({ ...form, end: e.target.value })} required />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Catálogo TUSS / Tabela de Honorários (Preenchimento Rápido)</Label>
+                <Select
+                  value="none"
+                  onValueChange={(val) => {
+                    const chosen = catalogOptions.find((c) => c.key === val);
+                    if (!chosen) return;
+                    const [hStr, mStr] = form.start.split(":");
+                    const startMinutes = (Number(hStr) || 9) * 60 + (Number(mStr) || 0);
+                    const endMinutes = Math.min(23 * 60 + 59, startMinutes + chosen.duration);
+                    const newEnd = `${pad(Math.floor(endMinutes / 60))}:${pad(endMinutes % 60)}`;
+                    setForm({
+                      ...form,
+                      procedure: chosen.label,
+                      price: String(chosen.price),
+                      end: newEnd,
+                    });
+                  }}
+                >
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Selecionar procedimento da Tabela TUSS / Clínica..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Selecionar procedimento da Tabela TUSS / Clínica...</SelectItem>
+                    {catalogOptions.map((c) => (
+                      <SelectItem key={c.key} value={c.key}>
+                        {c.label} — R$ {c.price.toFixed(2)} ({c.duration} min)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-1.5">
                 <Label>{t("ag.procedure")}</Label>

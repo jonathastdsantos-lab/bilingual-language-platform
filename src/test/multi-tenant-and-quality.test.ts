@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { assertClinicScope, normalizeSupabaseError } from "@/services/supabase";
 import { buildAdministrativeAlerts } from "@/services/notifications";
+import {
+  STANDARD_TUSS_PROCEDURES,
+  calculateProcedureEconomics,
+  dentalInsuranceSchema,
+  procedureCatalogSchema,
+} from "@/modules/clinics";
 import { evaluateMemberPermission } from "@/modules/permissions";
 import {
   calculateAttendanceIndicators,
@@ -918,6 +924,65 @@ describe("Galeria de Exames e Radiografias (Supabase Storage com Isolamento Mult
         file_name: "rx.jpg",
         mime_type: "image/jpeg",
         file_size_bytes: 500000,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("Catálogo de Procedimentos (Tabela TUSS / Honorários) e Convênios Odontológicos (ANS)", () => {
+  it("calcula margem de contribuição líquida, percentual e receita/hora de cadeira clínica", () => {
+    expect(STANDARD_TUSS_PROCEDURES.length).toBeGreaterThanOrEqual(10);
+
+    const econ = calculateProcedureEconomics({
+      base_price: 300,
+      estimated_material_cost: 45,
+      default_duration_minutes: 30,
+    });
+
+    expect(econ.basePrice).toBe(300);
+    expect(econ.materialCost).toBe(45);
+    expect(econ.netMargin).toBe(255);
+    expect(econ.marginPct).toBe(85);
+    expect(econ.hourlyChairRevenue).toBe(600); // R$ 300 em 30 min = R$ 600/hora
+  });
+
+  it("valida schemas de Procedimento TUSS e Convênio Odontológico (ANS / CNPJ)", () => {
+    expect(
+      procedureCatalogSchema.safeParse({
+        tuss_code: "85100196",
+        name: "Restauração em resina composta (1 face)",
+        specialty: "Dentística / Restauração",
+        base_price: 240,
+        estimated_material_cost: 35,
+        default_duration_minutes: 45,
+      }).success,
+    ).toBe(true);
+
+    // Duração de cadeira abaixo de 10 min deve ser rejeitada
+    expect(
+      procedureCatalogSchema.safeParse({
+        name: "Procedimento Inválido",
+        base_price: 100,
+        default_duration_minutes: 5,
+      }).success,
+    ).toBe(false);
+
+    // Convênio com CNPJ válido
+    expect(
+      dentalInsuranceSchema.safeParse({
+        name: "OdontoPrev S/A",
+        ans_code: "301949",
+        cnpj: "11.222.333/0001-81",
+        reimbursement_days: 30,
+      }).success,
+    ).toBe(true);
+
+    // Convênio com CNPJ inválido deve falhar
+    expect(
+      dentalInsuranceSchema.safeParse({
+        name: "Convênio Inválido",
+        cnpj: "11.111.111/1111-11",
+        reimbursement_days: 30,
       }).success,
     ).toBe(false);
   });

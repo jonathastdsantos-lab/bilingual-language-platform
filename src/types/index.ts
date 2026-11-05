@@ -381,3 +381,32 @@ export interface PatientExamFile {
   created_at: string;
   professionals?: { name: string | null } | null;
 }
+
+export interface DentalInsurance {
+  id: string;
+  clinic_id: string;
+  name: string;
+  ans_code: string | null;
+  cnpj: string | null;
+  reimbursement_days: number;
+  notes: string | null;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+}
+
+export interface ProcedureCatalogItem {
+  id: string;
+  clinic_id: string;
+  insurance_id: string | null;
+  tuss_code: string | null;
+  name: string;
+  specialty: string;
+  base_price: number;
+  estimated_material_cost: number;
+  default_duration_minutes: number;
+  active: boolean;
+  created_by: string | null;
+  created_at: string;
+  dental_insurances?: { name: string | null } | null;
+}

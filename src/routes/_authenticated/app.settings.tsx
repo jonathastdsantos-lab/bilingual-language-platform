@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { ClinicUnitForm } from "@/components/forms/ClinicUnitForm";
+import { ProceduresAndInsurancesPanel } from "@/components/clinics/ProceduresAndInsurancesPanel";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/_authenticated/app/settings")({
 });
 
 function SettingsPage() {
-  const { t } = useT();
+  const { t, dateLocale } = useT();
   const { clinicId, clinicName, hasPermission, units } = useClinic();
   const qc = useQueryClient();
   const [name, setName] = useState(clinicName);
@@ -198,6 +199,12 @@ function SettingsPage() {
           ))}
         </ul>
       </section>
+
+      <ProceduresAndInsurancesPanel
+        clinicId={clinicId}
+        canManage={canManageSettings}
+        dateLocale={dateLocale}
+      />
     </div>
   );
 }

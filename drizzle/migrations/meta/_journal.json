@@ -50,6 +50,13 @@
       "when": 1793820000000,
       "tag": "0006_patient_exams_and_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793823600000,
+      "tag": "0007_procedures_tuss_and_insurances",
+      "breakpoints": true
     }
   ]
 }

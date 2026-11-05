@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { CheckCircle2, DollarSign, Plus } from "lucide-react";
+import { STANDARD_TUSS_PROCEDURES, fetchProcedureCatalog } from "@/modules/clinics";
 import {
   ALL_VALID_FDI_TEETH,
   TOOTH_SURFACES,
@@ -56,6 +57,23 @@ export function TreatmentPlansPanel({
   const [itemDrafts, setItemDrafts] = useState<
     Record<string, { tooth: string; surface: ToothSurface; procedure: string; price: string }>
   >({});
+
+  const catalogQuery = useQuery({
+    queryKey: ["procedureCatalog", clinicId],
+    queryFn: () => fetchProcedureCatalog(clinicId),
+  });
+  const catalogOptions =
+    (catalogQuery.data ?? []).length > 0
+      ? (catalogQuery.data ?? []).map((c) => ({
+          key: c.id,
+          label: `${c.tuss_code ? `[${c.tuss_code}] ` : ""}${c.name}`,
+          price: Number(c.base_price) || 0,
+        }))
+      : STANDARD_TUSS_PROCEDURES.map((c) => ({
+          key: c.tuss_code,
+          label: `[${c.tuss_code}] ${c.name}`,
+          price: c.base_price,
+        }));
 
   const [billingPlan, setBillingPlan] = useState<{ plan: TreatmentPlan; netTotal: number } | null>(null);
   const [billingInstallments, setBillingInstallments] = useState("1");
@@ -355,10 +373,44 @@ export function TreatmentPlansPanel({
 
               {/* Adicionar Procedimento ao Plano */}
               {canWrite && (
-                <form
-                  onSubmit={(e) => handleAddItem(plan.id, e)}
-                  className="grid gap-2 border-t pt-3 sm:grid-cols-[110px_130px_1fr_130px_auto] sm:items-end"
-                >
+                <div className="space-y-2 border-t pt-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-semibold text-muted-foreground">
+                      Preencher da Tabela TUSS / Honorários:
+                    </span>
+                    <Select
+                      value="none"
+                      onValueChange={(val) => {
+                        const chosen = catalogOptions.find((c) => c.key === val);
+                        if (!chosen) return;
+                        setItemDrafts((p) => ({
+                          ...p,
+                          [plan.id]: {
+                            ...draft,
+                            procedure: chosen.label,
+                            price: String(chosen.price),
+                          },
+                        }));
+                      }}
+                    >
+                      <SelectTrigger className="h-7 w-72 text-xs">
+                        <SelectValue placeholder="Selecionar procedimento padronizado..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Selecionar procedimento padronizado...</SelectItem>
+                        {catalogOptions.map((c) => (
+                          <SelectItem key={c.key} value={c.key}>
+                            {c.label} — R$ {c.price.toFixed(2)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <form
+                    onSubmit={(e) => handleAddItem(plan.id, e)}
+                    className="grid gap-2 sm:grid-cols-[110px_130px_1fr_130px_auto] sm:items-end"
+                  >
                   <div className="space-y-1">
                     <Label className="text-xs">{t("rec.selectedTooth")}</Label>
                     <Select
@@ -430,6 +482,7 @@ export function TreatmentPlansPanel({
                     {t("common.add")}
                   </Button>
                 </form>
+                </div>
               )}
             </div>
           );
