@@ -460,6 +460,57 @@ export type ProstheticLabStage =
   | "installed_in_patient"
   | "returned_adjustment";
 
+export type DentitionStage = "deciduous" | "mixed" | "permanent";
+export type ToothpasteAmount = "rice_grain" | "pea_size" | "standard";
+export type PediatricCariesRiskLevel = "low" | "moderate" | "high";
+
+export interface HabitDetails {
+  active: boolean;
+  frequency: "none" | "occasional" | "frequent" | "continuous";
+  duration_years: number;
+}
+
+export interface BottleFeedingDetails {
+  active: boolean;
+  sleep_bottle: boolean;
+  sweetened: boolean;
+}
+
+export interface PediatricDentalAssessment {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  evaluator_id: string | null;
+  dentition_stage: DentitionStage;
+  pacifier_habit: HabitDetails;
+  thumb_sucking_habit: HabitDetails;
+  bottle_feeding_habit: BottleFeedingDetails;
+  mouth_breathing: boolean;
+  bruxism: boolean;
+  atypical_swallowing: boolean;
+  brushing_frequency_daily: number;
+  fluoride_ppm: number;
+  toothpaste_amount: ToothpasteAmount;
+  floss_frequency: "never" | "rarely" | "weekly" | "daily";
+  sugar_intake_frequency: "low" | "moderate" | "high";
+  caries_risk_level: PediatricCariesRiskLevel;
+  clinical_notes: string | null;
+  assessment_date: string;
+  created_at: string;
+  updated_at: string;
+  evaluator?: { name: string | null } | null;
+}
+
+export interface PediatricToothEruptionInfo {
+  fdiNumber: number;
+  namePt: string;
+  nameEn: string;
+  eruptionAgeMonths: string;
+  exfoliationAgeYears: string;
+  arch: "upper" | "lower";
+  quadrant: number;
+}
+
 export interface ProstheticLabOrder {
   id: string;
   clinic_id: string;

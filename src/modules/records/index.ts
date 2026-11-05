@@ -5,10 +5,14 @@ import type {
   AsaClassification,
   ClinicalRecord,
   ClinicalRecordType,
+  DentitionStage,
   ExamCategory,
   OdontogramEntry,
   PatientExamFile,
   PatientStructuredAnamnesis,
+  PediatricCariesRiskLevel,
+  PediatricDentalAssessment,
+  PediatricToothEruptionInfo,
   ProstheticLabOrder,
   ProstheticLabStage,
   SurgicalRiskAlert,
@@ -1660,6 +1664,203 @@ export async function deleteProstheticLabOrder(
   if (error) {
     throw new Error(normalizeSupabaseError(error).message);
   }
+}
+
+// =============================================================================
+// ODONTOPEDIATRIA: DENTIÇÃO DECÍDUA (51-85) E CRONOLOGIA DE ERUPÇÃO
+// =============================================================================
+
+export const PEDIATRIC_ERUPTION_TIMELINE: PediatricToothEruptionInfo[] = [
+  // Arcada Superior Direita (Quadrante 5)
+  { fdiNumber: 55, namePt: "Segundo Molar Superior Direito Decíduo", nameEn: "Upper Right Second Primary Molar", eruptionAgeMonths: "25 - 33 meses", exfoliationAgeYears: "10 - 12 anos", arch: "upper", quadrant: 5 },
+  { fdiNumber: 54, namePt: "Primeiro Molar Superior Direito Decíduo", nameEn: "Upper Right First Primary Molar", eruptionAgeMonths: "13 - 19 meses", exfoliationAgeYears: "9 - 11 anos", arch: "upper", quadrant: 5 },
+  { fdiNumber: 53, namePt: "Canino Superior Direito Decíduo", nameEn: "Upper Right Primary Canine", eruptionAgeMonths: "16 - 22 meses", exfoliationAgeYears: "10 - 12 anos", arch: "upper", quadrant: 5 },
+  { fdiNumber: 52, namePt: "Incisivo Lateral Superior Direito Decíduo", nameEn: "Upper Right Primary Lateral Incisor", eruptionAgeMonths: "9 - 13 meses", exfoliationAgeYears: "7 - 8 anos", arch: "upper", quadrant: 5 },
+  { fdiNumber: 51, namePt: "Incisivo Central Superior Direito Decíduo", nameEn: "Upper Right Primary Central Incisor", eruptionAgeMonths: "8 - 12 meses", exfoliationAgeYears: "6 - 7 anos", arch: "upper", quadrant: 5 },
+
+  // Arcada Superior Esquerda (Quadrante 6)
+  { fdiNumber: 61, namePt: "Incisivo Central Superior Esquerdo Decíduo", nameEn: "Upper Left Primary Central Incisor", eruptionAgeMonths: "8 - 12 meses", exfoliationAgeYears: "6 - 7 anos", arch: "upper", quadrant: 6 },
+  { fdiNumber: 62, namePt: "Incisivo Lateral Superior Esquerdo Decíduo", nameEn: "Upper Left Primary Lateral Incisor", eruptionAgeMonths: "9 - 13 meses", exfoliationAgeYears: "7 - 8 anos", arch: "upper", quadrant: 6 },
+  { fdiNumber: 63, namePt: "Canino Superior Esquerdo Decíduo", nameEn: "Upper Left Primary Canine", eruptionAgeMonths: "16 - 22 meses", exfoliationAgeYears: "10 - 12 anos", arch: "upper", quadrant: 6 },
+  { fdiNumber: 64, namePt: "Primeiro Molar Superior Esquerdo Decíduo", nameEn: "Upper Left First Primary Molar", eruptionAgeMonths: "13 - 19 meses", exfoliationAgeYears: "9 - 11 anos", arch: "upper", quadrant: 6 },
+  { fdiNumber: 65, namePt: "Segundo Molar Superior Esquerdo Decíduo", nameEn: "Upper Left Second Primary Molar", eruptionAgeMonths: "25 - 33 meses", exfoliationAgeYears: "10 - 12 anos", arch: "upper", quadrant: 6 },
+
+  // Arcada Inferior Esquerda (Quadrante 7)
+  { fdiNumber: 71, namePt: "Incisivo Central Inferior Esquerdo Decíduo", nameEn: "Lower Left Primary Central Incisor", eruptionAgeMonths: "6 - 10 meses", exfoliationAgeYears: "6 - 7 anos", arch: "lower", quadrant: 7 },
+  { fdiNumber: 72, namePt: "Incisivo Lateral Inferior Esquerdo Decíduo", nameEn: "Lower Left Primary Lateral Incisor", eruptionAgeMonths: "10 - 16 meses", exfoliationAgeYears: "7 - 8 anos", arch: "lower", quadrant: 7 },
+  { fdiNumber: 73, namePt: "Canino Inferior Esquerdo Decíduo", nameEn: "Lower Left Primary Canine", eruptionAgeMonths: "17 - 23 meses", exfoliationAgeYears: "9 - 12 anos", arch: "lower", quadrant: 7 },
+  { fdiNumber: 74, namePt: "Primeiro Molar Inferior Esquerdo Decíduo", nameEn: "Lower Left First Primary Molar", eruptionAgeMonths: "14 - 18 meses", exfoliationAgeYears: "9 - 11 anos", arch: "lower", quadrant: 7 },
+  { fdiNumber: 75, namePt: "Segundo Molar Inferior Esquerdo Decíduo", nameEn: "Lower Left Second Primary Molar", eruptionAgeMonths: "23 - 31 meses", exfoliationAgeYears: "10 - 12 anos", arch: "lower", quadrant: 7 },
+
+  // Arcada Inferior Direita (Quadrante 8)
+  { fdiNumber: 85, namePt: "Segundo Molar Inferior Direito Decíduo", nameEn: "Lower Right Second Primary Molar", eruptionAgeMonths: "23 - 31 meses", exfoliationAgeYears: "10 - 12 anos", arch: "lower", quadrant: 8 },
+  { fdiNumber: 84, namePt: "Primeiro Molar Inferior Direito Decíduo", nameEn: "Lower Right First Primary Molar", eruptionAgeMonths: "14 - 18 meses", exfoliationAgeYears: "9 - 11 anos", arch: "lower", quadrant: 8 },
+  { fdiNumber: 83, namePt: "Canino Inferior Direito Decíduo", nameEn: "Lower Right Primary Canine", eruptionAgeMonths: "17 - 23 meses", exfoliationAgeYears: "9 - 12 anos", arch: "lower", quadrant: 8 },
+  { fdiNumber: 82, namePt: "Incisivo Lateral Inferior Direito Decíduo", nameEn: "Lower Right Primary Lateral Incisor", eruptionAgeMonths: "10 - 16 meses", exfoliationAgeYears: "7 - 8 anos", arch: "lower", quadrant: 8 },
+  { fdiNumber: 81, namePt: "Incisivo Central Inferior Direito Decíduo", nameEn: "Lower Right Primary Central Incisor", eruptionAgeMonths: "6 - 10 meses", exfoliationAgeYears: "6 - 7 anos", arch: "lower", quadrant: 8 },
+];
+
+/**
+ * Calcula o risco de cárie odontopediátrico baseado em evidências (AAPD / ABOPED)
+ */
+export function calculatePediatricCariesRisk(assessment: {
+  sugar_intake_frequency?: "low" | "moderate" | "high";
+  bottle_feeding_habit?: { active: boolean; sleep_bottle: boolean; sweetened: boolean };
+  brushing_frequency_daily?: number;
+  fluoride_ppm?: number;
+  mouth_breathing?: boolean;
+}): PediatricCariesRiskLevel {
+  let score = 0;
+
+  // Consumo frequente de açúcar entre refeições
+  if (assessment.sugar_intake_frequency === "high") score += 3;
+  else if (assessment.sugar_intake_frequency === "moderate") score += 1;
+
+  // Uso de mamadeira noturna (Cárie Precoce da Infância)
+  if (assessment.bottle_feeding_habit?.active) {
+    if (assessment.bottle_feeding_habit.sweetened) score += 3;
+    if (assessment.bottle_feeding_habit.sleep_bottle) score += 2;
+  }
+
+  // Frequência de escovação deficiente
+  if (assessment.brushing_frequency_daily !== undefined) {
+    if (assessment.brushing_frequency_daily < 2) score += 2;
+    if (assessment.brushing_frequency_daily === 0) score += 3;
+  }
+
+  // Creme dental sem flúor (< 1000 ppm)
+  if (assessment.fluoride_ppm !== undefined && assessment.fluoride_ppm < 1000) {
+    score += 2;
+  }
+
+  // Respiração bucal (resseca a mucosa e diminui efeito protetor da saliva)
+  if (assessment.mouth_breathing) score += 1;
+
+  if (score >= 4) return "high";
+  if (score >= 2) return "moderate";
+  return "low";
+}
+
+/**
+ * Busca a avaliação odontopediátrica do paciente
+ */
+export async function fetchPatientPediatricAssessment(
+  clinicId: string,
+  patientId: string,
+): Promise<PediatricDentalAssessment | null> {
+  assertClinicScope(clinicId);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = supabase as any;
+  const { data, error } = await client
+    .from("pediatric_dental_assessments")
+    .select("*, evaluator:professionals(name)")
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .order("assessment_date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    const norm = normalizeSupabaseError(error);
+    if (norm.isSchemaPending) return null;
+    throw new Error(norm.message);
+  }
+
+  return (data as PediatricDentalAssessment) || null;
+}
+
+/**
+ * Salva ou atualiza a avaliação odontopediátrica
+ */
+export async function savePatientPediatricAssessment(
+  clinicId: string,
+  input: {
+    id?: string | null | undefined;
+    patient_id: string;
+    evaluator_id?: string | null | undefined;
+    dentition_stage: DentitionStage;
+    pacifier_habit: { active: boolean; frequency: "none" | "occasional" | "frequent" | "continuous"; duration_years: number };
+    thumb_sucking_habit: { active: boolean; frequency: "none" | "occasional" | "frequent" | "continuous"; duration_years: number };
+    bottle_feeding_habit: { active: boolean; sleep_bottle: boolean; sweetened: boolean };
+    mouth_breathing: boolean;
+    bruxism: boolean;
+    atypical_swallowing: boolean;
+    brushing_frequency_daily: number;
+    fluoride_ppm: number;
+    toothpaste_amount: "rice_grain" | "pea_size" | "standard";
+    floss_frequency: "never" | "rarely" | "weekly" | "daily";
+    sugar_intake_frequency: "low" | "moderate" | "high";
+    clinical_notes?: string | null | undefined;
+  },
+): Promise<PediatricDentalAssessment> {
+  assertClinicScope(clinicId);
+
+  const cariesRisk = calculatePediatricCariesRisk({
+    sugar_intake_frequency: input.sugar_intake_frequency,
+    bottle_feeding_habit: input.bottle_feeding_habit,
+    brushing_frequency_daily: input.brushing_frequency_daily,
+    fluoride_ppm: input.fluoride_ppm,
+    mouth_breathing: input.mouth_breathing,
+  });
+
+  const payload = {
+    clinic_id: clinicId,
+    patient_id: input.patient_id,
+    evaluator_id: input.evaluator_id || null,
+    dentition_stage: input.dentition_stage,
+    pacifier_habit: input.pacifier_habit,
+    thumb_sucking_habit: input.thumb_sucking_habit,
+    bottle_feeding_habit: input.bottle_feeding_habit,
+    mouth_breathing: input.mouth_breathing,
+    bruxism: input.bruxism,
+    atypical_swallowing: input.atypical_swallowing,
+    brushing_frequency_daily: input.brushing_frequency_daily,
+    fluoride_ppm: input.fluoride_ppm,
+    toothpaste_amount: input.toothpaste_amount,
+    floss_frequency: input.floss_frequency,
+    sugar_intake_frequency: input.sugar_intake_frequency,
+    caries_risk_level: cariesRisk,
+    clinical_notes: input.clinical_notes || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = supabase as any;
+
+  if (input.id) {
+    const { data, error } = await client
+      .from("pediatric_dental_assessments")
+      .update(payload)
+      .eq("clinic_id", clinicId)
+      .eq("id", input.id)
+      .select("*, evaluator:professionals(name)")
+      .single();
+
+    if (error) throw new Error(normalizeSupabaseError(error).message);
+    return data as PediatricDentalAssessment;
+  }
+
+  const { data, error } = await client
+    .from("pediatric_dental_assessments")
+    .insert(payload)
+    .select("*, evaluator:professionals(name)")
+    .single();
+
+  if (error) {
+    const norm = normalizeSupabaseError(error);
+    if (norm.isSchemaPending) {
+      return {
+        id: crypto.randomUUID(),
+        assessment_date: new Date().toISOString().split("T")[0]!,
+        created_at: new Date().toISOString(),
+        ...payload,
+      } as PediatricDentalAssessment;
+    }
+    throw new Error(norm.message);
+  }
+
+  return data as PediatricDentalAssessment;
 }
 
 

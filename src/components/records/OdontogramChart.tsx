@@ -185,7 +185,7 @@ export function OdontogramChart({
 }) {
   const { t } = useT();
   const qc = useQueryClient();
-  const [dentition, setDentition] = useState<"adult" | "child">("adult");
+  const [dentition, setDentition] = useState<"adult" | "child" | "mixed">("adult");
   const [surface, setSurface] = useState<ToothSurface>("W");
   const [condition, setCondition] = useState<ToothConditionStatus>("caries");
   const [professionalId, setProfessionalId] = useState<string>(professionals[0]?.id ?? "none");
@@ -194,10 +194,10 @@ export function OdontogramChart({
 
   const stateMap = aggregateOdontogramState(entries);
 
-  const upperRight = dentition === "adult" ? ADULT_UPPER_RIGHT : CHILD_UPPER_RIGHT;
-  const upperLeft = dentition === "adult" ? ADULT_UPPER_LEFT : CHILD_UPPER_LEFT;
-  const lowerRight = dentition === "adult" ? ADULT_LOWER_RIGHT : CHILD_LOWER_RIGHT;
-  const lowerLeft = dentition === "adult" ? ADULT_LOWER_LEFT : CHILD_LOWER_LEFT;
+  const upperRight = dentition === "adult" ? ADULT_UPPER_RIGHT : dentition === "child" ? CHILD_UPPER_RIGHT : ADULT_UPPER_RIGHT;
+  const upperLeft = dentition === "adult" ? ADULT_UPPER_LEFT : dentition === "child" ? CHILD_UPPER_LEFT : ADULT_UPPER_LEFT;
+  const lowerRight = dentition === "adult" ? ADULT_LOWER_RIGHT : dentition === "child" ? CHILD_LOWER_RIGHT : ADULT_LOWER_RIGHT;
+  const lowerLeft = dentition === "adult" ? ADULT_LOWER_LEFT : dentition === "child" ? CHILD_LOWER_LEFT : ADULT_LOWER_LEFT;
 
   const activeTooth = selectedTooth ?? (dentition === "adult" ? 11 : 51);
 
@@ -264,7 +264,20 @@ export function OdontogramChart({
                 dentition === "child" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
               )}
             >
-              {t("rec.dentitionChild")}
+              {t("rec.dentitionChild")} (51-85)
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDentition("mixed");
+                onSelectTooth(51);
+              }}
+              className={cn(
+                "rounded-lg px-3 py-1.5 text-xs font-semibold transition-all",
+                dentition === "mixed" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              Dentição Mista (6-12 anos)
             </button>
           </div>
 
@@ -281,7 +294,7 @@ export function OdontogramChart({
         {/* Arcada Superior */}
         <div className="mt-6 space-y-2">
           <p className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {t("rec.upperArch")}
+            {dentition === "child" ? "Arcada Superior Decídua (51 a 65)" : t("rec.upperArch")}
           </p>
           <div className="overflow-x-auto pb-2">
             <div className="mx-auto flex min-w-max items-center justify-center gap-3">
@@ -321,6 +334,90 @@ export function OdontogramChart({
             </div>
           </div>
         </div>
+
+        {/* Arcadas Decíduas Centrais para Dentição Mista */}
+        {dentition === "mixed" && (
+          <div className="my-4 space-y-3 rounded-xl border border-sky-200 bg-sky-50/50 p-3">
+            <p className="text-center text-[11px] font-bold uppercase tracking-wider text-sky-800">
+              Dentes Decíduos (Leite) — Arcada Superior (55-65) e Inferior (85-75)
+            </p>
+            <div className="overflow-x-auto pb-1">
+              <div className="mx-auto flex min-w-max items-center justify-center gap-3">
+                <div className="flex gap-1.5">
+                  {CHILD_UPPER_RIGHT.map((tooth) => (
+                    <ToothSvg
+                      key={tooth}
+                      toothNumber={tooth}
+                      isRightQuadrant={true}
+                      state={stateMap[tooth]}
+                      selected={activeTooth === tooth}
+                      onSelectTooth={(n) => onSelectTooth(n)}
+                      onSelectSurface={(n, s) => {
+                        onSelectTooth(n);
+                        setSurface(s);
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="h-12 w-0.5 bg-sky-400" />
+                <div className="flex gap-1.5">
+                  {CHILD_UPPER_LEFT.map((tooth) => (
+                    <ToothSvg
+                      key={tooth}
+                      toothNumber={tooth}
+                      isRightQuadrant={false}
+                      state={stateMap[tooth]}
+                      selected={activeTooth === tooth}
+                      onSelectTooth={(n) => onSelectTooth(n)}
+                      onSelectSurface={(n, s) => {
+                        onSelectTooth(n);
+                        setSurface(s);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto pt-2 border-t border-sky-200/60">
+              <div className="mx-auto flex min-w-max items-center justify-center gap-3">
+                <div className="flex gap-1.5">
+                  {CHILD_LOWER_RIGHT.map((tooth) => (
+                    <ToothSvg
+                      key={tooth}
+                      toothNumber={tooth}
+                      isRightQuadrant={true}
+                      state={stateMap[tooth]}
+                      selected={activeTooth === tooth}
+                      onSelectTooth={(n) => onSelectTooth(n)}
+                      onSelectSurface={(n, s) => {
+                        onSelectTooth(n);
+                        setSurface(s);
+                      }}
+                    />
+                  ))}
+                </div>
+                <div className="h-12 w-0.5 bg-sky-400" />
+                <div className="flex gap-1.5">
+                  {CHILD_LOWER_LEFT.map((tooth) => (
+                    <ToothSvg
+                      key={tooth}
+                      toothNumber={tooth}
+                      isRightQuadrant={false}
+                      state={stateMap[tooth]}
+                      selected={activeTooth === tooth}
+                      onSelectTooth={(n) => onSelectTooth(n)}
+                      onSelectSurface={(n, s) => {
+                        onSelectTooth(n);
+                        setSurface(s);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Arcada Inferior */}
         <div className="mt-4 space-y-2 border-t pt-4">

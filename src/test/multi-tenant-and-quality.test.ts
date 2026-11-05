@@ -50,6 +50,10 @@ import {
 } from "@/modules/tiss";
 import { generatePixCopyPasteCode } from "@/modules/saas-billing";
 import {
+  PEDIATRIC_ERUPTION_TIMELINE,
+  calculatePediatricCariesRisk,
+} from "@/modules/records";
+import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
   buildPrintableDocumentHtml,
@@ -1447,5 +1451,42 @@ describe("Módulo de Faturamento Direto com PIX e Cartão para Assinatura SaaS",
     const { pixCode } = generatePixCopyPasteCode(1490, "a1b2c3d4-e5f6-7890");
     expect(pixCode).toContain("1490.00");
     expect(pixCode).toContain("SONDAPRO SAAS");
+  });
+});
+
+describe("Prontuário Odontopediátrico Especializado (Dentição Decídua 51 a 85)", () => {
+  it("contém todos os 20 dentes decíduos catalogados na cronologia de erupção", () => {
+    expect(PEDIATRIC_ERUPTION_TIMELINE.length).toBe(20);
+    const tooth51 = PEDIATRIC_ERUPTION_TIMELINE.find((t) => t.fdiNumber === 51);
+    expect(tooth51).toBeDefined();
+    expect(tooth51?.namePt).toContain("Incisivo Central Superior Direito Decíduo");
+    expect(tooth51?.arch).toBe("upper");
+
+    const tooth85 = PEDIATRIC_ERUPTION_TIMELINE.find((t) => t.fdiNumber === 85);
+    expect(tooth85).toBeDefined();
+    expect(tooth85?.namePt).toContain("Segundo Molar Inferior Direito Decíduo");
+    expect(tooth85?.arch).toBe("lower");
+  });
+
+  it("classifica o risco de cárie infantil como alto quando há mamadeira noturna adoçada ou alto consumo de açúcar", () => {
+    const highRisk = calculatePediatricCariesRisk({
+      sugar_intake_frequency: "high",
+      bottle_feeding_habit: { active: true, sleep_bottle: true, sweetened: true },
+      brushing_frequency_daily: 1,
+      fluoride_ppm: 0,
+      mouth_breathing: true,
+    });
+    expect(highRisk).toBe("high");
+  });
+
+  it("classifica o risco de cárie infantil como baixo para hábitos ideais e pasta fluoretada 1100ppm", () => {
+    const lowRisk = calculatePediatricCariesRisk({
+      sugar_intake_frequency: "low",
+      bottle_feeding_habit: { active: false, sleep_bottle: false, sweetened: false },
+      brushing_frequency_daily: 2,
+      fluoride_ppm: 1100,
+      mouth_breathing: false,
+    });
+    expect(lowRisk).toBe("low");
   });
 });

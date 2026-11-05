@@ -123,3 +123,4 @@ $$;
 
 GRANT SELECT, INSERT, UPDATE ON public.saas_invoices TO authenticated;
 GRANT EXECUTE ON FUNCTION public.pay_saas_invoice(UUID, TEXT, TEXT, TEXT) TO authenticated;
+

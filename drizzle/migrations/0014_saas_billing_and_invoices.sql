@@ -25,3 +25,4 @@ CREATE TABLE IF NOT EXISTS public.saas_invoices (
 ALTER TABLE public.saas_invoices ENABLE ROW LEVEL SECURITY;
 
 GRANT SELECT, INSERT, UPDATE ON public.saas_invoices TO authenticated;
+
