@@ -502,7 +502,8 @@ export type PrintableDocumentKind =
   | "prescription_simple"
   | "prescription_controlled"
   | "certificate"
-  | "tcle";
+  | "tcle"
+  | "contract";
 
 export type PrintablePageSize = "A4" | "A5";
 
@@ -546,7 +547,7 @@ export const DENTAL_PRESCRIPTION_PRESETS = [
 ] as const;
 
 export const clinicalDocumentInputSchema = z.object({
-  kind: z.enum(["prescription_simple", "prescription_controlled", "certificate", "tcle"]),
+  kind: z.enum(["prescription_simple", "prescription_controlled", "certificate", "tcle", "contract"]),
   pageSize: z.enum(["A4", "A5"]).default("A4"),
   clinicName: z.string().trim().min(2),
   unitName: z.string().trim().optional(),
@@ -616,6 +617,14 @@ export function buildClinicalDocumentRecordPayload(input: ClinicalDocumentInput)
     };
   }
 
+  if (d.kind === "contract") {
+    return {
+      recordType: "evolution",
+      title: `Contrato de Prestação de Serviços Odontológicos — ${d.patientName}`,
+      content: `${headerMeta}\n\n${d.bodyText}`,
+    };
+  }
+
   return {
     recordType: "evolution",
     title: `Termo de Consentimento Livre e Esclarecido (TCLE)${d.procedureName ? ` — ${d.procedureName}` : ""}`,
@@ -651,7 +660,9 @@ export function buildPrintableDocumentHtml(input: ClinicalDocumentInput): string
         ? "RECEITUÁRIO DE CONTROLE ESPECIAL (2 VIAS)"
         : d.kind === "certificate"
           ? "ATESTADO ODONTOLÓGICO"
-          : "TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE)";
+          : d.kind === "contract"
+            ? "CONTRATO DE PRESTAÇÃO DE SERVIÇOS ODONTOLÓGICOS"
+            : "TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE)";
 
   const cidBlock =
     d.kind === "certificate" && d.cid10Code && d.authorizeCidDisclosure

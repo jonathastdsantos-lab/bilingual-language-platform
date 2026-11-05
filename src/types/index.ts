@@ -770,3 +770,38 @@ export interface PublicConfirmationResponse {
   message?: string;
   error?: string;
 }
+
+export type ElectronicSignatureDocumentType =
+  | "tcle"
+  | "contract"
+  | "certificate"
+  | "treatment_plan"
+  | "prescription"
+  | "other";
+
+export type SignerRole = "patient" | "legal_guardian" | "representative" | "dentist";
+
+export interface PatientElectronicSignature {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  document_type: ElectronicSignatureDocumentType;
+  document_title: string;
+  document_content: string;
+  document_hash: string;
+  signer_name: string;
+  signer_cpf: string;
+  signer_role: SignerRole;
+  signer_email?: string | null;
+  signer_phone?: string | null;
+  signature_data_url: string;
+  ip_address?: string | null;
+  user_agent?: string | null;
+  status: "valid" | "revoked";
+  revocation_reason?: string | null;
+  revoked_at?: string | null;
+  signed_at: string;
+  metadata?: Record<string, unknown>;
+  created_by?: string | null;
+  created_at: string;
+}

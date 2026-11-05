@@ -234,7 +234,7 @@ function ClinicalRecordsPage() {
                 <TabsTrigger value="plans">{t("rec.tabPlans")}</TabsTrigger>
                 <TabsTrigger value="prosthesis">Laboratório Prótese</TabsTrigger>
                 <TabsTrigger value="exams">Exames & Radiografias</TabsTrigger>
-                <TabsTrigger value="documents">Receitas, Atestados & TCLE</TabsTrigger>
+                <TabsTrigger value="documents">Receitas, TCLE & Assinatura Digital</TabsTrigger>
               </TabsList>
 
               <TabsContent value="odontogram">

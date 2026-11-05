@@ -57,6 +57,12 @@ import { playWaitingRoomChime, speakPatientCall } from "@/modules/waiting-room";
 import { handleWebhookRequest } from "@/modules/webhooks/server-handler";
 import { processAsaasWebhook, processMercadoPagoWebhook } from "@/modules/webhooks";
 import {
+  computeDocumentSha256,
+  generateDentalContractTemplate,
+  buildSignedDocumentPrintableHtml,
+  createElectronicSignature,
+} from "@/modules/signatures";
+import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
   buildPrintableDocumentHtml,
@@ -1568,5 +1574,107 @@ describe("Webhook Real de Gateway de Pagamento (Asaas / Mercado Pago)", () => {
     const result = await processMercadoPagoWebhook(mpPayload);
     expect(result.success).toBe(true);
     expect(result.eventId).toBeDefined();
+  });
+});
+
+describe("Assinatura Eletrônica Touch de Termos (TCLE, Contratos e Atestados)", () => {
+  it("calcula hash criptográfico SHA-256 e detecta qualquer adulteração no texto ou metadados", async () => {
+    const textOriginal = "Declaro que autorizo a realização de exodontia de siso (dente 38).";
+    const hashOriginal = await computeDocumentSha256(textOriginal, { patientId: "p1" });
+
+    expect(hashOriginal).toBeDefined();
+    expect(typeof hashOriginal).toBe("string");
+    expect(hashOriginal.length).toBeGreaterThan(10);
+
+    // Mesmo texto gera exatamente o mesmo hash (idempotência)
+    const hashReplicado = await computeDocumentSha256(textOriginal, { patientId: "p1" });
+    expect(hashReplicado).toBe(hashOriginal);
+
+    // Texto alterado gera hash completamente diferente (inviolabilidade probatória)
+    const textAdulterado = "Declaro que autorizo a realização de exodontia de siso (dente 48).";
+    const hashAdulterado = await computeDocumentSha256(textAdulterado, { patientId: "p1" });
+    expect(hashAdulterado).not.toBe(hashOriginal);
+  });
+
+  it("gera minuta de Contrato Odontológico com cláusulas de obrigação de meio e foro Lei 14.063", () => {
+    const contract = generateDentalContractTemplate({
+      clinicName: "Clínica Dental Prime",
+      patientName: "Mariana Souza",
+      patientCpf: "12345678901",
+      procedureList: ["Implante Cone Morse", "Prótese sobre Implante"],
+      totalAmount: 4500,
+      paymentConditions: "Entrada + 10x sem juros",
+    });
+
+    expect(contract).toContain("CONTRATO DE PRESTAÇÃO DE SERVIÇOS ODONTOLÓGICOS");
+    expect(contract).toContain("Clínica Dental Prime");
+    expect(contract).toContain("Mariana Souza");
+    expect(contract).toContain("123.456.789-01");
+    expect(contract).toContain("obrigação de meio, e não de fim ou resultado");
+    expect(contract).toContain("R$ 4500.00");
+    expect(contract).toContain("Lei Federal nº 14.063/2020");
+  });
+
+  it("produz HTML de impressão do documento assinado com selo criptográfico e dados probatórios", () => {
+    const html = buildSignedDocumentPrintableHtml({
+      signature: {
+        id: "sig-test-1",
+        clinic_id: CLINIC_A,
+        patient_id: "p1",
+        document_type: "tcle",
+        document_title: "TCLE Cirurgia Oral Menor",
+        document_content: "Consentimento informado sobre procedimento cirúrgico...",
+        document_hash: "a9f8e7d6c5b4a321987654321fedcba0123456789abcdef0123456789abcdef0",
+        signer_name: "Mariana Souza",
+        signer_cpf: "12345678901",
+        signer_role: "patient",
+        signature_data_url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+        status: "valid",
+        signed_at: "2026-11-05T10:00:00.000Z",
+        created_at: "2026-11-05T10:00:00.000Z",
+      },
+      clinicName: "Clínica Dental Prime",
+      unitName: "Unidade Paulista",
+      unitAddress: "Av Paulista, 1000",
+      unitPhone: "(11) 98765-4321",
+    });
+
+    expect(html).toContain("TCLE Cirurgia Oral Menor — Assinado Digitalmente");
+    expect(html).toContain("Clínica Dental Prime");
+    expect(html).toContain("Mariana Souza");
+    expect(html).toContain("123.456.789-01");
+    expect(html).toContain("a9f8e7d6c5b4a321987654321fedcba0123456789abcdef0123456789abcdef0");
+    expect(html).toContain("Lei Federal nº 14.063/2020");
+    expect(html).toContain("data:image/png;base64");
+  });
+
+  it("rejeita assinatura com CPF inválido ou canvas em branco", async () => {
+    // CPF com menos de 11 dígitos
+    await expect(
+      createElectronicSignature(CLINIC_A, {
+        patient_id: "p1",
+        document_type: "tcle",
+        document_title: "TCLE Teste",
+        document_content: "Conteúdo...",
+        signer_name: "Teste",
+        signer_cpf: "123",
+        signer_role: "patient",
+        signature_data_url: "data:image/png;base64,abc",
+      }),
+    ).rejects.toThrow("CPF do signatário inválido");
+
+    // Assinatura gráfica vazia
+    await expect(
+      createElectronicSignature(CLINIC_A, {
+        patient_id: "p1",
+        document_type: "tcle",
+        document_title: "TCLE Teste",
+        document_content: "Conteúdo...",
+        signer_name: "Teste",
+        signer_cpf: "12345678901",
+        signer_role: "patient",
+        signature_data_url: "",
+      }),
+    ).rejects.toThrow("Assinatura digital gráfica ausente");
   });
 });

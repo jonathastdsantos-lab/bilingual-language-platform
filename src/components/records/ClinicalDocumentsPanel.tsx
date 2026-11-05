@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileCheck2, FileText, Pill, Printer, ShieldCheck } from "lucide-react";
+import { FileCheck2, FileSignature, FileText, Pill, Printer, ScrollText, ShieldCheck } from "lucide-react";
 import {
   DENTAL_CID10_CODES,
   DENTAL_PRESCRIPTION_PRESETS,
@@ -11,6 +11,9 @@ import {
   buildPrintableDocumentHtml,
   createClinicalRecord,
 } from "@/modules/records";
+import { generateDentalContractTemplate } from "@/modules/signatures";
+import { SignaturePadModal } from "@/components/signatures/SignaturePadModal";
+import { SignedDocumentsList } from "@/components/signatures/SignedDocumentsList";
 import { formatCPF } from "@/utils/validators";
 import { toSaoPauloDateKey } from "@/utils/timezone";
 import { Button } from "@/components/ui/button";
@@ -56,6 +59,7 @@ export function ClinicalDocumentsPanel({
   const [authorizeCid, setAuthorizeCid] = useState<boolean>(true);
   const [procedureName, setProcedureName] = useState<string>("Reabilitação Oral / Procedimento Odontológico");
   const [bodyText, setBodyText] = useState<string>(DENTAL_PRESCRIPTION_PRESETS[0].text);
+  const [signatureModalOpen, setSignatureModalOpen] = useState<boolean>(false);
 
   const selectedProfName =
     professionals.find((p) => p.id === professionalId)?.name ?? "Cirurgião-Dentista Responsável";
@@ -76,8 +80,16 @@ export function ClinicalDocumentsPanel({
       setBodyText(
         `Pelo presente Termo de Consentimento Livre e Esclarecido (TCLE), eu, ${patient.full_name}${formattedPatientCpf ? `, CPF ${formattedPatientCpf},` : ""} declaro que fui devidamente informado(a) pelo(a) Cirurgião-Dentista ${selectedProfName} (${professionalCro}) sobre o diagnóstico, objetivos, etapas clínicas, alternativas de tratamento, custos e riscos biológicos inerentes ao procedimento proposto (${procedureName}).\n\n1. Compreendo que a Odontologia não é uma ciência exata e que os resultados dependem também da resposta biológica individual, anatomia, higienização bucal e cumprimento rigoroso das recomendações pós-operatórias e retornos agendados.\n2. Fui orientado(a) quanto aos possíveis efeitos pós-operatórios transitórios (edema, sensibilidade, hematoma ou desconforto local) e recebi todas as instruções verbais e escritas de medicação e cuidados.\n3. Autorizo a realização do tratamento proposto, bem como registros fotográficos/radiográficos para fins exclusivamente clínicos e de prontuário odontológico.`,
       );
+    } else if (kind === "contract") {
+      setBodyText(
+        generateDentalContractTemplate({
+          clinicName,
+          patientName: patient.full_name,
+          patientCpf: patient.cpf || "",
+        }),
+      );
     }
-  }, [kind, patient.full_name, formattedPatientCpf, restDays, selectedProfName, professionalCro, procedureName]);
+  }, [kind, patient.full_name, patient.cpf, formattedPatientCpf, restDays, selectedProfName, professionalCro, procedureName, clinicName]);
 
   function openPrintWindow() {
     try {
@@ -171,7 +183,7 @@ export function ClinicalDocumentsPanel({
         </div>
 
         {/* Seletor de Tipo de Documento */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <button
             type="button"
             onClick={() => setKind("prescription_simple")}
@@ -233,6 +245,22 @@ export function ClinicalDocumentsPanel({
             <div>
               <div>Termo de Consentimento</div>
               <div className="text-[10px] font-normal text-muted-foreground">TCLE assinado pelo paciente</div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setKind("contract")}
+            className={`flex items-center gap-2 rounded-xl border p-3 text-left text-xs font-semibold transition ${
+              kind === "contract"
+                ? "border-primary bg-primary/10 text-primary"
+                : "bg-background text-navy hover:bg-muted/60"
+            }`}
+          >
+            <ScrollText className="h-4 w-4 shrink-0" />
+            <div>
+              <div>Contrato Odontológico</div>
+              <div className="text-[10px] font-normal text-muted-foreground">Prestação de serviços e valores</div>
             </div>
           </button>
         </div>
@@ -387,16 +415,26 @@ export function ClinicalDocumentsPanel({
             Apenas Imprimir / Salvar PDF ({pageSize})
           </Button>
           {canWrite && (
-            <Button
-              type="button"
-              variant="hero"
-              disabled={saveAndPrintMut.isPending}
-              onClick={() => saveAndPrintMut.mutate()}
-              className="gap-1.5"
-            >
-              <Printer className="h-4 w-4" />
-              Arquivar no Prontuário & Imprimir ({pageSize})
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="hero"
+                disabled={saveAndPrintMut.isPending}
+                onClick={() => saveAndPrintMut.mutate()}
+                className="gap-1.5"
+              >
+                <Printer className="h-4 w-4" />
+                Arquivar no Prontuário & Imprimir ({pageSize})
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setSignatureModalOpen(true)}
+                className="gap-1.5 bg-teal text-white hover:bg-teal-600 shadow-sm"
+              >
+                <FileSignature className="h-4 w-4" />
+                Coletar Assinatura Touch (Tablet / Tela)
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -469,7 +507,7 @@ export function ClinicalDocumentsPanel({
               <p className="font-bold text-navy">{selectedProfName}</p>
               <p className="text-muted-foreground">{professionalCro}</p>
             </div>
-            {(kind === "tcle" || kind === "certificate") && (
+            {(kind === "tcle" || kind === "certificate" || kind === "contract") && (
               <div>
                 <div className="mx-auto mb-1 w-44 border-t border-navy" />
                 <p className="font-bold text-navy">{patient.full_name}</p>
@@ -479,6 +517,55 @@ export function ClinicalDocumentsPanel({
           </div>
         </div>
       </div>
+
+      {/* Lista e Gestão de Termos e Contratos Assinados Eletronicamente */}
+      <div className="lg:col-span-12">
+        <SignedDocumentsList
+          clinicId={clinicId}
+          patientId={patient.id}
+          clinicName={clinicName}
+          unitName={unitName}
+          unitAddress={unitAddress}
+          unitPhone={unitPhone}
+          onNewSignature={() => setSignatureModalOpen(true)}
+        />
+      </div>
+
+      <SignaturePadModal
+        open={signatureModalOpen}
+        onOpenChange={setSignatureModalOpen}
+        clinicId={clinicId}
+        patientId={patient.id}
+        patientName={patient.full_name}
+        patientCpf={patient.cpf}
+        documentType={
+          kind === "tcle"
+            ? "tcle"
+            : kind === "certificate"
+              ? "certificate"
+              : kind === "contract"
+                ? "contract"
+                : kind === "prescription_simple" || kind === "prescription_controlled"
+                  ? "prescription"
+                  : "other"
+        }
+        documentTitle={
+          kind === "prescription_simple"
+            ? "Receituário Simples"
+            : kind === "prescription_controlled"
+              ? "Receituário de Controle Especial"
+              : kind === "certificate"
+                ? "Atestado Odontológico"
+                : kind === "contract"
+                  ? "Contrato de Prestação de Serviços Odontológicos"
+                  : `Termo de Consentimento Livre e Esclarecido (TCLE) — ${procedureName}`
+        }
+        documentContent={bodyText}
+        onSuccess={() => {
+          qc.invalidateQueries({ queryKey: ["patientSignatures", clinicId, patient.id] });
+          qc.invalidateQueries({ queryKey: ["clinicalRecords", clinicId, patient.id] });
+        }}
+      />
     </div>
   );
 }

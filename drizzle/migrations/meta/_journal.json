@@ -127,6 +127,13 @@
       "when": 1793859600000,
       "tag": "0017_payment_gateway_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793863200000,
+      "tag": "0018_electronic_signatures",
+      "breakpoints": true
     }
   ]
 }
