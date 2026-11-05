@@ -3,15 +3,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Ban,
+  Check,
   CheckCircle2,
+  Copy,
   FileCheck,
   FileSignature,
   FileText,
   Lock,
+  MessageCircle,
   Printer,
   ShieldAlert,
   ShieldCheck,
+  Smartphone,
   UserCheck,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -23,8 +28,11 @@ import {
   fetchPatientSignatures,
   revokeElectronicSignature,
   buildSignedDocumentPrintableHtml,
+  fetchSignatureRequests,
+  cancelSignatureRequest,
+  buildWhatsAppSignatureInviteUrl,
 } from "@/modules/signatures";
-import type { PatientElectronicSignature } from "@/types";
+import type { DocumentSignatureRequest, PatientElectronicSignature } from "@/types";
 import { formatCPF } from "@/utils/validators";
 
 export interface SignedDocumentsListProps {
@@ -35,6 +43,7 @@ export interface SignedDocumentsListProps {
   unitAddress?: string | null | undefined;
   unitPhone?: string | null | undefined;
   onNewSignature?: (() => void) | undefined;
+  onNewWhatsAppSignature?: (() => void) | undefined;
 }
 
 export function SignedDocumentsList({
@@ -45,6 +54,7 @@ export function SignedDocumentsList({
   unitAddress,
   unitPhone,
   onNewSignature,
+  onNewWhatsAppSignature,
 }: SignedDocumentsListProps) {
   const qc = useQueryClient();
   const [selectedSignature, setSelectedSignature] = useState<PatientElectronicSignature | null>(null);
@@ -55,6 +65,20 @@ export function SignedDocumentsList({
   const { data: signatures = [], isLoading } = useQuery({
     queryKey: ["patientSignatures", clinicId, patientId],
     queryFn: () => fetchPatientSignatures(clinicId, patientId),
+  });
+
+  const { data: requests = [] } = useQuery({
+    queryKey: ["signatureRequests", clinicId, patientId],
+    queryFn: () => fetchSignatureRequests(clinicId, patientId),
+  });
+
+  const cancelRequestMut = useMutation({
+    mutationFn: (requestId: string) => cancelSignatureRequest(clinicId, requestId),
+    onSuccess: () => {
+      toast.success("Solicitação de assinatura cancelada.");
+      qc.invalidateQueries({ queryKey: ["signatureRequests", clinicId, patientId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const revokeMutation = useMutation({
@@ -112,17 +136,104 @@ export function SignedDocumentsList({
             Documentos assinados na tela pelo paciente ou tutor com carimbo criptográfico SHA-256.
           </p>
         </div>
-        {onNewSignature && (
-          <Button
-            type="button"
-            size="sm"
-            onClick={onNewSignature}
-            className="h-8 text-xs bg-teal text-white hover:bg-teal-600"
-          >
-            <FileSignature className="mr-1.5 h-3.5 w-3.5" /> Nova Assinatura Touch
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {onNewWhatsAppSignature && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={onNewWhatsAppSignature}
+              className="h-8 text-xs text-emerald-700 border-emerald-300 hover:bg-emerald-50"
+            >
+              <MessageCircle className="mr-1.5 h-3.5 w-3.5 text-emerald-600" /> Enviar p/ Celular (WhatsApp)
+            </Button>
+          )}
+          {onNewSignature && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={onNewSignature}
+              className="h-8 text-xs bg-teal text-white hover:bg-teal-600"
+            >
+              <FileSignature className="mr-1.5 h-3.5 w-3.5" /> Assinar na Tela / Tablet
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Solicitações Pendentes de Assinatura via Celular */}
+      {requests.filter((r) => r.status === "pending").length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3.5 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+              <Smartphone className="h-4 w-4 text-amber-600" />
+              Solicitações Aguardando Assinatura do Paciente no Celular ({requests.filter((r) => r.status === "pending").length})
+            </span>
+          </div>
+
+          <div className="grid gap-2">
+            {requests
+              .filter((r) => r.status === "pending")
+              .map((req) => {
+                const link = `${typeof window !== "undefined" ? window.location.origin : "https://app.sondapro.com.br"}/assinar/${req.token}`;
+                return (
+                  <div key={req.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white p-2.5 text-xs">
+                    <div>
+                      <span className="font-extrabold text-navy">{req.document_title}</span>
+                      <span className="ml-2 text-[11px] text-muted-foreground">
+                        Enviado para {req.signer_phone || "Paciente"} · Expira em {new Date(req.expires_at).toLocaleString("pt-BR")}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(link);
+                          toast.success("Link seguro copiado!");
+                        }}
+                        className="h-7 text-[11px] gap-1"
+                      >
+                        <Copy className="h-3 w-3" /> Copiar Link
+                      </Button>
+                      {req.signer_phone && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            const waUrl = buildWhatsAppSignatureInviteUrl({
+                              phone: req.signer_phone || "",
+                              patientName: req.signer_name || "Paciente",
+                              documentTitle: req.document_title,
+                              token: req.token,
+                              clinicName,
+                            });
+                            window.open(waUrl, "_blank");
+                          }}
+                          className="h-7 text-[11px] text-emerald-700 border-emerald-300 hover:bg-emerald-50 gap-1"
+                        >
+                          <MessageCircle className="h-3 w-3 text-emerald-600" /> Abrir WhatsApp
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => cancelRequestMut.mutate(req.id)}
+                        className="h-7 text-[11px] text-rose-600 hover:bg-rose-50"
+                      >
+                        <X className="h-3 w-3" /> Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="py-8 text-center text-xs text-muted-foreground">Carregando termos assinados...</div>
@@ -138,15 +249,14 @@ export function SignedDocumentsList({
               sig.signer_role === "patient"
                 ? "Paciente"
                 : sig.signer_role === "legal_guardian"
-                ? "Responsável Legal"
-                : "Representante";
+                  ? "Responsável Legal"
+                  : "Representante";
 
             return (
               <div
                 key={sig.id}
-                className={`rounded-2xl border p-4 transition ${
-                  isRevoked ? "bg-red-50/30 border-red-200" : "bg-muted/20 hover:border-teal"
-                }`}
+                className={`rounded-2xl border p-4 transition ${isRevoked ? "bg-red-50/30 border-red-200" : "bg-muted/20 hover:border-teal"
+                  }`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="space-y-1">
@@ -154,9 +264,8 @@ export function SignedDocumentsList({
                       <span className="text-sm font-extrabold text-navy">{sig.document_title}</span>
                       <Badge
                         variant="outline"
-                        className={`text-[10px] font-bold ${
-                          isRevoked ? "border-red-300 text-red-600" : "border-teal/40 text-teal"
-                        }`}
+                        className={`text-[10px] font-bold ${isRevoked ? "border-red-300 text-red-600" : "border-teal/40 text-teal"
+                          }`}
                       >
                         {isRevoked ? "Revogado" : "Assinado & Válido"}
                       </Badge>
@@ -277,4 +386,3 @@ export function SignedDocumentsList({
     </div>
   );
 }
-

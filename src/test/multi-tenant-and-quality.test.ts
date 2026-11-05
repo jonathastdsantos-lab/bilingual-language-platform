@@ -61,6 +61,8 @@ import {
   generateDentalContractTemplate,
   buildSignedDocumentPrintableHtml,
   createElectronicSignature,
+  buildWhatsAppSignatureInviteUrl,
+  createSignatureRequest,
 } from "@/modules/signatures";
 import {
   aggregateOdontogramState,
@@ -1676,5 +1678,41 @@ describe("Assinatura Eletrônica Touch de Termos (TCLE, Contratos e Atestados)",
         signature_data_url: "",
       }),
     ).rejects.toThrow("Assinatura digital gráfica ausente");
+  });
+
+  it("gera convite e link do WhatsApp para assinatura externa no celular com token seguro", () => {
+    const waUrl = buildWhatsAppSignatureInviteUrl({
+      phone: "(11) 99887-7665",
+      patientName: "Lucas Mendonça",
+      documentTitle: "TCLE Implante Dentário",
+      token: "sig_abc123xyz789",
+      clinicName: "Odonto Clean",
+      baseUrl: "https://app.sondapro.com.br",
+    });
+
+    expect(waUrl).toContain("https://wa.me/5511998877665?text=");
+    expect(waUrl).toContain(encodeURIComponent("Olá, Lucas!"));
+    expect(waUrl).toContain(encodeURIComponent("Odonto Clean"));
+    expect(waUrl).toContain(encodeURIComponent("TCLE Implante Dentário"));
+    expect(waUrl).toContain(encodeURIComponent("https://app.sondapro.com.br/assinar/sig_abc123xyz789"));
+  });
+
+  it("cria solicitação de assinatura externa com token e prazo de expiração", async () => {
+    const req = await createSignatureRequest(CLINIC_A, {
+      patient_id: "p1",
+      document_type: "tcle",
+      document_title: "Termo de Consentimento - Ortodontia",
+      document_content: "Cláusulas do tratamento ortodôntico...",
+      signer_name: "Lucas Mendonça",
+      signer_cpf: "12345678901",
+      signer_phone: "11998877665",
+      expiresInHours: 48,
+    });
+
+    expect(req.token).toMatch(/^sig_/);
+    expect(req.status).toBe("pending");
+    expect(req.clinic_id).toBe(CLINIC_A);
+    expect(req.document_type).toBe("tcle");
+    expect(new Date(req.expires_at).getTime()).toBeGreaterThan(Date.now());
   });
 });

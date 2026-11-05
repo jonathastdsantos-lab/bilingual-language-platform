@@ -134,6 +134,13 @@
       "when": 1793863200000,
       "tag": "0018_electronic_signatures",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793866800000,
+      "tag": "0019_external_signature_requests",
+      "breakpoints": true
     }
   ]
 }

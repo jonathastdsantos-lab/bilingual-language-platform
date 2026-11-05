@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileCheck2, FileSignature, FileText, Pill, Printer, ScrollText, ShieldCheck } from "lucide-react";
+import { FileCheck2, FileSignature, FileText, MessageCircle, Pill, Printer, ScrollText, ShieldCheck } from "lucide-react";
 import {
   DENTAL_CID10_CODES,
   DENTAL_PRESCRIPTION_PRESETS,
@@ -14,6 +14,7 @@ import {
 import { generateDentalContractTemplate } from "@/modules/signatures";
 import { SignaturePadModal } from "@/components/signatures/SignaturePadModal";
 import { SignedDocumentsList } from "@/components/signatures/SignedDocumentsList";
+import { SendSignatureWhatsAppModal } from "@/components/signatures/SendSignatureWhatsAppModal";
 import { formatCPF } from "@/utils/validators";
 import { toSaoPauloDateKey } from "@/utils/timezone";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ interface ClinicalDocumentsPanelProps {
     id: string;
     full_name: string;
     cpf: string | null;
+    phone?: string | null | undefined;
   };
   professionals: Array<{ id: string; name: string }>;
   canWrite: boolean;
@@ -60,6 +62,7 @@ export function ClinicalDocumentsPanel({
   const [procedureName, setProcedureName] = useState<string>("Reabilitação Oral / Procedimento Odontológico");
   const [bodyText, setBodyText] = useState<string>(DENTAL_PRESCRIPTION_PRESETS[0].text);
   const [signatureModalOpen, setSignatureModalOpen] = useState<boolean>(false);
+  const [whatsAppModalOpen, setWhatsAppModalOpen] = useState<boolean>(false);
 
   const selectedProfName =
     professionals.find((p) => p.id === professionalId)?.name ?? "Cirurgião-Dentista Responsável";
@@ -428,6 +431,15 @@ export function ClinicalDocumentsPanel({
               </Button>
               <Button
                 type="button"
+                variant="outline"
+                onClick={() => setWhatsAppModalOpen(true)}
+                className="gap-1.5 text-emerald-700 border-emerald-300 hover:bg-emerald-50 shadow-sm"
+              >
+                <MessageCircle className="h-4 w-4 text-emerald-600" />
+                Enviar p/ Celular (WhatsApp)
+              </Button>
+              <Button
+                type="button"
                 onClick={() => setSignatureModalOpen(true)}
                 className="gap-1.5 bg-teal text-white hover:bg-teal-600 shadow-sm"
               >
@@ -528,6 +540,7 @@ export function ClinicalDocumentsPanel({
           unitAddress={unitAddress}
           unitPhone={unitPhone}
           onNewSignature={() => setSignatureModalOpen(true)}
+          onNewWhatsAppSignature={() => setWhatsAppModalOpen(true)}
         />
       </div>
 
@@ -565,6 +578,40 @@ export function ClinicalDocumentsPanel({
           qc.invalidateQueries({ queryKey: ["patientSignatures", clinicId, patient.id] });
           qc.invalidateQueries({ queryKey: ["clinicalRecords", clinicId, patient.id] });
         }}
+      />
+
+      <SendSignatureWhatsAppModal
+        open={whatsAppModalOpen}
+        onOpenChange={setWhatsAppModalOpen}
+        clinicId={clinicId}
+        patientId={patient.id}
+        patientName={patient.full_name}
+        patientPhone={patient.phone}
+        patientCpf={patient.cpf}
+        clinicName={clinicName}
+        documentType={
+          kind === "tcle"
+            ? "tcle"
+            : kind === "certificate"
+              ? "certificate"
+              : kind === "contract"
+                ? "contract"
+                : kind === "prescription_simple" || kind === "prescription_controlled"
+                  ? "prescription"
+                  : "other"
+        }
+        documentTitle={
+          kind === "prescription_simple"
+            ? "Receituário Simples"
+            : kind === "prescription_controlled"
+              ? "Receituário de Controle Especial"
+              : kind === "certificate"
+                ? "Atestado Odontológico"
+                : kind === "contract"
+                  ? "Contrato de Prestação de Serviços Odontológicos"
+                  : `Termo de Consentimento Livre e Esclarecido (TCLE) — ${procedureName}`
+        }
+        documentContent={bodyText}
       />
     </div>
   );

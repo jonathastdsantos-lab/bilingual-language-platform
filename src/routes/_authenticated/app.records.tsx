@@ -334,6 +334,7 @@ function ClinicalRecordsPage() {
                     id: activePatient.id,
                     full_name: activePatient.full_name,
                     cpf: activePatient.cpf,
+                    phone: activePatient.phone,
                   }}
                   professionals={professionals}
                   canWrite={canWrite}

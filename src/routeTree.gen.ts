@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as ConfirmTokenRouteImport } from './routes/confirm.$token'
+import { Route as AssinarTokenRouteImport } from './routes/assinar.$token'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppAgendaRouteImport } from './routes/_authenticated/app.agenda'
 import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authenticated/app.finance'
@@ -56,6 +57,11 @@ const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
 const ConfirmTokenRoute = ConfirmTokenRouteImport.update({
   id: '/confirm/$token',
   path: '/confirm/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AssinarTokenRoute = AssinarTokenRouteImport.update({
+  id: '/assinar/$token',
+  path: '/assinar/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/confirm/$token': typeof ConfirmTokenRoute
+  '/assinar/$token': typeof AssinarTokenRoute
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/patients': typeof AuthenticatedAppPatientsRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/confirm/$token': typeof ConfirmTokenRoute
+  '/assinar/$token': typeof AssinarTokenRoute
   '/tv': typeof TvRoute
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/app/finance': typeof AuthenticatedAppFinanceRoute
@@ -175,6 +183,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/confirm/$token': typeof ConfirmTokenRoute
+  '/assinar/$token': typeof AssinarTokenRoute
   '/tv': typeof TvRoute
   '/_authenticated/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
@@ -197,6 +206,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/app'
     | '/confirm/$token'
+    | '/assinar/$token'
     | '/app/agenda'
     | '/app/finance'
     | '/app/patients'
@@ -216,6 +226,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/confirm/$token'
+    | '/assinar/$token'
     | '/tv'
     | '/app/agenda'
     | '/app/finance'
@@ -237,6 +248,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/app'
     | '/confirm/$token'
+    | '/assinar/$token'
     | '/tv'
     | '/_authenticated/app/agenda'
     | '/_authenticated/app/finance'
@@ -303,6 +315,13 @@ declare module '@tanstack/react-router' {
       path: '/confirm/$token'
       fullPath: '/confirm/$token'
       preLoaderRoute: typeof ConfirmTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/assinar/$token': {
+      id: '/assinar/$token'
+      path: '/assinar/$token'
+      fullPath: '/assinar/$token'
+      preLoaderRoute: typeof AssinarTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app/': {
@@ -449,6 +468,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ConfirmTokenRoute: ConfirmTokenRoute,
+  AssinarTokenRoute: AssinarTokenRoute,
   TvRoute: TvRoute,
 }
 export const routeTree = rootRouteImport

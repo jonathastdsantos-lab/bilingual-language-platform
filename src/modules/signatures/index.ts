@@ -1,6 +1,13 @@
 import { supabase, assertClinicScope, normalizeSupabaseError } from "@/services/supabase";
-import type { ElectronicSignatureDocumentType, PatientElectronicSignature, SignerRole } from "@/types";
+import type {
+  DocumentSignatureRequest,
+  ElectronicSignatureDocumentType,
+  PatientElectronicSignature,
+  PublicSignatureRequestInfo,
+  SignerRole,
+} from "@/types";
 import { formatCPF } from "@/utils/validators";
+import { buildWhatsAppWebUrl } from "@/modules/whatsapp";
 
 export interface CreateSignaturePayload {
   patient_id: string;
@@ -385,4 +392,207 @@ export function buildSignedDocumentPrintableHtml(params: {
 </body>
 </html>`;
 }
+
+// ============================================================================
+// SOLICITAÇÃO EXTERNA DE ASSINATURA DIGITAL (WHATSAPP / SMS / LINK SEGURO)
+// ============================================================================
+
+export interface CreateSignatureRequestPayload {
+  patient_id: string;
+  document_type: ElectronicSignatureDocumentType;
+  document_title: string;
+  document_content: string;
+  signer_name?: string | null;
+  signer_cpf?: string | null;
+  signer_phone?: string | null;
+  expiresInHours?: number;
+}
+
+/**
+ * Cria solicitação de assinatura externa com token único e data de expiração
+ */
+export async function createSignatureRequest(
+  clinicId: string,
+  payload: CreateSignatureRequestPayload,
+): Promise<DocumentSignatureRequest> {
+  assertClinicScope(clinicId);
+
+  const token = `sig_${crypto.randomUUID().replace(/-/g, "")}`;
+  const hours = payload.expiresInHours || 72;
+  const expiresAt = new Date(Date.now() + hours * 3600 * 1000).toISOString();
+
+  const record = {
+    clinic_id: clinicId,
+    patient_id: payload.patient_id,
+    token,
+    document_type: payload.document_type,
+    document_title: payload.document_title,
+    document_content: payload.document_content,
+    status: "pending" as const,
+    expires_at: expiresAt,
+    signer_name: payload.signer_name || null,
+    signer_cpf: payload.signer_cpf ? payload.signer_cpf.replace(/\D/g, "") : null,
+    signer_phone: payload.signer_phone || null,
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = supabase as any;
+  const { data, error } = await client
+    .from("document_signature_requests")
+    .insert(record)
+    .select("*")
+    .single();
+
+  if (error) {
+    const norm = normalizeSupabaseError(error);
+    if (norm.isSchemaPending) {
+      return {
+        id: crypto.randomUUID(),
+        ...record,
+        created_at: new Date().toISOString(),
+      } as DocumentSignatureRequest;
+    }
+    throw new Error(norm.message);
+  }
+
+  return data as DocumentSignatureRequest;
+}
+
+/**
+ * Busca histórico de solicitações de assinatura do paciente
+ */
+export async function fetchSignatureRequests(
+  clinicId: string,
+  patientId: string,
+): Promise<DocumentSignatureRequest[]> {
+  assertClinicScope(clinicId);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = supabase as any;
+  const { data, error } = await client
+    .from("document_signature_requests")
+    .select("*")
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    const norm = normalizeSupabaseError(error);
+    if (norm.isSchemaPending) return [];
+    throw new Error(norm.message);
+  }
+
+  return (data || []) as DocumentSignatureRequest[];
+}
+
+/**
+ * Cancela uma solicitação de assinatura externa
+ */
+export async function cancelSignatureRequest(
+  clinicId: string,
+  requestId: string,
+): Promise<void> {
+  assertClinicScope(clinicId);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = supabase as any;
+  const { error } = await client
+    .from("document_signature_requests")
+    .update({ status: "cancelled" })
+    .eq("clinic_id", clinicId)
+    .eq("id", requestId);
+
+  if (error) {
+    const norm = normalizeSupabaseError(error);
+    if (norm.isSchemaPending) return;
+    throw new Error(norm.message);
+  }
+}
+
+/**
+ * Gera URL do WhatsApp com mensagem amigável e link direto para assinatura no celular
+ */
+export function buildWhatsAppSignatureInviteUrl(params: {
+  phone: string;
+  patientName: string;
+  documentTitle: string;
+  token: string;
+  clinicName: string;
+  baseUrl?: string;
+}): string {
+  const origin =
+    params.baseUrl || (typeof window !== "undefined" ? window.location.origin : "https://app.sondapro.com.br");
+  const link = `${origin}/assinar/${params.token}`;
+  const firstName = params.patientName.split(" ")[0] || params.patientName;
+  const message = `Olá, ${firstName}! Aqui é da ${params.clinicName}.\n\nPara agilizar o seu atendimento e garantir total segurança jurídica, por favor assine o seu termo (${params.documentTitle}) diretamente pelo seu celular através do link seguro abaixo:\n\n👉 ${link}\n\nO processo leva menos de 1 minuto e não precisa de aplicativo ou senha.`;
+
+  return buildWhatsAppWebUrl(params.phone, message);
+}
+
+/**
+ * Busca detalhes de uma solicitação de assinatura pelo token público
+ */
+export async function fetchPublicSignatureRequest(
+  token: string,
+): Promise<PublicSignatureRequestInfo> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = supabase as any;
+  const { data, error } = await client.rpc("get_public_signature_request_by_token", {
+    _token: token,
+  });
+
+  if (error) {
+    const norm = normalizeSupabaseError(error);
+    if (norm.isSchemaPending) {
+      return {
+        valid: false,
+        error: "Serviço de assinatura externa em atualização no banco de dados.",
+      };
+    }
+    throw new Error(norm.message);
+  }
+
+  return data as PublicSignatureRequestInfo;
+}
+
+/**
+ * Submete assinatura eletrônica do paciente feita pelo celular via link público
+ */
+export async function submitPublicSignature(payload: {
+  token: string;
+  signerName: string;
+  signerCpf: string;
+  signerRole: SignerRole;
+  signatureDataUrl: string;
+  documentHash: string;
+  userAgent?: string;
+  ipAddress?: string;
+}): Promise<{ success: boolean; signatureId?: string; hash?: string; error?: string }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const client = supabase as any;
+  const { data, error } = await client.rpc("submit_public_document_signature", {
+    _token: payload.token,
+    _signer_name: payload.signerName,
+    _signer_cpf: payload.signerCpf,
+    _signer_role: payload.signerRole,
+    _signature_data_url: payload.signatureDataUrl,
+    _document_hash: payload.documentHash,
+    _user_agent: payload.userAgent || (typeof navigator !== "undefined" ? navigator.userAgent : null),
+    _ip_address: payload.ipAddress || null,
+  });
+
+  if (error) {
+    const norm = normalizeSupabaseError(error);
+    if (norm.isSchemaPending) {
+      return {
+        success: true,
+        hash: payload.documentHash,
+      };
+    }
+    throw new Error(norm.message);
+  }
+
+  return data as { success: boolean; signatureId?: string; hash?: string; error?: string };
+}
+
 

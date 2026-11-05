@@ -805,3 +805,40 @@ export interface PatientElectronicSignature {
   created_by?: string | null;
   created_at: string;
 }
+
+export type DocumentSignatureRequestStatus = "pending" | "signed" | "expired" | "cancelled";
+
+export interface DocumentSignatureRequest {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  token: string;
+  document_type: ElectronicSignatureDocumentType;
+  document_title: string;
+  document_content: string;
+  status: DocumentSignatureRequestStatus;
+  expires_at: string;
+  signed_signature_id?: string | null;
+  signer_name?: string | null;
+  signer_cpf?: string | null;
+  signer_phone?: string | null;
+  metadata?: Record<string, unknown>;
+  created_by?: string | null;
+  created_at: string;
+}
+
+export interface PublicSignatureRequestInfo {
+  valid: boolean;
+  error?: string;
+  already_signed?: boolean;
+  token?: string;
+  status?: DocumentSignatureRequestStatus;
+  expires_at?: string;
+  document_type?: ElectronicSignatureDocumentType;
+  document_title?: string;
+  document_content?: string;
+  patient_name?: string;
+  patient_cpf?: string | null;
+  clinic_name?: string;
+  clinic_phone?: string | null;
+}
