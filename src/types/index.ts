@@ -984,3 +984,94 @@ export interface PublicBookingResult {
   error?: string | undefined;
 }
 
+// ============================================================================
+// COMISSÕES ODONTOLÓGICAS AVANÇADAS & REPASSES
+// ============================================================================
+
+export type CommissionSettlementStatus = "draft" | "approved" | "paid" | "cancelled";
+export type CommissionCalculationType = "percentage_gross" | "percentage_net_of_lab" | "fixed_amount";
+
+export interface CommissionRule {
+  id: string;
+  clinic_id: string;
+  professional_id: string;
+  procedure_name: string | null;
+  calculation_type: CommissionCalculationType;
+  percentage: number;
+  fixed_amount: number;
+  deduct_lab_costs: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommissionSettlement {
+  id: string;
+  clinic_id: string;
+  professional_id: string;
+  settlement_code: string;
+  period_start: string;
+  period_end: string;
+  total_gross_amount: number;
+  total_lab_deductions: number;
+  total_other_deductions: number;
+  net_commission_amount: number;
+  status: CommissionSettlementStatus;
+  payment_method: string | null;
+  payment_date: string | null;
+  financial_entry_id: string | null;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  professional?: {
+    id: string;
+    name: string;
+    cro: string | null;
+    specialty: string | null;
+    color?: string | null | undefined;
+  } | null | undefined;
+}
+
+export interface CommissionSettlementItem {
+  id: string;
+  settlement_id: string;
+  clinic_id: string;
+  appointment_id: string | null;
+  financial_entry_id: string | null;
+  patient_id: string | null;
+  patient_name: string;
+  procedure_name: string;
+  service_date: string;
+  gross_amount: number;
+  lab_cost: number;
+  calculation_basis: number;
+  commission_rate: number;
+  commission_amount: number;
+  created_at: string;
+}
+
+export interface CommissionPreviewItem {
+  appointment_id: string;
+  patient_id: string | null;
+  patient_name: string;
+  procedure_name: string;
+  service_date: string;
+  gross_amount: number;
+  lab_cost: number;
+  calculation_basis: number;
+  commission_rate: number;
+  commission_amount: number;
+}
+
+export interface CommissionPreviewResult {
+  professional_id: string;
+  period_start: string;
+  period_end: string;
+  total_gross_amount: number;
+  total_lab_deductions: number;
+  net_commission_amount: number;
+  items_count: number;
+  items: CommissionPreviewItem[];
+}
+
+

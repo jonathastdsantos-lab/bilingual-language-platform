@@ -155,6 +155,13 @@
       "when": 1793874000000,
       "tag": "0021_public_online_booking",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793877600000,
+      "tag": "0022_advanced_dental_commissions",
+      "breakpoints": true
     }
   ]
 }

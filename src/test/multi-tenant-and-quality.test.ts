@@ -77,6 +77,9 @@ import {
   generateBookingWhatsAppMessage,
 } from "@/modules/online-booking";
 import {
+  generateSettlementPrintableHtml,
+} from "@/modules/commissions";
+import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
   buildPrintableDocumentHtml,
@@ -1845,6 +1848,90 @@ describe("Certificado Digital ICP-Brasil & Assinatura Qualificada do Cirurgião-
       expect(decoded).toContain("Limpeza / Profilaxia Dental");
       expect(decoded).toContain("Dra. Beatriz Santos");
       expect(decoded).toContain("Seu agendamento");
+    });
+  });
+
+  describe("Comissões Odontológicas Avançadas & Repasses", () => {
+    it("gera espelho formal de repasse odontológico para o dentista parceiro", () => {
+      const mockSettlement = {
+        id: "settle-1",
+        clinic_id: CLINIC_A,
+        professional_id: "prof-1",
+        settlement_code: "REP-202611-101",
+        period_start: "2026-11-01",
+        period_end: "2026-11-15",
+        total_gross_amount: 5000,
+        total_lab_deductions: 800,
+        total_other_deductions: 0,
+        net_commission_amount: 2100, // (5000 - 800) * 50% = 2100
+        status: "paid" as const,
+        payment_method: "pix",
+        payment_date: "2026-11-16",
+        financial_entry_id: "fe-comm-1",
+        notes: "1ª quinzena de novembro",
+        created_by: USER_ALICE,
+        created_at: "2026-11-15T18:00:00Z",
+        updated_at: "2026-11-16T10:00:00Z",
+        professional: {
+          id: "prof-1",
+          name: "Dr. Carlos Eduardo",
+          cro: "CRO-SP 87654",
+          specialty: "Implantodontia",
+        },
+      };
+
+      const mockItems = [
+        {
+          id: "item-1",
+          settlement_id: "settle-1",
+          clinic_id: CLINIC_A,
+          appointment_id: "appt-1",
+          financial_entry_id: null,
+          patient_id: "p1",
+          patient_name: "Fernanda Lima",
+          procedure_name: "Instalação de Coroa Cerâmica",
+          service_date: "2026-11-05",
+          gross_amount: 3000,
+          lab_cost: 800,
+          calculation_basis: 2200,
+          commission_rate: 50,
+          commission_amount: 1100,
+          created_at: "2026-11-15T18:00:00Z",
+        },
+        {
+          id: "item-2",
+          settlement_id: "settle-1",
+          clinic_id: CLINIC_A,
+          appointment_id: "appt-2",
+          financial_entry_id: null,
+          patient_id: "p2",
+          patient_name: "Rodrigo Matos",
+          procedure_name: "Cirurgia de Implante Osteointegrado",
+          service_date: "2026-11-10",
+          gross_amount: 2000,
+          lab_cost: 0,
+          calculation_basis: 2000,
+          commission_rate: 50,
+          commission_amount: 1000,
+          created_at: "2026-11-15T18:00:00Z",
+        },
+      ];
+
+      const html = generateSettlementPrintableHtml(mockSettlement, mockItems, "Clínica Dental Prime");
+
+      expect(html).toContain("Espelho de Repasse Odontológico");
+      expect(html).toContain("REP-202611-101");
+      expect(html).toContain("Dr. Carlos Eduardo");
+      expect(html).toContain("CRO: CRO-SP 87654");
+      expect(html).toContain("Fernanda Lima");
+      expect(html).toContain("Instalação de Coroa Cerâmica");
+      expect(html).toContain("Rodrigo Matos");
+      expect(html).toContain("LIQUIDADO / PAGO");
+      expect(html).toContain("Clínica Dental Prime");
+      // Contém os valores formatados
+      expect(html).toContain("5.000,00");
+      expect(html).toContain("800,00");
+      expect(html).toContain("2.100,00");
     });
   });
 });

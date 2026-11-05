@@ -23,6 +23,7 @@ import {
   CashClosingPanel,
 } from "@/components/finance/CommissionsAndClosingPanel";
 import { TissGuidesPanel } from "@/components/finance/TissGuidesPanel";
+import { AdvancedCommissionsPanel } from "@/components/finance/AdvancedCommissionsPanel";
 import type { CashClosing, FinancialEntry } from "@/types";
 
 export const Route = createFileRoute("/_authenticated/app/finance")({
@@ -219,8 +220,17 @@ function FinancePage() {
             />
           </TabsContent>
 
-          <TabsContent value="commissions">
-            <ProfessionalCommissionsPanel commissions={commissions} />
+          <TabsContent value="commissions" className="space-y-6">
+            <AdvancedCommissionsPanel
+              clinicId={clinicId}
+              clinicName={clinicName}
+              professionals={professionals}
+              canManage={canWrite}
+            />
+            <div className="border-t pt-4">
+              <h3 className="text-sm font-bold text-navy mb-3">Estimativa de Comissões por Receitas Realizadas</h3>
+              <ProfessionalCommissionsPanel commissions={commissions} />
+            </div>
           </TabsContent>
 
           <TabsContent value="closing">
