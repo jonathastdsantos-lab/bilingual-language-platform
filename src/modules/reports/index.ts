@@ -3,6 +3,9 @@ import type {
   ClinicalDreReport,
   FinancialEntry,
   ProfessionalCommissionSummary,
+  ProcedureAbcClass,
+  ProcedureAbcItem,
+  ProcedureAbcReport,
 } from "@/types";
 
 const DIRECT_CLINICAL_COST_CATEGORIES = new Set([
@@ -162,4 +165,105 @@ export function downloadCsvFile(
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Calcula a Curva ABC (Princípio de Pareto) dos procedimentos realizados na clínica.
+ * Classifica os tratamentos em Classe A (80% da receita), Classe B (15%) e Classe C (5%).
+ */
+export function calculateProcedureAbcCurve(
+  appointments: Array<{
+    procedure: string | null;
+    price: number | string | null;
+    status: string;
+  }>,
+): ProcedureAbcReport {
+  const validAppts = appointments.filter(
+    (a) => a.status !== "cancelled" && a.status !== "no_show" && Number(a.price) > 0,
+  );
+
+  const map = new Map<string, { count: number; totalRevenue: number }>();
+  let totalRevenue = 0;
+  let totalProcedures = 0;
+
+  for (const a of validAppts) {
+    const name = a.procedure?.trim() || "Consulta / Avaliação Geral";
+    const price = Math.max(0, Number(a.price) || 0);
+    const existing = map.get(name) || { count: 0, totalRevenue: 0 };
+    existing.count += 1;
+    existing.totalRevenue += price;
+    map.set(name, existing);
+    totalRevenue += price;
+    totalProcedures += 1;
+  }
+
+  totalRevenue = Number(totalRevenue.toFixed(2));
+
+  const sorted = Array.from(map.entries())
+    .map(([procedureName, data]) => ({
+      procedureName,
+      count: data.count,
+      totalRevenue: Number(data.totalRevenue.toFixed(2)),
+      averageTicket: Number((data.totalRevenue / data.count).toFixed(2)),
+      revenueSharePct:
+        totalRevenue > 0
+          ? Number(((data.totalRevenue / totalRevenue) * 100).toFixed(1))
+          : 0,
+    }))
+    .sort((a, b) => b.totalRevenue - a.totalRevenue);
+
+  let cumulativeRevenue = 0;
+  let countA = 0;
+  let countB = 0;
+  let countC = 0;
+  let revA = 0;
+  let revB = 0;
+  let revC = 0;
+
+  const items: ProcedureAbcItem[] = sorted.map((it, idx) => {
+    cumulativeRevenue += it.totalRevenue;
+    const cumulativeSharePct =
+      totalRevenue > 0
+        ? Number(((cumulativeRevenue / totalRevenue) * 100).toFixed(1))
+        : 0;
+
+    let classification: ProcedureAbcClass = "C";
+    // Regra clássica de Pareto ABC:
+    // O primeiro item sempre ganha A ou quem estiver na faixa de até 80% do faturamento acumulado
+    if (idx === 0 || cumulativeSharePct <= 80) {
+      classification = "A";
+      countA += 1;
+      revA += it.totalRevenue;
+    } else if (cumulativeSharePct <= 95) {
+      classification = "B";
+      countB += 1;
+      revB += it.totalRevenue;
+    } else {
+      classification = "C";
+      countC += 1;
+      revC += it.totalRevenue;
+    }
+
+    return {
+      ...it,
+      cumulativeSharePct: Math.min(100, cumulativeSharePct),
+      classification,
+    };
+  });
+
+  return {
+    items,
+    totalRevenue,
+    totalProcedures,
+    countClassA: countA,
+    countClassB: countB,
+    countClassC: countC,
+    revenueClassA: Number(revA.toFixed(2)),
+    revenueClassB: Number(revB.toFixed(2)),
+    revenueClassC: Number(revC.toFixed(2)),
+    shareClassA: totalRevenue > 0 ? Number(((revA / totalRevenue) * 100).toFixed(1)) : 0,
+    shareClassB: totalRevenue > 0 ? Number(((revB / totalRevenue) * 100).toFixed(1)) : 0,
+    shareClassC: totalRevenue > 0 ? Number(((revC / totalRevenue) * 100).toFixed(1)) : 0,
+  };
+}
+
 

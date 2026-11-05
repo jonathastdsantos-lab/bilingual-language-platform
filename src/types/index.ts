@@ -1113,5 +1113,37 @@ export interface UpcomingAppointmentReminder {
   };
 }
 
+// ============================================================================
+// INTELIGÊNCIA ODONTOLÓGICA & CURVA ABC DE PROCEDIMENTOS
+// ============================================================================
+
+export type ProcedureAbcClass = "A" | "B" | "C";
+
+export interface ProcedureAbcItem {
+  procedureName: string;
+  count: number;
+  totalRevenue: number;
+  averageTicket: number;
+  revenueSharePct: number;
+  cumulativeSharePct: number;
+  classification: ProcedureAbcClass;
+}
+
+export interface ProcedureAbcReport {
+  items: ProcedureAbcItem[];
+  totalRevenue: number;
+  totalProcedures: number;
+  countClassA: number;
+  countClassB: number;
+  countClassC: number;
+  revenueClassA: number;
+  revenueClassB: number;
+  revenueClassC: number;
+  shareClassA: number;
+  shareClassB: number;
+  shareClassC: number;
+}
+
+
 
 

@@ -23,7 +23,7 @@ import {
   stockItemFormSchema,
   stockMovementFormSchema,
 } from "@/modules/stock";
-import { calculateClinicalDRE, serializeRowsToCsv } from "@/modules/reports";
+import { calculateClinicalDRE, calculateProcedureAbcCurve, serializeRowsToCsv } from "@/modules/reports";
 import {
   buildWhatsAppWebUrl,
   interpolateWhatsappTemplate,
@@ -1963,6 +1963,49 @@ describe("Certificado Digital ICP-Brasil & Assinatura Qualificada do Cirurgião-
       const url = buildWhatsAppReminderUrl("(11) 98765-4321", msg);
 
       expect(url).toBe("https://wa.me/5511987654321?text=Ol%C3%A1%2C%20seu%20atendimento%20%C3%A9%20hoje%20%C3%A0s%2014%3A00!");
+    });
+  });
+
+  describe("Inteligência Odontológica & Curva ABC de Procedimentos (Pareto)", () => {
+    it("classifica tratamentos em Classe A (80%), B (15%) e C (5%) com percentuais acumulados", () => {
+      const mockAppointments = [
+        { procedure: "Prótese Protocolo Cerâmica", price: 12000, status: "completed" },
+        { procedure: "Implante Unitário Neodent", price: 3500, status: "completed" },
+        { procedure: "Implante Unitário Neodent", price: 3500, status: "completed" },
+        { procedure: "Clareamento Dental Laser", price: 1200, status: "completed" },
+        { procedure: "Restauração Estética em Resina", price: 300, status: "completed" },
+        { procedure: "Restauração Estética em Resina", price: 300, status: "completed" },
+        { procedure: "Profilaxia e Raspagem", price: 200, status: "completed" },
+        // Cancelada não entra na receita
+        { procedure: "Ortodontia Invisível", price: 8000, status: "cancelled" },
+      ];
+
+      // Faturamento total válido: 12000 + 7000 + 1200 + 600 + 200 = 21.000
+      // 1. Prótese Protocolo: 12.000 (57.1%) -> Classe A
+      // 2. Implante Unitário: 7.000 (acumula 19.000 = 90.5%) -> Classe B
+      // 3. Clareamento: 1.200 (acumula 20.200 = 96.2%) -> Classe C
+      // 4. Restauração: 600 -> Classe C
+      // 5. Profilaxia: 200 -> Classe C
+      const abc = calculateProcedureAbcCurve(mockAppointments);
+
+      expect(abc.totalRevenue).toBe(21000);
+      expect(abc.totalProcedures).toBe(7);
+      expect(abc.items.length).toBe(5);
+
+      const item1 = abc.items[0];
+      expect(item1?.procedureName).toBe("Prótese Protocolo Cerâmica");
+      expect(item1?.classification).toBe("A");
+      expect(item1?.totalRevenue).toBe(12000);
+
+      const item2 = abc.items[1];
+      expect(item2?.procedureName).toBe("Implante Unitário Neodent");
+      expect(item2?.count).toBe(2);
+      expect(item2?.classification).toBe("B");
+
+      const itemLast = abc.items[abc.items.length - 1];
+      expect(itemLast?.procedureName).toBe("Profilaxia e Raspagem");
+      expect(itemLast?.classification).toBe("C");
+      expect(itemLast?.cumulativeSharePct).toBe(100);
     });
   });
 });

@@ -9,7 +9,9 @@ import {
   TrendingUp,
   Award,
   Clock,
+  Sparkles,
 } from "lucide-react";
+import { ExecutiveIntelligenceDashboard } from "@/components/reports/ExecutiveIntelligenceDashboard";
 import { supabase } from "@/services/supabase";
 import { useClinic } from "@/lib/clinic";
 import { useT, formatBRL } from "@/lib/i18n";
@@ -63,6 +65,9 @@ function ReportsPage() {
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [professionals, setProfessionals] = useState<ProfessionalRow[]>([]);
+  const [appointments, setAppointments] = useState<
+    Array<{ procedure: string | null; price: number | string | null; status: string }>
+  >([]);
   const [loading, setLoading] = useState(true);
 
   const loadReportsData = useCallback(async () => {
@@ -72,7 +77,7 @@ function ReportsPage() {
     }
     setLoading(true);
     try {
-      const [entriesData, stockData, profsRes] = await Promise.all([
+      const [entriesData, stockData, profsRes, apptsRes] = await Promise.all([
         fetchFinancialEntries(clinicId),
         fetchStockItems(clinicId),
         supabase
@@ -80,6 +85,10 @@ function ReportsPage() {
           .select("id, name, specialty, commission_pct")
           .eq("clinic_id", clinicId)
           .order("name", { ascending: true }),
+        supabase
+          .from("appointments")
+          .select("procedure, price, status")
+          .eq("clinic_id", clinicId),
       ]);
 
       if (profsRes.error) {
@@ -89,6 +98,13 @@ function ReportsPage() {
       setEntries(entriesData);
       setStockItems(stockData);
       setProfessionals((profsRes.data ?? []) as ProfessionalRow[]);
+      setAppointments(
+        (apptsRes.data ?? []) as Array<{
+          procedure: string | null;
+          price: number | string | null;
+          status: string;
+        }>
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("common.error"));
     } finally {
@@ -278,8 +294,12 @@ function ReportsPage() {
           {t("common.loading")}
         </div>
       ) : (
-        <Tabs defaultValue="dre" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-1 sm:w-auto sm:grid-cols-3">
+        <Tabs defaultValue="intelligence" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-4">
+            <TabsTrigger value="intelligence" className="gap-2">
+              <Sparkles className="h-4 w-4 text-teal" />
+              Inteligência & Curva ABC
+            </TabsTrigger>
             <TabsTrigger value="dre" className="gap-2">
               <TrendingUp className="h-4 w-4" />
               {t("rep.tabDre")}
@@ -293,6 +313,15 @@ function ReportsPage() {
               {t("rep.tabExport")}
             </TabsTrigger>
           </TabsList>
+
+          {/* TAB 0: DASHBOARD EXECUTIVO DE INTELIGÊNCIA ODONTOLÓGICA & CURVA ABC */}
+          <TabsContent value="intelligence">
+            <ExecutiveIntelligenceDashboard
+              dre={dre}
+              appointments={appointments}
+              clinicName={clinicName}
+            />
+          </TabsContent>
 
           {/* TAB 1: DRE CLÍNICO */}
           <TabsContent value="dre" className="space-y-6">
