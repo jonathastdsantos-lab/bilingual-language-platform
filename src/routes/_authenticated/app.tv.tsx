@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Tv,
   Megaphone,
@@ -11,13 +11,15 @@ import {
   DoorOpen,
   UserCheck,
   CheckCircle2,
+  Play,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useClinic } from "@/lib/clinic";
 import { useT } from "@/lib/i18n";
 import { CallPatientModal } from "@/components/waiting-room/CallPatientModal";
-import { fetchWaitingRoomCalls, playWaitingRoomChime } from "@/modules/waiting-room";
+import { fetchWaitingRoomCalls, playWaitingRoomChime, createWaitingRoomCall } from "@/modules/waiting-room";
 import { supabase } from "@/services/supabase";
 
 export const Route = createFileRoute("/_authenticated/app/tv")({
@@ -34,8 +36,10 @@ function AppTvManagementPage() {
   const { clinicId, clinicName, units, activeUnitId, hasPermission } = useClinic();
   const { locale } = useT();
   const isEn = locale === "en";
+  const qc = useQueryClient();
 
   const [callModalOpen, setCallModalOpen] = useState(false);
+  const [isCallingTest, setIsCallingTest] = useState(false);
 
   // Queries de profissionais e consultórios para a chamada
   const { data: refs } = useQuery({
@@ -59,11 +63,71 @@ function AppTvManagementPage() {
   const { data: calls = [] } = useQuery({
     queryKey: ["waiting_room_calls", clinicId, activeUnitId],
     queryFn: () => fetchWaitingRoomCalls(clinicId, activeUnitId),
-    refetchInterval: 5000,
+    refetchInterval: 3000,
   });
+
+  // Atualização em tempo real via Supabase Realtime
+  useEffect(() => {
+    if (!clinicId) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = (supabase as any)
+      .channel(`app_tv_${clinicId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "waiting_room_calls",
+          filter: `clinic_id=eq.${clinicId}`,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).removeChannel(channel);
+    };
+  }, [clinicId, qc]);
 
   const canWrite = hasPermission("appointments.write");
   const tvUrl = `/tv?clinicId=${clinicId}${activeUnitId && activeUnitId !== "all" ? `&unitId=${activeUnitId}` : ""}`;
+
+  // Função para chamada de teste rápido (1 clique)
+  const handleQuickTestCall = async () => {
+    try {
+      setIsCallingTest(true);
+      const prof = professionals[0];
+      const room = rooms[0];
+
+      const call = await createWaitingRoomCall({
+        clinicId,
+        unitId: activeUnitId && activeUnitId !== "all" ? activeUnitId : null,
+        patientName: "Paciente Teste (Demonstração)",
+        professionalId: prof?.id || null,
+        professionalName: prof?.name || "Dra. Carolina Mendes",
+        roomId: room?.id || null,
+        roomName: room?.name || "Consultório 01",
+        priority: "normal",
+      });
+
+      qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+      playWaitingRoomChime();
+      toast.success(
+        isEn
+          ? `Test call sent! Patient "${call.patient_name}" called to ${call.room_name} on the TV screen.`
+          : `Chamada de teste enviada! "${call.patient_name}" chamado para o ${call.room_name} na TV.`
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro desconhecido";
+      toast.error(isEn ? `Failed test call: ${msg}` : `Erro ao fazer chamada de teste: ${msg}`);
+    } finally {
+      setIsCallingTest(false);
+    }
+  };
 
   return (
     <div className="max-w-5xl space-y-6">
@@ -85,7 +149,7 @@ function AppTvManagementPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <Button
             type="button"
             variant="outline"
@@ -96,6 +160,20 @@ function AppTvManagementPage() {
             <Volume2 className="h-4 w-4 text-emerald-600" />
             <span>{isEn ? "Test Chime" : "Testar Som do Sino"}</span>
           </Button>
+
+          {canWrite && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs border-sky-300 text-sky-700 hover:bg-sky-50"
+              disabled={isCallingTest}
+              onClick={handleQuickTestCall}
+            >
+              <Sparkles className="h-4 w-4 text-sky-600" />
+              <span>{isCallingTest ? (isEn ? "Calling..." : "Chamando...") : (isEn ? "Quick Test Call" : "Chamar Paciente Teste")}</span>
+            </Button>
+          )}
 
           {canWrite && (
             <Button

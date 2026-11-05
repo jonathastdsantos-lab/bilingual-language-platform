@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Megaphone, Volume2, Sparkles, Building, User, DoorOpen } from "lucide-react";
 import { toast } from "sonner";
@@ -58,30 +58,52 @@ export function CallPatientModal({
   const [selectedRoomId, setSelectedRoomId] = useState(defaultRoomId || rooms[0]?.id || "");
   const [priority, setPriority] = useState<CallPriority>("normal");
 
+  // Sincroniza estados quando a modal abre ou referências carregam
+  useEffect(() => {
+    if (open) {
+      if (defaultPatientName && !patientName) {
+        setPatientName(defaultPatientName);
+      }
+      if (!selectedProfId && professionals.length > 0) {
+        setSelectedProfId(defaultProfessionalId || professionals[0]?.id || "");
+      }
+      if (!selectedRoomId && rooms.length > 0) {
+        setSelectedRoomId(defaultRoomId || rooms[0]?.id || "");
+      }
+    }
+  }, [open, defaultPatientName, defaultProfessionalId, defaultRoomId, professionals, rooms, patientName, selectedProfId, selectedRoomId]);
+
   const callMutation = useMutation({
     mutationFn: async () => {
-      const prof = professionals.find((p) => p.id === selectedProfId);
-      const room = rooms.find((r) => r.id === selectedRoomId);
+      const trimmedName = (patientName || defaultPatientName || "").trim();
+      if (!trimmedName) {
+        throw new Error(isEn ? "Please enter the patient name." : "Por favor, informe o nome do paciente.");
+      }
+
+      const prof = professionals.find((p) => p.id === selectedProfId) || professionals[0];
+      const room = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
 
       return createWaitingRoomCall({
         clinicId,
-        unitId: unitId || null,
+        unitId: unitId && unitId !== "all" ? unitId : null,
         patientId: patientId || null,
-        patientName: patientName || defaultPatientName,
-        professionalId: selectedProfId || null,
+        patientName: trimmedName,
+        professionalId: prof?.id || (selectedProfId && selectedProfId !== "default" ? selectedProfId : null),
         professionalName: prof?.name || "Dentista Responsável",
-        roomId: selectedRoomId || null,
+        roomId: room?.id || (selectedRoomId && selectedRoomId !== "default" ? selectedRoomId : null),
         roomName: room?.name || "Consultório 01",
         priority,
       });
     },
     onSuccess: (call) => {
-      qc.invalidateQueries({ queryKey: ["waiting_room_calls", clinicId] });
+      // Invalida amplamente as queries de sala de espera em todos os componentes inscritos
+      qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
       toast.success(
         isEn
           ? `Patient ${call.patient_name} called to ${call.room_name} on the TV screen!`
           : `Paciente ${call.patient_name} chamado para ${call.room_name} na tela da recepção!`
       );
+      setPatientName("");
       onOpenChange(false);
     },
     onError: (err: Error) => {

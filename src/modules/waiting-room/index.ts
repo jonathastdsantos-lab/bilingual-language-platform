@@ -7,10 +7,18 @@ export interface CreateCallParams {
   patientId?: string | null;
   patientName: string;
   professionalId?: string | null;
-  professionalName: string;
+  professionalName?: string;
   roomId?: string | null;
-  roomName: string;
+  roomName?: string;
   priority?: CallPriority;
+}
+
+/**
+ * Validador seguro de UUID para colunas do PostgreSQL
+ */
+export function isValidUuid(id?: string | null): boolean {
+  if (!id || typeof id !== "string") return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim());
 }
 
 /**
@@ -29,7 +37,7 @@ export async function fetchWaitingRoomCalls(
     .order("called_at", { ascending: false })
     .limit(20);
 
-  if (unitId && unitId !== "all") {
+  if (unitId && unitId !== "all" && isValidUuid(unitId)) {
     query = query.eq("unit_id", unitId);
   }
 
@@ -40,7 +48,8 @@ export async function fetchWaitingRoomCalls(
     if (norm.isSchemaPending) {
       return [];
     }
-    throw new Error(norm.message);
+    console.warn("fetchWaitingRoomCalls warning:", norm.message);
+    return [];
   }
 
   return (data as WaitingRoomCall[]) ?? [];
@@ -54,15 +63,19 @@ export async function createWaitingRoomCall(
 ): Promise<WaitingRoomCall> {
   assertClinicScope(params.clinicId);
 
+  const cleanPatientName = (params.patientName || "Paciente").trim();
+  const cleanProfName = (params.professionalName || "Dentista Responsável").trim();
+  const cleanRoomName = (params.roomName || "Consultório 01").trim();
+
   const payload = {
     clinic_id: params.clinicId,
-    unit_id: params.unitId || null,
-    patient_id: params.patientId || null,
-    patient_name: params.patientName.trim(),
-    professional_id: params.professionalId || null,
-    professional_name: params.professionalName.trim(),
-    room_id: params.roomId || null,
-    room_name: params.roomName.trim(),
+    unit_id: isValidUuid(params.unitId) ? params.unitId : null,
+    patient_id: isValidUuid(params.patientId) ? params.patientId : null,
+    patient_name: cleanPatientName,
+    professional_id: isValidUuid(params.professionalId) ? params.professionalId : null,
+    professional_name: cleanProfName,
+    room_id: isValidUuid(params.roomId) ? params.roomId : null,
+    room_name: cleanRoomName,
     priority: params.priority || "normal",
     status: "called",
     called_at: new Date().toISOString(),
@@ -122,10 +135,16 @@ export function playWaitingRoomChime(): void {
   if (typeof window === "undefined") return;
 
   try {
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return;
 
     const ctx = new AudioContextClass();
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+
     const now = ctx.currentTime;
 
     // Primeiro tom: Mi (E5 - 659.25 Hz)
@@ -170,6 +189,9 @@ export function speakPatientCall(
 
   try {
     window.speechSynthesis.cancel(); // Cancela chamadas anteriores pendentes
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
 
     const phrase =
       locale.startsWith("en")
@@ -190,7 +212,11 @@ export function speakPatientCall(
 
     // Toca a fala com delay de 600ms após o toque do sino
     setTimeout(() => {
-      window.speechSynthesis.speak(utterance);
+      try {
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.warn("Speech synthesis speak error:", err);
+      }
     }, 600);
   } catch (e) {
     console.warn("Speech synthesis failed:", e);

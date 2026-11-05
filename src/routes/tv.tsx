@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Maximize,
   Minimize,
@@ -15,6 +15,7 @@ import {
   DoorOpen,
   UserCheck,
   Megaphone,
+  BellRing,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,10 +43,12 @@ export const Route = createFileRoute("/tv")({
 
 function WaitingRoomTvPage() {
   const { clinicId, unitId } = Route.useSearch();
+  const qc = useQueryClient();
 
   // Estados de multimídia
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [speechEnabled, setSpeechEnabled] = useState(true);
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -54,6 +57,14 @@ function WaitingRoomTvPage() {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Desbloqueia áudio ao primeiro toque ou clique na tela
+  const unlockAudio = () => {
+    if (!audioUnlocked) {
+      setAudioUnlocked(true);
+      playWaitingRoomChime();
+    }
+  };
 
   // Monitora Fullscreen
   useEffect(() => {
@@ -122,6 +133,34 @@ function WaitingRoomTvPage() {
     refetchInterval: 3000,
   });
 
+  // Supabase Realtime Subscription para chamadas instantâneas sem delay
+  useEffect(() => {
+    if (!effectiveClinicId) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = (supabase as any)
+      .channel(`tv_screen_${effectiveClinicId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "waiting_room_calls",
+          filter: `clinic_id=eq.${effectiveClinicId}`,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).removeChannel(channel);
+    };
+  }, [effectiveClinicId, qc]);
+
+  const isFirstRenderRef = useRef(true);
   const lastCallIdRef = useRef<string | null>(null);
   const activeCall: WaitingRoomCall | undefined = calls[0];
 
@@ -129,21 +168,53 @@ function WaitingRoomTvPage() {
   useEffect(() => {
     if (!activeCall) return;
 
-    if (lastCallIdRef.current && lastCallIdRef.current !== activeCall.id) {
+    // Na primeira carga, se a chamada tiver menos de 90 segundos, reproduz
+    if (isFirstRenderRef.current) {
+      isFirstRenderRef.current = false;
+      const callAgeMs = Date.now() - new Date(activeCall.called_at).getTime();
+      if (callAgeMs < 90000) {
+        if (soundEnabled) {
+          playWaitingRoomChime();
+        }
+        if (speechEnabled) {
+          speakPatientCall(activeCall.patient_name, activeCall.room_name);
+        }
+      }
+      lastCallIdRef.current = activeCall.id;
+      return;
+    }
+
+    if (lastCallIdRef.current !== activeCall.id) {
       if (soundEnabled) {
         playWaitingRoomChime();
       }
       if (speechEnabled) {
         speakPatientCall(activeCall.patient_name, activeCall.room_name);
       }
+      lastCallIdRef.current = activeCall.id;
     }
-    lastCallIdRef.current = activeCall.id;
   }, [activeCall, soundEnabled, speechEnabled]);
 
   const recentCalls = calls.slice(1, 6);
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950 font-sans text-slate-100 select-none">
+    <div
+      onClick={unlockAudio}
+      className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950 font-sans text-slate-100 select-none relative"
+    >
+      {/* Banner flutuante para desbloquear áudio em navegadores de Smart TV / Totens */}
+      {!audioUnlocked && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            unlockAudio();
+          }}
+          className="absolute top-24 left-1/2 -translate-x-1/2 z-50 flex cursor-pointer items-center gap-3 rounded-full border border-sky-400 bg-sky-950/90 px-6 py-2.5 text-xs font-bold text-sky-200 shadow-xl shadow-sky-900/40 backdrop-blur-md animate-bounce hover:bg-sky-900 transition"
+        >
+          <BellRing className="h-4 w-4 text-emerald-400 animate-pulse" />
+          <span>Clique aqui para ativar o áudio e voz do painel da TV</span>
+        </div>
+      )}
       {/* 1. Header do Painel TV */}
       <header className="flex h-20 shrink-0 items-center justify-between border-b border-slate-800/80 bg-slate-900/90 px-8 backdrop-blur-md">
         <div className="flex items-center gap-4">
