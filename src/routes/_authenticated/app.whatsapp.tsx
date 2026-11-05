@@ -11,8 +11,16 @@ import {
   FileText,
   Clock,
   BellRing,
+  QrCode,
+  Sliders,
+  Bell,
+  Bot,
 } from "lucide-react";
 import { AutomaticRemindersPanel } from "@/components/whatsapp/AutomaticRemindersPanel";
+import { WhatsappQrCodeConnection } from "@/components/whatsapp/WhatsappQrCodeConnection";
+import { WhatsappSendModeConfig } from "@/components/whatsapp/WhatsappSendModeConfig";
+import { WhatsappOwnerAlertsPanel } from "@/components/whatsapp/WhatsappOwnerAlertsPanel";
+import { WhatsappOwnerAssistantPanel } from "@/components/whatsapp/WhatsappOwnerAssistantPanel";
 import { supabase } from "@/services/supabase";
 import { useClinic } from "@/lib/clinic";
 import { useT } from "@/lib/i18n";
@@ -271,25 +279,67 @@ function WhatsappCenterPage() {
           {t("common.loading")}
         </div>
       ) : (
-        <Tabs defaultValue="queue" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-4">
-            <TabsTrigger value="queue" className="gap-2">
+        <Tabs defaultValue="connection" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 sm:flex sm:flex-wrap sm:w-auto gap-1">
+            <TabsTrigger value="connection" className="gap-2 text-xs">
+              <QrCode className="h-4 w-4 text-emerald-600" />
+              Conexão & QR Code
+            </TabsTrigger>
+            <TabsTrigger value="send-mode" className="gap-2 text-xs">
+              <Sliders className="h-4 w-4 text-primary" />
+              Modo de Envio
+            </TabsTrigger>
+            <TabsTrigger value="owner-alerts" className="gap-2 text-xs">
+              <Bell className="h-4 w-4 text-amber-500" />
+              Alertas para o Dono
+            </TabsTrigger>
+            <TabsTrigger value="assistant" className="gap-2 text-xs">
+              <Bot className="h-4 w-4 text-purple-600" />
+              Assistente do Dono
+            </TabsTrigger>
+            <TabsTrigger value="queue" className="gap-2 text-xs">
               <Send className="h-4 w-4" />
               {t("wa.tabQueue")} ({appointments.length})
             </TabsTrigger>
-            <TabsTrigger value="reminders" className="gap-2">
+            <TabsTrigger value="reminders" className="gap-2 text-xs">
               <BellRing className="h-4 w-4 text-sky-600" />
               Lembretes (24h & 2h)
             </TabsTrigger>
-            <TabsTrigger value="templates" className="gap-2">
+            <TabsTrigger value="templates" className="gap-2 text-xs">
               <FileText className="h-4 w-4" />
-              {t("wa.tabTemplates")} ({DEFAULT_WHATSAPP_TEMPLATES.length + customTemplates.length})
+              Templates ({DEFAULT_WHATSAPP_TEMPLATES.length + customTemplates.length})
             </TabsTrigger>
-            <TabsTrigger value="history" className="gap-2">
+            <TabsTrigger value="history" className="gap-2 text-xs">
               <History className="h-4 w-4" />
               {t("wa.tabHistory")} ({logs.length})
             </TabsTrigger>
           </TabsList>
+
+          {/* TAB: CONEXÃO & QR CODE */}
+          <TabsContent value="connection" className="space-y-4">
+            <WhatsappQrCodeConnection
+              clinicId={clinicId}
+              clinicName={clinicName}
+            />
+          </TabsContent>
+
+          {/* TAB: MODO DE ENVIO NA AGENDA */}
+          <TabsContent value="send-mode" className="space-y-4">
+            <WhatsappSendModeConfig clinicId={clinicId} />
+          </TabsContent>
+
+          {/* TAB: ALERTAS PARA O DONO */}
+          <TabsContent value="owner-alerts" className="space-y-4">
+            <WhatsappOwnerAlertsPanel clinicId={clinicId} />
+          </TabsContent>
+
+          {/* TAB: ASSISTENTE DO DONO */}
+          <TabsContent value="assistant" className="space-y-4">
+            <WhatsappOwnerAssistantPanel
+              clinicId={clinicId}
+              clinicName={clinicName}
+            />
+          </TabsContent>
 
           {/* TAB 1: FILA DE CONFIRMAÇÃO */}
           <TabsContent value="queue" className="space-y-4">

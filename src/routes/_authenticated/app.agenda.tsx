@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { CallPatientModal } from "@/components/waiting-room/CallPatientModal";
+import { dispatchAppointmentNotification } from "@/modules/whatsapp/connection";
 
 type Status = Database["public"]["Enums"]["appointment_status"];
 const STATUSES: Status[] = ["scheduled", "confirmed", "completed", "cancelled", "no_show"];
@@ -54,7 +55,7 @@ type FormState = {
 
 function Agenda() {
   const { t, dateLocale } = useT();
-  const { clinicId, activeUnitId, hasPermission } = useClinic();
+  const { clinicId, clinicName, activeUnitId, hasPermission } = useClinic();
   const qc = useQueryClient();
   const canRead = hasPermission("appointments.read");
   const canWrite = hasPermission("appointments.write");
@@ -158,7 +159,7 @@ function Agenda() {
     enabled: canRead,
     queryFn: async () => {
       const [p, pr, r] = await Promise.all([
-        supabase.from("patients").select("id,full_name").eq("clinic_id", clinicId).order("full_name").limit(1000),
+        supabase.from("patients").select("id,full_name,phone,whatsapp").eq("clinic_id", clinicId).order("full_name").limit(1000),
         supabase.from("professionals").select("id,name,color").eq("clinic_id", clinicId).eq("active", true).order("name"),
         supabase.from("rooms").select("id,name").eq("clinic_id", clinicId).order("name"),
       ]);
@@ -191,6 +192,7 @@ function Agenda() {
       const s = new Date(`${f.date}T${f.start}`),
         e = new Date(`${f.date}T${f.end}`);
       if (!f.patient_id || !f.professional_id || isNaN(s.getTime()) || e <= s) throw new Error(t("common.error"));
+      const isNew = !f.id;
       const row = {
         clinic_id: clinicId,
         patient_id: f.patient_id,
@@ -207,6 +209,49 @@ function Agenda() {
         ? await supabase.from("appointments").update(row).eq("clinic_id", clinicId).eq("id", f.id)
         : await supabase.from("appointments").insert(row);
       if (error) throw new Error(error.code === "23P01" ? t("ag.conflict") : error.message);
+
+      // Disparo inteligente de WhatsApp (Automático ou Manual Web) e Alertas do Dono
+      const patientObj = refs.data?.patients.find((p) => p.id === f.patient_id);
+      const profObj = refs.data?.profs.find((pr) => pr.id === f.professional_id);
+      const eventType = isNew
+        ? "booked"
+        : f.status === "cancelled"
+        ? "cancelled"
+        : f.status === "confirmed"
+        ? "confirmed"
+        : "booked";
+
+      // Dispara em background
+      void dispatchAppointmentNotification(
+        clinicId,
+        {
+          patientName: patientObj?.full_name || "Paciente",
+          patientPhone:
+            (patientObj as { whatsapp?: string; phone?: string } | undefined)?.whatsapp ||
+            (patientObj as { whatsapp?: string; phone?: string } | undefined)?.phone ||
+            "",
+          startsAt: s.toISOString(),
+          professionalName: profObj?.name || "Dentista",
+          procedure: f.procedure || "Consulta Odontológica",
+          clinicName,
+        },
+        eventType,
+      )
+        .then((res) => {
+          if (res.mode === "automatic") {
+            toast.info("WhatsApp: Notificação automática disparada!");
+          } else if (res.mode === "manual_web" && res.url) {
+            toast("Mensagem de WhatsApp gerada para a consulta", {
+              action: {
+                label: "Abrir WhatsApp Web",
+                onClick: () => window.open(res.url, "_blank", "noopener,noreferrer"),
+              },
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn("dispatchAppointmentNotification warning:", err);
+        });
     },
     onSuccess: () => {
       toast.success(t("common.saved"));

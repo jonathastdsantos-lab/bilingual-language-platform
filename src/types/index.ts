@@ -1191,6 +1191,64 @@ export interface OrthodonticMaintenance {
   created_at: string;
 }
 
+// ============================================================================
+// CONEXÃO WHATSAPP DIRETA (QR CODE), MODO DE ENVIO & ALERTAS PARA O DONO
+// ============================================================================
+
+export type WhatsappInstanceStatus = "disconnected" | "connecting" | "qrcode" | "connected";
+export type WhatsappProvider = "evolution" | "zapi" | "baileys" | "generic";
+export type WhatsappSendMode = "automatic" | "manual_web";
+export type WhatsappOwnerAlertType = "new_booking" | "confirmed" | "cancelled" | "daily_summary" | "test";
+
+export interface WhatsappInstance {
+  id: string;
+  clinic_id: string;
+  provider: WhatsappProvider;
+  instance_name: string;
+  status: WhatsappInstanceStatus;
+  qrcode_base64: string | null;
+  connected_phone: string | null;
+  profile_name: string | null;
+  battery_level: number | null;
+  last_connected_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WhatsappSettings {
+  clinic_id: string;
+  send_mode: WhatsappSendMode;
+  auto_send_on_booking: boolean;
+  auto_send_on_cancel: boolean;
+  owner_phone: string | null;
+  owner_alerts_enabled: boolean;
+  alert_on_new_booking: boolean;
+  alert_on_patient_confirm: boolean;
+  alert_on_cancellation: boolean;
+  alert_daily_summary: boolean;
+  daily_summary_time: string;
+  assistant_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WhatsappOwnerAlert {
+  id: string;
+  clinic_id: string;
+  alert_type: WhatsappOwnerAlertType;
+  recipient_phone: string;
+  message: string;
+  status: "sent" | "pending" | "failed";
+  created_at: string;
+}
+
+export interface WhatsappAssistantCommandResult {
+  command: string;
+  response: string;
+  timestamp: string;
+  suggestions?: string[];
+}
+
 
 
 
