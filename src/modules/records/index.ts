@@ -1,11 +1,15 @@
 import { z } from "zod";
 import { assertClinicScope, normalizeSupabaseError, supabase } from "@/services/supabase";
 import type {
+  AsaClassification,
   ClinicalRecord,
   ClinicalRecordType,
   ExamCategory,
   OdontogramEntry,
   PatientExamFile,
+  PatientStructuredAnamnesis,
+  SurgicalRiskAlert,
+  SurgicalRiskLevel,
   ToothConditionStatus,
   ToothSurface,
   TreatmentPlan,
@@ -968,6 +972,363 @@ export async function deletePatientExamFile(
 
   await supabase.storage.from(CLINICAL_EXAMS_BUCKET).remove([exam.storage_path]);
 }
+
+// =============================================================================
+// ANAMNESE DIGITAL ESTRUTURADA, CLASSIFICAÇÃO ASA E ALERTAS DE RISCO CIRÚRGICO
+// =============================================================================
+
+export const ASA_CLASSIFICATIONS: AsaClassification[] = [
+  "ASA I",
+  "ASA II",
+  "ASA III",
+  "ASA IV",
+];
+
+export const structuredAnamnesisSchema = z.object({
+  patient_id: z.string().uuid("Paciente inválido."),
+  professional_id: z.string().uuid().nullable().optional(),
+  asa_classification: z.enum(["ASA I", "ASA II", "ASA III", "ASA IV"]).optional(),
+  has_hypertension: z.boolean().default(false),
+  has_diabetes: z.boolean().default(false),
+  has_heart_disease: z.boolean().default(false),
+  uses_anticoagulants: z.boolean().default(false),
+  uses_bisphosphonates: z.boolean().default(false),
+  has_bleeding_disorder: z.boolean().default(false),
+  is_pregnant_or_lactating: z.boolean().default(false),
+  allergy_local_anesthetic: z.boolean().default(false),
+  allergy_penicillin: z.boolean().default(false),
+  allergy_latex: z.boolean().default(false),
+  allergy_nsaids: z.boolean().default(false),
+  other_allergies: z.string().trim().max(500).optional(),
+  current_medications: z.string().trim().max(1000).optional(),
+  has_bruxism: z.boolean().default(false),
+  is_smoker: z.boolean().default(false),
+  blood_pressure_systolic: z.number().int().min(60).max(280).nullable().optional(),
+  blood_pressure_diastolic: z.number().int().min(30).max(180).nullable().optional(),
+  chief_complaint: z.string().trim().max(1000).optional(),
+  clinical_observations: z.string().trim().max(3000).optional(),
+});
+
+export type StructuredAnamnesisInput = z.infer<typeof structuredAnamnesisSchema>;
+
+export interface SurgicalRiskEvaluation {
+  recommendedAsa: AsaClassification;
+  overallRiskLevel: SurgicalRiskLevel;
+  alerts: SurgicalRiskAlert[];
+  allergiesSummary: string;
+  conditionsSummary: string;
+}
+
+export type SurgicalRiskEvaluationInput = {
+  [K in keyof Omit<
+    PatientStructuredAnamnesis,
+    "id" | "clinic_id" | "patient_id" | "updated_at" | "updated_by"
+  >]?: PatientStructuredAnamnesis[K] | undefined;
+};
+
+/**
+ * Avalia o perfil sistêmico e farmacológico do paciente para calcular automaticamente:
+ * - Classificação ASA recomendada (ASA I a ASA IV)
+ * - Nível de risco cirúrgico global ('low' | 'moderate' | 'high' | 'critical')
+ * - Alertas clínicos acionáveis para o cirurgião-dentista (anestesia, hemostasia, MRONJ, profilaxia)
+ */
+export function evaluateSurgicalRiskAndAsa(
+  input: SurgicalRiskEvaluationInput,
+): SurgicalRiskEvaluation {
+  const alerts: SurgicalRiskAlert[] = [];
+  const sys = input.blood_pressure_systolic ?? null;
+  const dia = input.blood_pressure_diastolic ?? null;
+
+  // 1. Avaliação Pressórica (PA)
+  if ((sys !== null && sys >= 180) || (dia !== null && dia >= 110)) {
+    alerts.push({
+      id: "hypertensive-crisis",
+      level: "critical",
+      title: `Crise Hipertensiva Detectada (${sys ?? "?"}x${dia ?? "?"} mmHg)`,
+      clinicalRecommendation:
+        "Contraindicar procedimentos odontológicos eletivos/cirúrgicos imediatamente e encaminhar para estabilização médica.",
+    });
+  } else if ((sys !== null && sys >= 140) || (dia !== null && dia >= 90) || input.has_hypertension) {
+    alerts.push({
+      id: "hypertension",
+      level: "moderate",
+      title: `Hipertensão Arterial${sys && dia ? ` (PA: ${sys}x${dia} mmHg)` : ""}`,
+      clinicalRecommendation:
+        "Monitorar PA pré-operatória, controlar ansiedade e limitar vasoconstritor adrenérgico (máx. 2 tubetes de Epinefrina 1:100.000).",
+    });
+  }
+
+  // 2. Alergia a Anestésico Local
+  if (input.allergy_local_anesthetic) {
+    alerts.push({
+      id: "allergy-anesthetic",
+      level: "critical",
+      title: "Alergia a Anestésico Local",
+      clinicalRecommendation:
+        "Identificar grupo químico (amida vs. éster) ou hipersensibilidade a conservantes bissulfitos antes de qualquer bloqueio anestésico.",
+    });
+  }
+
+  // 3. Uso de Bisfosfonatos / Risco de Osteonecrose dos Maxilares (MRONJ)
+  if (input.uses_bisphosphonates) {
+    alerts.push({
+      id: "bisphosphonates-mronj",
+      level: "high",
+      title: "Risco de Osteonecrose dos Maxilares (MRONJ — Bisfosfonatos)",
+      clinicalRecommendation:
+        "Alto risco em exodontias, cirurgias periodontais e instalação de implantes. Priorizar tratamentos conservadores/endodônticos e cobertura antibiótica.",
+    });
+  }
+
+  // 4. Anticoagulantes / Distúrbios de Coagulação
+  if (input.uses_anticoagulants || input.has_bleeding_disorder) {
+    alerts.push({
+      id: "bleeding-risk",
+      level: "high",
+      title: "Risco Hemorrágico Cirúrgico (Anticoagulantes / Coagulopatia)",
+      clinicalRecommendation:
+        "Verificar INR recente antes de exodontias/cirurgias e preparar manobras hemostáticas locais (esponja de colágeno, sutura em massa e ácido tranexâmico).",
+    });
+  }
+
+  // 5. Cardiopatia
+  if (input.has_heart_disease) {
+    alerts.push({
+      id: "heart-disease",
+      level: "high",
+      title: "Cardiopatia Relatada",
+      clinicalRecommendation:
+        "Avaliar indicação de profilaxia antibiótica para Endocardite Infecciosa (AHA) em procedimentos com sangramento gengival/periapical.",
+    });
+  }
+
+  // 6. Alergia a Penicilina / AINEs / Látex
+  if (input.allergy_penicillin) {
+    alerts.push({
+      id: "allergy-penicillin",
+      level: "high",
+      title: "Alergia a Penicilina / Amoxicilina",
+      clinicalRecommendation:
+        "Contraindicado grupo das Penicilinas/Cefalosporinas. Substituir por Clindamicina 300mg ou Azitromicina 500mg.",
+    });
+  }
+
+  if (input.allergy_nsaids) {
+    alerts.push({
+      id: "allergy-nsaids",
+      level: "moderate",
+      title: "Alergia a AINEs / Dipirona",
+      clinicalRecommendation:
+        "Evitar Ibuprofeno, Nimesulida, Cetorolaco e Dipirona. Utilizar Paracetamol ou Corticosteroide (Dexametasona) conforme histórico.",
+    });
+  }
+
+  if (input.allergy_latex) {
+    alerts.push({
+      id: "allergy-latex",
+      level: "moderate",
+      title: "Alergia ao Látex",
+      clinicalRecommendation:
+        "Utilizar exclusivamente luvas nitrílicas/vinil e lençol de isolamento absoluto (dique) livre de látex.",
+    });
+  }
+
+  // 7. Gestante / Lactante e Diabetes
+  if (input.is_pregnant_or_lactating) {
+    alerts.push({
+      id: "pregnancy",
+      level: "moderate",
+      title: "Paciente Gestante / Lactante",
+      clinicalRecommendation:
+        "Priorizar 2º trimestre para tratamentos eletivos, utilizar avental plumbífero com protetor de tireoide e preferir Lidocaína 2% com Epinefrina 1:100.000.",
+    });
+  }
+
+  if (input.has_diabetes) {
+    alerts.push({
+      id: "diabetes",
+      level: "moderate",
+      title: "Diabetes Mellitus",
+      clinicalRecommendation:
+        "Agendar preferencialmente no início da manhã, aferir glicemia capilar antes de cirurgias e monitorar resposta cicatricial periodontal.",
+    });
+  }
+
+  if (input.has_bruxism) {
+    alerts.push({
+      id: "bruxism",
+      level: "low",
+      title: "Bruxismo / Apertamento Dental",
+      clinicalRecommendation:
+        "Planejar proteção oclusal (Placa Miorrelaxante em acrílico) para preservar restaurações, facetas e próteses sobre implante.",
+    });
+  }
+
+  // Cálculo da Classificação ASA recomendada e risco global
+  const hasCritical = alerts.some((a) => a.level === "critical");
+  const hasHigh = alerts.some((a) => a.level === "high");
+  const hasModerate = alerts.some((a) => a.level === "moderate");
+
+  let recommendedAsa: AsaClassification = "ASA I";
+  let overallRiskLevel: SurgicalRiskLevel = "low";
+
+  if (hasCritical) {
+    recommendedAsa = "ASA IV";
+    overallRiskLevel = "critical";
+  } else if (hasHigh) {
+    recommendedAsa = "ASA III";
+    overallRiskLevel = "high";
+  } else if (hasModerate || input.is_smoker) {
+    recommendedAsa = "ASA II";
+    overallRiskLevel = "moderate";
+  }
+
+  // Resumos textuais para sincronização automática no prontuário do paciente
+  const allergyItems: string[] = [];
+  if (input.allergy_local_anesthetic) allergyItems.push("Anestésico Local");
+  if (input.allergy_penicillin) allergyItems.push("Penicilina/Amoxicilina");
+  if (input.allergy_nsaids) allergyItems.push("AINEs/Dipirona");
+  if (input.allergy_latex) allergyItems.push("Látex");
+  if (input.other_allergies?.trim()) allergyItems.push(input.other_allergies.trim());
+
+  const condItems: string[] = [recommendedAsa];
+  if (input.has_hypertension) condItems.push("Hipertensão");
+  if (input.has_diabetes) condItems.push("Diabetes");
+  if (input.has_heart_disease) condItems.push("Cardiopatia");
+  if (input.uses_anticoagulants) condItems.push("Anticoagulantes");
+  if (input.uses_bisphosphonates) condItems.push("Bisfosfonatos (Risco MRONJ)");
+  if (input.has_bleeding_disorder) condItems.push("Coagulopatia");
+  if (input.is_pregnant_or_lactating) condItems.push("Gestante/Lactante");
+  if (input.has_bruxism) condItems.push("Bruxismo");
+  if (input.is_smoker) condItems.push("Tabagista");
+  if (sys && dia) condItems.push(`PA ${sys}x${dia} mmHg`);
+
+  return {
+    recommendedAsa,
+    overallRiskLevel,
+    alerts,
+    allergiesSummary: allergyItems.join(", "),
+    conditionsSummary: condItems.join(" • "),
+  };
+}
+
+export async function fetchPatientStructuredAnamnesis(
+  clinicId: string,
+  patientId: string,
+): Promise<PatientStructuredAnamnesis | null> {
+  assertClinicScope(clinicId);
+  const { data, error } = await db
+    .from("patient_anamnesis")
+    .select("*,professionals(name)")
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    const norm = normalizeSupabaseError(error);
+    if (norm.isSchemaPending) return null;
+    throw new Error(norm.message);
+  }
+  const rows = (data ?? []) as PatientStructuredAnamnesis[];
+  return rows[0] ?? null;
+}
+
+export async function savePatientStructuredAnamnesis(
+  clinicId: string,
+  input: StructuredAnamnesisInput,
+): Promise<SurgicalRiskEvaluation> {
+  assertClinicScope(clinicId);
+  const parsed = structuredAnamnesisSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Dados da anamnese inválidos.");
+  }
+
+  const d = parsed.data;
+  const evaluation = evaluateSurgicalRiskAndAsa({
+    ...d,
+    other_allergies: d.other_allergies ?? null,
+    current_medications: d.current_medications ?? null,
+    blood_pressure_systolic: d.blood_pressure_systolic ?? null,
+    blood_pressure_diastolic: d.blood_pressure_diastolic ?? null,
+    chief_complaint: d.chief_complaint ?? null,
+    clinical_observations: d.clinical_observations ?? null,
+  });
+
+  const effectiveAsa = d.asa_classification ?? evaluation.recommendedAsa;
+
+  const existing = await fetchPatientStructuredAnamnesis(clinicId, d.patient_id);
+
+  const payload = {
+    clinic_id: clinicId,
+    patient_id: d.patient_id,
+    professional_id: d.professional_id ?? null,
+    asa_classification: effectiveAsa,
+    has_hypertension: d.has_hypertension,
+    has_diabetes: d.has_diabetes,
+    has_heart_disease: d.has_heart_disease,
+    uses_anticoagulants: d.uses_anticoagulants,
+    uses_bisphosphonates: d.uses_bisphosphonates,
+    has_bleeding_disorder: d.has_bleeding_disorder,
+    is_pregnant_or_lactating: d.is_pregnant_or_lactating,
+    allergy_local_anesthetic: d.allergy_local_anesthetic,
+    allergy_penicillin: d.allergy_penicillin,
+    allergy_latex: d.allergy_latex,
+    allergy_nsaids: d.allergy_nsaids,
+    other_allergies: d.other_allergies?.trim() || null,
+    current_medications: d.current_medications?.trim() || null,
+    has_bruxism: d.has_bruxism,
+    is_smoker: d.is_smoker,
+    blood_pressure_systolic: d.blood_pressure_systolic ?? null,
+    blood_pressure_diastolic: d.blood_pressure_diastolic ?? null,
+    chief_complaint: d.chief_complaint?.trim() || null,
+    clinical_observations: d.clinical_observations?.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existing) {
+    const { error: updErr } = await db
+      .from("patient_anamnesis")
+      .update(payload)
+      .eq("clinic_id", clinicId)
+      .eq("id", existing.id);
+    if (updErr) throw new Error(normalizeSupabaseError(updErr).message);
+  } else {
+    const { error: insErr } = await db.from("patient_anamnesis").insert(payload);
+    if (insErr) throw new Error(normalizeSupabaseError(insErr).message);
+  }
+
+  // Sincroniza o resumo de alergias e anamnese no cadastro do paciente para alertas na Agenda/Dashboard
+  await db
+    .from("patients")
+    .update({
+      allergies: evaluation.allergiesSummary || null,
+      anamnesis: evaluation.conditionsSummary || null,
+    })
+    .eq("clinic_id", clinicId)
+    .eq("id", d.patient_id);
+
+  // Registra cópia imutável na linha do tempo do Prontuário Eletrônico (`clinical_records`)
+  await createClinicalRecord(clinicId, {
+    patient_id: d.patient_id,
+    professional_id: d.professional_id ?? null,
+    tooth_number: null,
+    record_type: "anamnesis",
+    title: `Anamnese Estruturada Atualizada (${effectiveAsa})`,
+    content: [
+      `Classificação ASA: ${effectiveAsa} | Risco Cirúrgico: ${evaluation.overallRiskLevel.toUpperCase()}`,
+      `Condições Sistêmicas: ${evaluation.conditionsSummary}`,
+      `Alergias Mapeadas: ${evaluation.allergiesSummary || "Nenhuma alergia relatada"}`,
+      d.current_medications ? `Medicações em Uso: ${d.current_medications}` : null,
+      d.chief_complaint ? `Queixa Principal: ${d.chief_complaint}` : null,
+      d.clinical_observations ? `Observações Clínicas: ${d.clinical_observations}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  });
+
+  return evaluation;
+}
+
 
 
 

@@ -4,9 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, ClipboardList, UserPlus } from "lucide-react";
 import { supabase, normalizeSupabaseError } from "@/services/supabase";
 import {
+  evaluateSurgicalRiskAndAsa,
   fetchPatientClinicalRecords,
   fetchPatientExamFiles,
   fetchPatientOdontogram,
+  fetchPatientStructuredAnamnesis,
   fetchPatientTreatmentPlans,
 } from "@/modules/records";
 import { useClinic } from "@/lib/clinic";
@@ -20,6 +22,7 @@ import { ClinicalEvolutionsPanel } from "@/components/records/ClinicalEvolutions
 import { TreatmentPlansPanel } from "@/components/records/TreatmentPlansPanel";
 import { ClinicalDocumentsPanel } from "@/components/records/ClinicalDocumentsPanel";
 import { PatientExamsGalleryPanel } from "@/components/records/PatientExamsGalleryPanel";
+import { StructuredAnamnesisPanel } from "@/components/records/StructuredAnamnesisPanel";
 
 export const Route = createFileRoute("/_authenticated/app/records")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -115,6 +118,16 @@ function ClinicalRecordsPage() {
     queryFn: () => fetchPatientExamFiles(clinicId, activePatient!.id),
   });
 
+  const anamnesisQuery = useQuery({
+    queryKey: ["structuredAnamnesis", clinicId, activePatient?.id],
+    enabled: canRead && !!activePatient,
+    queryFn: () => fetchPatientStructuredAnamnesis(clinicId, activePatient!.id),
+  });
+
+  const headerRisk = anamnesisQuery.data
+    ? evaluateSurgicalRiskAndAsa(anamnesisQuery.data)
+    : null;
+
   if (!canRead) {
     return <p className="text-muted-foreground">{t("common.noPermission")}</p>;
   }
@@ -172,6 +185,21 @@ function ClinicalRecordsPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                {anamnesisQuery.data && headerRisk && (
+                  <span
+                    className={`rounded-xl px-3 py-1.5 text-xs font-extrabold ${
+                      headerRisk.overallRiskLevel === "critical"
+                        ? "bg-red-600 text-white"
+                        : headerRisk.overallRiskLevel === "high"
+                          ? "border border-destructive/40 bg-destructive/15 text-destructive"
+                          : headerRisk.overallRiskLevel === "moderate"
+                            ? "border border-amber-300 bg-amber-500/15 text-amber-800"
+                            : "border border-emerald-300 bg-emerald-500/15 text-emerald-800"
+                    }`}
+                  >
+                    {anamnesisQuery.data.asa_classification} ({headerRisk.alerts.length} alerta(s) cirúrgico(s))
+                  </span>
+                )}
                 {activePatient.allergies && (
                   <div className="flex items-center gap-1.5 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-1.5 text-xs font-bold text-destructive">
                     <AlertTriangle className="h-4 w-4 shrink-0" />
@@ -189,8 +217,9 @@ function ClinicalRecordsPage() {
             </div>
 
             <Tabs defaultValue="odontogram" className="space-y-5">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 lg:w-[980px]">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:w-full lg:grid-cols-6">
                 <TabsTrigger value="odontogram">{t("rec.tabOdontogram")}</TabsTrigger>
+                <TabsTrigger value="anamnesis">Anamnese & Risco</TabsTrigger>
                 <TabsTrigger value="evolutions">{t("rec.tabEvolutions")}</TabsTrigger>
                 <TabsTrigger value="plans">{t("rec.tabPlans")}</TabsTrigger>
                 <TabsTrigger value="exams">Exames & Radiografias</TabsTrigger>
@@ -207,6 +236,16 @@ function ClinicalRecordsPage() {
                   selectedTooth={selectedTooth}
                   onSelectTooth={setSelectedTooth}
                   dateLocale={dateLocale}
+                />
+              </TabsContent>
+
+              <TabsContent value="anamnesis">
+                <StructuredAnamnesisPanel
+                  clinicId={clinicId}
+                  patientId={activePatient.id}
+                  anamnesis={anamnesisQuery.data ?? null}
+                  professionals={professionals}
+                  canWrite={canWrite}
                 />
               </TabsContent>
 

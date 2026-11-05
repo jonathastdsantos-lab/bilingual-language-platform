@@ -40,10 +40,12 @@ import {
   buildTenantExamStoragePath,
   calculateTreatmentPlanSummary,
   clinicalRecordSchema,
+  evaluateSurgicalRiskAndAsa,
   isValidFdiTooth,
   odontogramEntrySchema,
   patientExamUploadSchema,
   sanitizeExamFileName,
+  structuredAnamnesisSchema,
   verifyExamStoragePathTenant,
 } from "@/modules/records";
 import { formatCurrencyBRL, getDashboardPeriodRange, toSaoPauloDateKey } from "@/utils/timezone";
@@ -985,5 +987,59 @@ describe("Catálogo de Procedimentos (Tabela TUSS / Honorários) e Convênios Od
         reimbursement_days: 30,
       }).success,
     ).toBe(false);
+  });
+});
+
+describe("Anamnese Digital Estruturada, Classificação ASA e Alertas de Risco Cirúrgico", () => {
+  it("classifica paciente hígido como ASA I (risco baixo) sem alertas cirúrgicos", () => {
+    const res = evaluateSurgicalRiskAndAsa({
+      has_hypertension: false,
+      has_diabetes: false,
+      has_heart_disease: false,
+      uses_anticoagulants: false,
+      uses_bisphosphonates: false,
+    });
+
+    expect(res.recommendedAsa).toBe("ASA I");
+    expect(res.overallRiskLevel).toBe("low");
+    expect(res.alerts).toHaveLength(0);
+  });
+
+  it("detecta alto risco cirúrgico (ASA III) para bisfosfonatos (MRONJ), anticoagulantes e alergia a penicilina", () => {
+    const res = evaluateSurgicalRiskAndAsa({
+      uses_bisphosphonates: true,
+      uses_anticoagulants: true,
+      allergy_penicillin: true,
+      other_allergies: "Iodo",
+    });
+
+    expect(res.recommendedAsa).toBe("ASA III");
+    expect(res.overallRiskLevel).toBe("high");
+    const ids = res.alerts.map((a) => a.id);
+    expect(ids).toContain("bisphosphonates-mronj");
+    expect(ids).toContain("bleeding-risk");
+    expect(ids).toContain("allergy-penicillin");
+    expect(res.allergiesSummary).toContain("Penicilina/Amoxicilina");
+    expect(res.allergiesSummary).toContain("Iodo");
+  });
+
+  it("detecta crise hipertensiva (PA >= 180x110 mmHg) como risco crítico (ASA IV) e valida schema", () => {
+    const crisis = evaluateSurgicalRiskAndAsa({
+      blood_pressure_systolic: 185,
+      blood_pressure_diastolic: 112,
+    });
+
+    expect(crisis.recommendedAsa).toBe("ASA IV");
+    expect(crisis.overallRiskLevel).toBe("critical");
+    expect(crisis.alerts[0]?.id).toBe("hypertensive-crisis");
+
+    expect(
+      structuredAnamnesisSchema.safeParse({
+        patient_id: "44444444-4444-4444-8444-444444444444",
+        has_hypertension: true,
+        blood_pressure_systolic: 130,
+        blood_pressure_diastolic: 85,
+      }).success,
+    ).toBe(true);
   });
 });

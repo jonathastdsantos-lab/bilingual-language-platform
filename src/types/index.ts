@@ -410,3 +410,43 @@ export interface ProcedureCatalogItem {
   created_at: string;
   dental_insurances?: { name: string | null } | null;
 }
+
+export type AsaClassification = "ASA I" | "ASA II" | "ASA III" | "ASA IV";
+export type SurgicalRiskLevel = "low" | "moderate" | "high" | "critical";
+
+export interface SurgicalRiskAlert {
+  id: string;
+  level: SurgicalRiskLevel;
+  title: string;
+  clinicalRecommendation: string;
+}
+
+export interface PatientStructuredAnamnesis {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  professional_id: string | null;
+  asa_classification: AsaClassification;
+  has_hypertension: boolean;
+  has_diabetes: boolean;
+  has_heart_disease: boolean;
+  uses_anticoagulants: boolean;
+  uses_bisphosphonates: boolean;
+  has_bleeding_disorder: boolean;
+  is_pregnant_or_lactating: boolean;
+  allergy_local_anesthetic: boolean;
+  allergy_penicillin: boolean;
+  allergy_latex: boolean;
+  allergy_nsaids: boolean;
+  other_allergies: string | null;
+  current_medications: string | null;
+  has_bruxism: boolean;
+  is_smoker: boolean;
+  blood_pressure_systolic: number | null;
+  blood_pressure_diastolic: number | null;
+  chief_complaint: string | null;
+  clinical_observations: string | null;
+  updated_by: string | null;
+  updated_at: string;
+  professionals?: { name: string | null } | null;
+}
