@@ -1074,4 +1074,44 @@ export interface CommissionPreviewResult {
   items: CommissionPreviewItem[];
 }
 
+// ============================================================================
+// LEMBRETES AUTOMÁTICOS DE WHATSAPP (24H & 2H)
+// ============================================================================
+
+export interface WhatsAppReminderSettings {
+  clinic_id: string;
+  enabled_24h: boolean;
+  enabled_2h: boolean;
+  template_24h: string;
+  template_2h: string;
+  auto_dispatch_active: boolean;
+  updated_at: string;
+}
+
+export type ReminderType = "24h" | "2h";
+export type ReminderStatus = "pending" | "sent" | "failed" | "cancelled";
+
+export interface UpcomingAppointmentReminder {
+  appointment_id: string;
+  starts_at: string;
+  appointment_status: string;
+  procedure_name: string;
+  patient_id: string;
+  patient_name: string;
+  patient_phone: string;
+  professional_name: string;
+  confirmation_token: string | null;
+  reminder_24h: {
+    id: string | null;
+    status: ReminderStatus;
+    sent_at: string | null;
+  };
+  reminder_2h: {
+    id: string | null;
+    status: ReminderStatus;
+    sent_at: string | null;
+  };
+}
+
+
 

@@ -80,6 +80,10 @@ import {
   generateSettlementPrintableHtml,
 } from "@/modules/commissions";
 import {
+  buildReminderMessage,
+  buildWhatsAppReminderUrl,
+} from "@/modules/whatsapp/reminders";
+import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
   buildPrintableDocumentHtml,
@@ -1932,6 +1936,33 @@ describe("Certificado Digital ICP-Brasil & Assinatura Qualificada do Cirurgião-
       expect(html).toContain("5.000,00");
       expect(html).toContain("800,00");
       expect(html).toContain("2.100,00");
+    });
+  });
+
+  describe("Lembretes Automáticos de WhatsApp (24h & 2h)", () => {
+    it("interpola tags dinâmicas do lembrete de véspera (24h) com link de confirmação", () => {
+      const template =
+        "Olá, {paciente}! Lembramos da sua consulta amanhã ({data}) às {hora} na {clinica} com Dr(a). {profissional}. Link: {link_confirmacao}";
+
+      const message = buildReminderMessage(template, {
+        patientName: "Camila Guimarães",
+        clinicName: "Sorriso & Arte",
+        startsAt: "2026-11-20T14:30:00.000Z",
+        professionalName: "Dr. Gustavo Ramos",
+        token: "tok_abc123",
+      });
+
+      expect(message).toContain("Camila Guimarães");
+      expect(message).toContain("Sorriso & Arte");
+      expect(message).toContain("Dr. Gustavo Ramos");
+      expect(message).toContain("/confirm/tok_abc123");
+    });
+
+    it("monta link do WhatsApp Web com DDI brasileiro e texto codificado", () => {
+      const msg = "Olá, seu atendimento é hoje às 14:00!";
+      const url = buildWhatsAppReminderUrl("(11) 98765-4321", msg);
+
+      expect(url).toBe("https://wa.me/5511987654321?text=Ol%C3%A1%2C%20seu%20atendimento%20%C3%A9%20hoje%20%C3%A0s%2014%3A00!");
     });
   });
 });

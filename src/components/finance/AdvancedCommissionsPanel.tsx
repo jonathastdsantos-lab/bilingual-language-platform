@@ -204,8 +204,10 @@ export function AdvancedCommissionsPanel({
     if (!iso) return "-";
     const datePart = iso.split("T")[0] || "";
     const parts = datePart.split("-");
-    if (parts.length < 3) return iso;
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    const y = parts[0] || "";
+    const m = parts[1] || "";
+    const d = parts[2] || "";
+    return d && m && y ? `${d}/${m}/${y}` : iso;
   };
 
   const handlePrint = (settlement: CommissionSettlement, items: CommissionSettlementItem[]) => {
@@ -835,8 +837,8 @@ export function AdvancedCommissionsPanel({
                           {r.calculation_type === "percentage_net_of_lab"
                             ? "% com dedução de protético"
                             : r.calculation_type === "fixed_amount"
-                            ? "Valor fixo por atendimento"
-                            : "% bruto"}
+                              ? "Valor fixo por atendimento"
+                              : "% bruto"}
                         </td>
                         <td className="p-2.5 text-right font-bold text-teal">
                           {r.calculation_type === "fixed_amount"
@@ -864,4 +866,3 @@ export function AdvancedCommissionsPanel({
     </div>
   );
 }
-

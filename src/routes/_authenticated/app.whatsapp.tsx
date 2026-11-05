@@ -10,7 +10,9 @@ import {
   History,
   FileText,
   Clock,
+  BellRing,
 } from "lucide-react";
+import { AutomaticRemindersPanel } from "@/components/whatsapp/AutomaticRemindersPanel";
 import { supabase } from "@/services/supabase";
 import { useClinic } from "@/lib/clinic";
 import { useT } from "@/lib/i18n";
@@ -270,10 +272,14 @@ function WhatsappCenterPage() {
         </div>
       ) : (
         <Tabs defaultValue="queue" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-1 sm:w-auto sm:grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-4">
             <TabsTrigger value="queue" className="gap-2">
               <Send className="h-4 w-4" />
               {t("wa.tabQueue")} ({appointments.length})
+            </TabsTrigger>
+            <TabsTrigger value="reminders" className="gap-2">
+              <BellRing className="h-4 w-4 text-sky-600" />
+              Lembretes (24h & 2h)
             </TabsTrigger>
             <TabsTrigger value="templates" className="gap-2">
               <FileText className="h-4 w-4" />
@@ -411,7 +417,16 @@ function WhatsappCenterPage() {
             </Card>
           </TabsContent>
 
-          {/* TAB 2: MODELOS DE MENSAGEM */}
+          {/* TAB 2: LEMBRETES AUTOMÁTICOS (24H & 2H) */}
+          <TabsContent value="reminders" className="space-y-4">
+            <AutomaticRemindersPanel
+              clinicId={clinicId}
+              clinicName={clinicName}
+              canManage={canManage}
+            />
+          </TabsContent>
+
+          {/* TAB 3: MODELOS DE MENSAGEM */}
           <TabsContent value="templates" className="space-y-6">
             <Card className="shadow-card">
               <CardHeader className="pb-3">

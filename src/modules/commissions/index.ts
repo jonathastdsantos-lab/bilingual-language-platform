@@ -280,8 +280,10 @@ export function generateSettlementPrintableHtml(
     if (!iso) return "-";
     const datePart = iso.split("T")[0] || "";
     const parts = datePart.split("-");
-    if (parts.length < 3) return iso;
-    return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    const y = parts[0] || "";
+    const m = parts[1] || "";
+    const d = parts[2] || "";
+    return d && m && y ? `${d}/${m}/${y}` : iso;
   };
 
   const rows = items
@@ -415,4 +417,3 @@ export function generateSettlementPrintableHtml(
     </html>
   `;
 }
-
