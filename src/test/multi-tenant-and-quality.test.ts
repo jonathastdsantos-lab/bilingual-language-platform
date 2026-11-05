@@ -39,6 +39,11 @@ import {
   MASTER_DEVELOPER_EMAIL,
 } from "@/modules/superadmin";
 import {
+  calculateTissBillingSummary,
+  tissGuideFormSchema,
+  tissGuideItemSchema,
+} from "@/modules/tiss";
+import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
   buildPrintableDocumentHtml,
@@ -1126,5 +1131,119 @@ describe("SuperAdmin / Desenvolvedor da Plataforma & Métricas SaaS", () => {
     expect(stats.activeClinics).toBe(2);
     expect(stats.trialClinics).toBe(1);
     expect(stats.mrrEstimated).toBe(149 + 299);
+  });
+});
+
+describe("Guias TISS / Faturamento de Convênios Odontológicos (GTO — ANS)", () => {
+  it("consolida indicadores de faturamento de guias TISS, valores pagos e glosas", () => {
+    const guides = [
+      {
+        id: "g1",
+        clinic_id: CLINIC_A,
+        patient_id: "p1",
+        insurance_id: "ins1",
+        professional_id: null,
+        guide_number: "GTO-101",
+        auth_code: "AUT-1",
+        guide_type: "treatment" as const,
+        status: "billed" as const,
+        card_number: "123456",
+        card_expiration: null,
+        cns_number: null,
+        issue_date: "2026-11-01",
+        billed_date: "2026-11-02",
+        paid_date: null,
+        total_amount: 350,
+        glosed_amount: 0,
+        notes: null,
+        created_by: USER_ALICE,
+        created_at: "2026-11-01T10:00:00Z",
+        updated_at: "2026-11-01T10:00:00Z",
+      },
+      {
+        id: "g2",
+        clinic_id: CLINIC_A,
+        patient_id: "p2",
+        insurance_id: "ins1",
+        professional_id: null,
+        guide_number: "GTO-102",
+        auth_code: "AUT-2",
+        guide_type: "treatment" as const,
+        status: "paid" as const,
+        card_number: "654321",
+        card_expiration: null,
+        cns_number: null,
+        issue_date: "2026-11-01",
+        billed_date: "2026-11-02",
+        paid_date: "2026-11-04",
+        total_amount: 520,
+        glosed_amount: 0,
+        notes: null,
+        created_by: USER_ALICE,
+        created_at: "2026-11-01T10:00:00Z",
+        updated_at: "2026-11-01T10:00:00Z",
+      },
+      {
+        id: "g3",
+        clinic_id: CLINIC_A,
+        patient_id: "p3",
+        insurance_id: "ins1",
+        professional_id: null,
+        guide_number: "GTO-103",
+        auth_code: null,
+        guide_type: "treatment" as const,
+        status: "glosed" as const,
+        card_number: "987654",
+        card_expiration: null,
+        cns_number: null,
+        issue_date: "2026-11-02",
+        billed_date: "2026-11-03",
+        paid_date: null,
+        total_amount: 200,
+        glosed_amount: 80,
+        notes: null,
+        created_by: USER_ALICE,
+        created_at: "2026-11-02T10:00:00Z",
+        updated_at: "2026-11-02T10:00:00Z",
+      },
+    ];
+
+    const summary = calculateTissBillingSummary(guides);
+    expect(summary.totalGuides).toBe(3);
+    expect(summary.billedCount).toBe(1);
+    expect(summary.paidCount).toBe(1);
+    expect(summary.glosedCount).toBe(1);
+    expect(summary.totalBilledAmount).toBe(350);
+    expect(summary.totalPaidAmount).toBe(520);
+    expect(summary.totalGlosedAmount).toBe(80);
+  });
+
+  it("valida schema de Guia TISS com procedimentos TUSS obrigatórios", () => {
+    const valid = tissGuideFormSchema.safeParse({
+      patient_id: "44444444-4444-4444-8444-444444444444",
+      insurance_id: "55555555-5555-5555-8555-555555555555",
+      guide_number: "GTO-2026-001",
+      card_number: "9988776655",
+      issue_date: "2026-11-05",
+      items: [
+        {
+          tuss_code: "81000030",
+          description: "Consulta inicial odontológica",
+          quantity: 1,
+          unit_price: 110,
+        },
+      ],
+    });
+    expect(valid.success).toBe(true);
+
+    const emptyItems = tissGuideFormSchema.safeParse({
+      patient_id: "44444444-4444-4444-8444-444444444444",
+      insurance_id: "55555555-5555-5555-8555-555555555555",
+      guide_number: "GTO-2026-002",
+      card_number: "9988776655",
+      issue_date: "2026-11-05",
+      items: [],
+    });
+    expect(emptyItems.success).toBe(false);
   });
 });

@@ -517,3 +517,50 @@ export interface PlatformDeveloperStats {
   mrrEstimated: number;
   totalPatientsEstimate: number;
 }
+
+export type TissGuideType = "treatment" | "initial_exam" | "urgency";
+export type TissGuideStatus = "draft" | "authorized" | "billed" | "paid" | "glosed" | "cancelled";
+
+export interface TissGuideItem {
+  id: string;
+  clinic_id: string;
+  guide_id: string;
+  tuss_code: string;
+  description: string;
+  tooth_number: number | null;
+  tooth_surface: string | null;
+  quantity: number;
+  unit_price: number;
+  total_price: number;
+  glosed: boolean;
+  glosa_reason: string | null;
+  created_at: string;
+}
+
+export interface TissGuide {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  insurance_id: string | null;
+  professional_id: string | null;
+  guide_number: string;
+  auth_code: string | null;
+  guide_type: TissGuideType;
+  status: TissGuideStatus;
+  card_number: string;
+  card_expiration: string | null;
+  cns_number: string | null;
+  issue_date: string;
+  billed_date: string | null;
+  paid_date: string | null;
+  total_amount: number;
+  glosed_amount: number;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  patients?: { full_name: string; cpf: string | null } | null;
+  dental_insurances?: { name: string; ans_code: string | null } | null;
+  professionals?: { name: string | null; cro?: string | null } | null;
+  items?: TissGuideItem[];
+}

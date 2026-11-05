@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Wallet, Receipt, Award, Lock, Clock } from "lucide-react";
+import { Wallet, Receipt, Award, Lock, Clock, FileSpreadsheet } from "lucide-react";
 import { supabase } from "@/services/supabase";
 import { useClinic } from "@/lib/clinic";
 import { useT } from "@/lib/i18n";
@@ -13,12 +14,15 @@ import {
   calculateCashFlowSummary,
   calculateProfessionalCommissions,
 } from "@/modules/finance";
+import { fetchDentalInsurances } from "@/modules/clinics";
+import { fetchTissGuides } from "@/modules/tiss";
 import { CashFlowKpiCards } from "@/components/finance/CashFlowKpiCards";
 import { FinancialEntriesPanel } from "@/components/finance/FinancialEntriesPanel";
 import {
   ProfessionalCommissionsPanel,
   CashClosingPanel,
 } from "@/components/finance/CommissionsAndClosingPanel";
+import { TissGuidesPanel } from "@/components/finance/TissGuidesPanel";
 import type { CashClosing, FinancialEntry } from "@/types";
 
 export const Route = createFileRoute("/_authenticated/app/finance")({
@@ -48,7 +52,7 @@ interface ProfessionalOption {
 
 function FinancePage() {
   const { t } = useT();
-  const { clinicId, activeUnitId, hasPermission } = useClinic();
+  const { clinicId, clinicName, activeUnitId, hasPermission } = useClinic();
 
   const canView = hasPermission("financial.view");
   const canWrite = hasPermission("financial.write");
@@ -58,6 +62,18 @@ function FinancePage() {
   const [patients, setPatients] = useState<PatientOption[]>([]);
   const [professionals, setProfessionals] = useState<ProfessionalOption[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const { data: tissGuides = [] } = useQuery({
+    queryKey: ["tissGuides", clinicId],
+    enabled: canView && !!clinicId,
+    queryFn: () => fetchTissGuides(clinicId),
+  });
+
+  const { data: insurances = [] } = useQuery({
+    queryKey: ["dentalInsurances", clinicId],
+    enabled: canView && !!clinicId,
+    queryFn: () => fetchDentalInsurances(clinicId),
+  });
 
   const loadFinanceData = useCallback(async () => {
     if (!clinicId || !canView) {
@@ -160,10 +176,14 @@ function FinancePage() {
         </div>
       ) : (
         <Tabs defaultValue="entries" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-1 sm:w-auto sm:grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-4">
             <TabsTrigger value="entries" className="gap-2">
               <Receipt className="h-4 w-4" />
               {t("fin.tabEntries")} ({scopedEntries.length})
+            </TabsTrigger>
+            <TabsTrigger value="tiss" className="gap-2">
+              <FileSpreadsheet className="h-4 w-4" />
+              Guias TISS / GTO ({tissGuides.length})
             </TabsTrigger>
             <TabsTrigger value="commissions" className="gap-2">
               <Award className="h-4 w-4" />
@@ -184,6 +204,18 @@ function FinancePage() {
               patients={patients}
               professionals={professionals.map((p) => ({ id: p.id, name: p.name }))}
               onRefresh={loadFinanceData}
+            />
+          </TabsContent>
+
+          <TabsContent value="tiss">
+            <TissGuidesPanel
+              clinicId={clinicId}
+              clinicName={clinicName}
+              guides={tissGuides}
+              insurances={insurances}
+              patients={patients as any}
+              professionals={professionals as any}
+              canWrite={canWrite}
             />
           </TabsContent>
 

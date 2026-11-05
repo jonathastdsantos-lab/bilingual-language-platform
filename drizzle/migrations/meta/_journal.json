@@ -78,6 +78,13 @@
       "when": 1793834400000,
       "tag": "0010_superadmin_and_saas_management",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793838000000,
+      "tag": "0011_tiss_dental_guides",
+      "breakpoints": true
     }
   ]
 }
