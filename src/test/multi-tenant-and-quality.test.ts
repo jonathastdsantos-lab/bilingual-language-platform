@@ -35,7 +35,10 @@ import { appointmentFormSchema } from "@/modules/appointments";
 import { buildPublicConfirmationUrl } from "@/modules/appointments/tokens";
 import { authCredentialsSchema } from "@/modules/auth";
 import {
+  calculateConversionFunnel,
   calculateDetailedPlatformStats,
+  calculatePlanDistributionData,
+  calculateSaaSGrowthTimeline,
   exportClinicsToCsv,
   isMasterDeveloperEmail,
   MASTER_DEVELOPER_EMAIL,
@@ -1236,6 +1239,66 @@ describe("SuperAdmin / Desenvolvedor da Plataforma & Métricas SaaS", () => {
     expect(csv).toContain("Clínica Teste");
     expect(csv).toContain("SondaPro Pro");
     expect(csv).toContain("Dr. João");
+  });
+
+  it("calcula curva de crescimento temporal e distribuição de planos para Recharts", () => {
+    const plans = [
+      { id: "starter", name: "Starter", description: "", monthly_price: 149, yearly_price: 1490, max_professionals: 1, max_units: 1, whatsapp_included: false, storage_limit_mb: 2000, active: true },
+      { id: "pro", name: "Pro", description: "", monthly_price: 299, yearly_price: 2990, max_professionals: 5, max_units: 2, whatsapp_included: true, storage_limit_mb: 10000, active: true },
+    ];
+
+    const sampleClinics = [
+      {
+        id: "c1",
+        name: "Clínica 1",
+        plan_id: "starter",
+        plan_name: "Starter",
+        monthly_price: 149,
+        subscription_status: "active" as const,
+        trial_ends_at: null,
+        current_period_end: null,
+        created_at: new Date().toISOString(),
+        patients_count: 10,
+        appointments_month_count: 5,
+        members_count: 1,
+        dentists_count: 1,
+        last_appointment_at: null,
+        exam_files_count: 0,
+        exam_storage_bytes: 0,
+      },
+      {
+        id: "c2",
+        name: "Clínica 2",
+        plan_id: "pro",
+        plan_name: "Pro",
+        monthly_price: 299,
+        subscription_status: "active" as const,
+        trial_ends_at: null,
+        current_period_end: null,
+        created_at: new Date().toISOString(),
+        patients_count: 20,
+        appointments_month_count: 10,
+        members_count: 2,
+        dentists_count: 1,
+        last_appointment_at: null,
+        exam_files_count: 0,
+        exam_storage_bytes: 0,
+      },
+    ];
+
+    const timeline = calculateSaaSGrowthTimeline(sampleClinics, plans, 3);
+    expect(timeline.length).toBe(3);
+    expect(timeline[timeline.length - 1]?.newClinics).toBe(2);
+
+    const dist = calculatePlanDistributionData(sampleClinics, plans);
+    expect(dist).toHaveLength(2);
+    expect(dist[0]?.revenue).toBe(149);
+    expect(dist[1]?.revenue).toBe(299);
+
+    const funnel = calculateConversionFunnel(sampleClinics);
+    expect(funnel.activePaying).toBe(2);
+    expect(funnel.conversionRatePct).toBe(100);
+    expect(funnel.churnRatePct).toBe(0);
   });
 });
 

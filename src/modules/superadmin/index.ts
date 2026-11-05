@@ -186,6 +186,157 @@ export function calculateDetailedPlatformStats(
   };
 }
 
+export interface MonthlyGrowthPoint {
+  monthKey: string; // Ex: '2026-05'
+  monthLabel: string; // Ex: 'Mai/26'
+  newClinics: number;
+  cumulativeClinics: number;
+  estimatedMrr: number;
+}
+
+export interface PlanDistributionItem {
+  name: string;
+  count: number;
+  revenue: number;
+  color: string;
+}
+
+export interface ConversionFunnelStats {
+  totalEverCreated: number;
+  activePaying: number;
+  inTrial: number;
+  pastDue: number;
+  cancelled: number;
+  conversionRatePct: number;
+  churnRatePct: number;
+}
+
+/**
+ * Agrupa a evolução histórica das clínicas por mês para gráficos de linha/área.
+ */
+export function calculateSaaSGrowthTimeline(
+  clinics: DetailedPlatformClinic[],
+  plans: SaasPlan[],
+  monthsToGoBack: number = 6,
+): MonthlyGrowthPoint[] {
+  const planMap = new Map<string, number>();
+  for (const p of plans) planMap.set(p.id, Number(p.monthly_price) || 0);
+
+  const monthsMap = new Map<string, { newClinics: number; mrr: number }>();
+  const now = new Date();
+
+  // Inicializa os últimos N meses
+  for (let i = monthsToGoBack - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    monthsMap.set(key, { newClinics: 0, mrr: 0 });
+  }
+
+  // Ordena clínicas por data de criação
+  const sorted = [...clinics].sort(
+    (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+  );
+
+  for (const c of sorted) {
+    const d = new Date(c.created_at);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const price = planMap.get(c.plan_id) ?? (Number(c.monthly_price) || 299);
+
+    if (monthsMap.has(key)) {
+      const cur = monthsMap.get(key)!;
+      cur.newClinics += 1;
+      if (c.subscription_status === "active") {
+        cur.mrr += price;
+      }
+    }
+  }
+
+  const result: MonthlyGrowthPoint[] = [];
+  let runningCount = 0;
+  let runningMrr = 0;
+
+  for (const [key, val] of monthsMap.entries()) {
+    runningCount += val.newClinics;
+    runningMrr += val.mrr;
+    const [year, month] = key.split("-");
+    const dateObj = new Date(Number(year), Number(month) - 1, 1);
+    const monthLabel = dateObj.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+
+    result.push({
+      monthKey: key,
+      monthLabel: monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1),
+      newClinics: val.newClinics,
+      cumulativeClinics: runningCount,
+      estimatedMrr: Number(runningMrr.toFixed(2)),
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Agrupa clínicas por plano comercial para o gráfico de pizza.
+ */
+export function calculatePlanDistributionData(
+  clinics: DetailedPlatformClinic[],
+  plans: SaasPlan[],
+): PlanDistributionItem[] {
+  const colors: Record<string, string> = {
+    starter: "#0ea5e9", // Sky
+    pro: "#0d9488", // Teal
+    corporate: "#6366f1", // Indigo
+  };
+
+  return plans.map((p) => {
+    const matching = clinics.filter((c) => c.plan_id === p.id);
+    const payingCount = matching.filter((c) => c.subscription_status === "active").length;
+    const revenue = payingCount * Number(p.monthly_price);
+
+    return {
+      name: p.name,
+      count: matching.length,
+      revenue: Number(revenue.toFixed(2)),
+      color: colors[p.id] || "#64748b",
+    };
+  });
+}
+
+/**
+ * Calcula taxa de conversão de trial e churn do SaaS.
+ */
+export function calculateConversionFunnel(
+  clinics: DetailedPlatformClinic[],
+): ConversionFunnelStats {
+  const total = clinics.length;
+  let activePaying = 0;
+  let inTrial = 0;
+  let pastDue = 0;
+  let cancelled = 0;
+
+  for (const c of clinics) {
+    if (c.subscription_status === "active") activePaying += 1;
+    else if (c.subscription_status === "trialing") inTrial += 1;
+    else if (c.subscription_status === "past_due") pastDue += 1;
+    else if (c.subscription_status === "cancelled") cancelled += 1;
+  }
+
+  const finishedTrialPool = activePaying + pastDue + cancelled;
+  const conversionRatePct =
+    finishedTrialPool > 0 ? Number(((activePaying / finishedTrialPool) * 100).toFixed(1)) : 100;
+  const churnRatePct =
+    total > 0 ? Number(((cancelled / total) * 100).toFixed(1)) : 0;
+
+  return {
+    totalEverCreated: total,
+    activePaying,
+    inTrial,
+    pastDue,
+    cancelled,
+    conversionRatePct,
+    churnRatePct,
+  };
+}
+
 export async function fetchClinicNotes(clinicId: string): Promise<PlatformClinicNote[]> {
   const { data, error } = await db
     .from("platform_clinic_notes")

@@ -47,6 +47,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n";
+import { SaasAnalyticsCharts } from "@/components/superadmin/SaasAnalyticsCharts";
 import {
   addClinicNote,
   calculateDetailedPlatformStats,
@@ -498,6 +499,9 @@ export function SuperAdminPage() {
               <p className="text-[11px] text-muted-foreground">Radiografias e anexos clínicos</p>
             </div>
           </div>
+
+          {/* Gráficos Visuais de Desempenho e Curva de Crescimento SaaS */}
+          <SaasAnalyticsCharts clinics={clinics} plans={plans} />
 
           {/* Cards dos Planos Comerciais */}
           <div className="space-y-3 rounded-2xl border bg-card p-5 shadow-card">
