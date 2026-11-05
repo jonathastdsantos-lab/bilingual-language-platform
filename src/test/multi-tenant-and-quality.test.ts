@@ -44,8 +44,10 @@ import {
   isValidFdiTooth,
   odontogramEntrySchema,
   patientExamUploadSchema,
+  prostheticLabOrderSchema,
   sanitizeExamFileName,
   structuredAnamnesisSchema,
+  summarizeProstheticLabOrders,
   verifyExamStoragePathTenant,
 } from "@/modules/records";
 import { formatCurrencyBRL, getDashboardPeriodRange, toSaoPauloDateKey } from "@/utils/timezone";
@@ -1041,5 +1043,52 @@ describe("Anamnese Digital Estruturada, Classificação ASA e Alertas de Risco C
         blood_pressure_diastolic: 85,
       }).success,
     ).toBe(true);
+  });
+});
+
+describe("Controle de Laboratório de Prótese (Rastreamento de Trabalhos Protéticos)", () => {
+  it("calcula KPIs laboratoriais (em confecção, prontos na clínica, atrasados e custo acumulado)", () => {
+    const summary = summarizeProstheticLabOrders(
+      [
+        { stage: "sent", due_date: "2026-11-01", lab_cost: 420 },
+        { stage: "teeth_try_in", due_date: "2026-11-10", lab_cost: 650 },
+        { stage: "delivered_to_clinic", due_date: "2026-11-02", lab_cost: 380 },
+        { stage: "installed_in_patient", due_date: "2026-10-20", lab_cost: 500 },
+      ],
+      "2026-11-04",
+    );
+
+    expect(summary.totalOrders).toBe(4);
+    expect(summary.activeInLabCount).toBe(2);
+    expect(summary.readyInClinicCount).toBe(1);
+    expect(summary.installedCount).toBe(1);
+    expect(summary.overdueCount).toBe(1);
+    expect(summary.totalLabCost).toBe(1950);
+  });
+
+  it("valida schema de Ordem de Serviço Protética e impede prazo de entrega anterior ao envio", () => {
+    const valid = prostheticLabOrderSchema.safeParse({
+      patient_id: "44444444-4444-4444-8444-444444444444",
+      laboratory_name: "Laboratório Estética Dental",
+      prosthesis_type: "Coroa Dissilicato de Lítio (E-max)",
+      tooth_numbers: "11, 21",
+      vita_shade: "BL2",
+      stage: "sent",
+      sent_date: "2026-11-04",
+      due_date: "2026-11-11",
+      lab_cost: 760,
+    });
+    expect(valid.success).toBe(true);
+
+    const invalidDueDate = prostheticLabOrderSchema.safeParse({
+      patient_id: "44444444-4444-4444-8444-444444444444",
+      laboratory_name: "Laboratório Estética Dental",
+      prosthesis_type: "Coroa em Zircônia Monolítica",
+      stage: "sent",
+      sent_date: "2026-11-10",
+      due_date: "2026-11-05",
+      lab_cost: 400,
+    });
+    expect(invalidDueDate.success).toBe(false);
   });
 });

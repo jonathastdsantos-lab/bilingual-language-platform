@@ -8,6 +8,7 @@ import {
   fetchPatientClinicalRecords,
   fetchPatientExamFiles,
   fetchPatientOdontogram,
+  fetchPatientProstheticLabOrders,
   fetchPatientStructuredAnamnesis,
   fetchPatientTreatmentPlans,
 } from "@/modules/records";
@@ -23,6 +24,7 @@ import { TreatmentPlansPanel } from "@/components/records/TreatmentPlansPanel";
 import { ClinicalDocumentsPanel } from "@/components/records/ClinicalDocumentsPanel";
 import { PatientExamsGalleryPanel } from "@/components/records/PatientExamsGalleryPanel";
 import { StructuredAnamnesisPanel } from "@/components/records/StructuredAnamnesisPanel";
+import { ProstheticLabOrdersPanel } from "@/components/records/ProstheticLabOrdersPanel";
 
 export const Route = createFileRoute("/_authenticated/app/records")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -124,6 +126,12 @@ function ClinicalRecordsPage() {
     queryFn: () => fetchPatientStructuredAnamnesis(clinicId, activePatient!.id),
   });
 
+  const prostheticLabOrdersQuery = useQuery({
+    queryKey: ["prosthetic-lab-orders", clinicId, activePatient?.id],
+    enabled: canRead && !!activePatient,
+    queryFn: () => fetchPatientProstheticLabOrders(clinicId, activePatient!.id),
+  });
+
   const headerRisk = anamnesisQuery.data
     ? evaluateSurgicalRiskAndAsa(anamnesisQuery.data)
     : null;
@@ -217,11 +225,12 @@ function ClinicalRecordsPage() {
             </div>
 
             <Tabs defaultValue="odontogram" className="space-y-5">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:w-full lg:grid-cols-6">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:w-full lg:grid-cols-7">
                 <TabsTrigger value="odontogram">{t("rec.tabOdontogram")}</TabsTrigger>
                 <TabsTrigger value="anamnesis">Anamnese & Risco</TabsTrigger>
                 <TabsTrigger value="evolutions">{t("rec.tabEvolutions")}</TabsTrigger>
                 <TabsTrigger value="plans">{t("rec.tabPlans")}</TabsTrigger>
+                <TabsTrigger value="prosthesis">Laboratório Prótese</TabsTrigger>
                 <TabsTrigger value="exams">Exames & Radiografias</TabsTrigger>
                 <TabsTrigger value="documents">Receitas, Atestados & TCLE</TabsTrigger>
               </TabsList>
@@ -270,6 +279,22 @@ function ClinicalRecordsPage() {
                   professionals={professionals}
                   canWrite={canWrite}
                   dateLocale={dateLocale}
+                />
+              </TabsContent>
+
+              <TabsContent value="prosthesis">
+                <ProstheticLabOrdersPanel
+                  clinicId={clinicId}
+                  clinicName={clinicName || "SondaPro Clínica Odontológica"}
+                  patient={{
+                    id: activePatient.id,
+                    full_name: activePatient.full_name,
+                    cpf: activePatient.cpf,
+                  }}
+                  orders={prostheticLabOrdersQuery.data ?? []}
+                  professionals={professionals}
+                  canWrite={canWrite}
+                  selectedTooth={selectedTooth}
                 />
               </TabsContent>
 

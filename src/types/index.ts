@@ -450,3 +450,34 @@ export interface PatientStructuredAnamnesis {
   updated_at: string;
   professionals?: { name: string | null } | null;
 }
+
+export type ProstheticLabStage =
+  | "sent"
+  | "infrastructure_try_in"
+  | "teeth_try_in"
+  | "glaze_finish"
+  | "delivered_to_clinic"
+  | "installed_in_patient"
+  | "returned_adjustment";
+
+export interface ProstheticLabOrder {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  professional_id: string | null;
+  laboratory_name: string;
+  prosthesis_type: string;
+  tooth_numbers: string | null;
+  vita_shade: string | null;
+  stage: ProstheticLabStage;
+  sent_date: string;
+  due_date: string;
+  delivered_date: string | null;
+  lab_cost: number;
+  financial_entry_generated: boolean;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  professionals?: { name: string | null } | null;
+}

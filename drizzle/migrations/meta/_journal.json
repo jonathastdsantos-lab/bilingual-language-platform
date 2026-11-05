@@ -64,6 +64,13 @@
       "when": 1793827200000,
       "tag": "0008_structured_anamnesis_and_surgical_risk",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793830800000,
+      "tag": "0009_prosthetic_lab_orders",
+      "breakpoints": true
     }
   ]
 }

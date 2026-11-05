@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { createFinancialEntriesWithInstallments } from "@/modules/finance";
 import { assertClinicScope, normalizeSupabaseError, supabase } from "@/services/supabase";
 import type {
   AsaClassification,
@@ -8,6 +9,8 @@ import type {
   OdontogramEntry,
   PatientExamFile,
   PatientStructuredAnamnesis,
+  ProstheticLabOrder,
+  ProstheticLabStage,
   SurgicalRiskAlert,
   SurgicalRiskLevel,
   ToothConditionStatus,
@@ -1328,6 +1331,337 @@ export async function savePatientStructuredAnamnesis(
 
   return evaluation;
 }
+
+// =============================================================================
+// CONTROLE DE LABORATÓRIO DE PRÓTESE (RASTREAMENTO DE TRABALHOS PROTÉTICOS)
+// =============================================================================
+
+export const PROSTHETIC_LAB_STAGES: readonly ProstheticLabStage[] = [
+  "sent",
+  "infrastructure_try_in",
+  "teeth_try_in",
+  "glaze_finish",
+  "delivered_to_clinic",
+  "installed_in_patient",
+  "returned_adjustment",
+] as const;
+
+export const PROSTHETIC_STAGE_LABELS: Record<ProstheticLabStage, string> = {
+  sent: "Enviado ao Laboratório (Moldagem/Scan)",
+  infrastructure_try_in: "Prova de Infraestrutura / Coping",
+  teeth_try_in: "Prova de Dentes / Cerâmica (Bisque)",
+  glaze_finish: "Acabamento / Glaze / Acrilização",
+  delivered_to_clinic: "Entregue na Clínica (Pronto p/ Consulta)",
+  installed_in_patient: "Cimentado / Instalado no Paciente",
+  returned_adjustment: "Retornado para Ajuste / Repetição",
+};
+
+export const PROSTHESIS_TYPES = [
+  "Coroa em Zircônia Monolítica",
+  "Coroa Dissilicato de Lítio (E-max)",
+  "Faceta / Lente de Contato Cerâmica",
+  "Coroa Sobre Implante (Parafusada/Cimentada)",
+  "Prótese Protocolo Brånemark (Acrílico/Zircônia)",
+  "Inlay / Onlay / Overlay Cerâmico",
+  "Placa Miorrelaxante Acrílica (Bruxismo)",
+  "Prótese Parcial Removível (PPR Metálica)",
+  "Prótese Total (PT Caracterizada)",
+  "Provisório Fresado em PMMA",
+  "Núcleo Metálico Fundido / Pino de Fibra",
+  "Guia Cirúrgico Impresso 3D",
+] as const;
+
+export const VITA_SHADES = [
+  "BL1",
+  "BL2",
+  "BL3",
+  "BL4",
+  "A1",
+  "A2",
+  "A3",
+  "A3.5",
+  "A4",
+  "B1",
+  "B2",
+  "B3",
+  "B4",
+  "C1",
+  "C2",
+  "C3",
+  "C4",
+  "D2",
+  "D3",
+  "D4",
+  "Incolor / Transparente (Placa)",
+] as const;
+
+export const prostheticLabOrderSchema = z
+  .object({
+    patient_id: z.string().uuid("Paciente inválido."),
+    professional_id: z.string().uuid().nullable().optional(),
+    laboratory_name: z.string().trim().min(2, "Informe o nome do Laboratório de Prótese.").max(140),
+    prosthesis_type: z.string().trim().min(2, "Informe o tipo de trabalho protético.").max(140),
+    tooth_numbers: z.string().trim().max(80).nullable().optional(),
+    vita_shade: z.string().trim().max(40).nullable().optional(),
+    stage: z.enum([
+      "sent",
+      "infrastructure_try_in",
+      "teeth_try_in",
+      "glaze_finish",
+      "delivered_to_clinic",
+      "installed_in_patient",
+      "returned_adjustment",
+    ]),
+    sent_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de envio inválida."),
+    due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Prazo de entrega inválido."),
+    lab_cost: z.number().min(0, "O custo laboratorial não pode ser negativo.").max(200000),
+    notes: z.string().trim().max(2000).nullable().optional(),
+  })
+  .refine((data) => data.due_date >= data.sent_date, {
+    message: "O prazo de entrega não pode ser anterior à data de envio.",
+    path: ["due_date"],
+  });
+
+export type ProstheticLabOrderInput = z.infer<typeof prostheticLabOrderSchema>;
+
+export interface ProstheticLabSummary {
+  totalOrders: number;
+  activeInLabCount: number;
+  readyInClinicCount: number;
+  installedCount: number;
+  overdueCount: number;
+  totalLabCost: number;
+}
+
+/**
+ * Calcula indicadores consolidados das Ordens de Serviço Protéticas (trabalhos em laboratório,
+ * prontos para instalação na clínica, atrasados em relação ao prazo e custo laboratorial total).
+ */
+export function summarizeProstheticLabOrders(
+  orders: Pick<ProstheticLabOrder, "stage" | "due_date" | "lab_cost">[],
+  referenceDateIso: string = new Date().toISOString().slice(0, 10),
+): ProstheticLabSummary {
+  let activeInLabCount = 0;
+  let readyInClinicCount = 0;
+  let installedCount = 0;
+  let overdueCount = 0;
+  let totalLabCost = 0;
+
+  for (const order of orders) {
+    const cost = Math.max(0, Number(order.lab_cost) || 0);
+    totalLabCost += cost;
+
+    if (order.stage === "installed_in_patient") {
+      installedCount += 1;
+    } else if (order.stage === "delivered_to_clinic") {
+      readyInClinicCount += 1;
+    } else {
+      activeInLabCount += 1;
+      if (order.due_date < referenceDateIso) {
+        overdueCount += 1;
+      }
+    }
+  }
+
+  return {
+    totalOrders: orders.length,
+    activeInLabCount,
+    readyInClinicCount,
+    installedCount,
+    overdueCount,
+    totalLabCost: Number(totalLabCost.toFixed(2)),
+  };
+}
+
+export async function fetchPatientProstheticLabOrders(
+  clinicId: string,
+  patientId: string,
+): Promise<ProstheticLabOrder[]> {
+  assertClinicScope(clinicId);
+  const { data, error } = await db
+    .from("prosthetic_lab_orders")
+    .select("*,professionals(name)")
+    .eq("clinic_id", clinicId)
+    .eq("patient_id", patientId)
+    .order("due_date", { ascending: false });
+
+  if (error) {
+    const norm = normalizeSupabaseError(error);
+    if (norm.isSchemaPending) return [];
+    throw new Error(norm.message);
+  }
+  return (data ?? []) as ProstheticLabOrder[];
+}
+
+export async function createProstheticLabOrder(
+  clinicId: string,
+  input: ProstheticLabOrderInput,
+  options?: {
+    generateExpenseInFinance?: boolean;
+    patientName?: string;
+  },
+): Promise<void> {
+  assertClinicScope(clinicId);
+  const parsed = prostheticLabOrderSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error(parsed.error.issues[0]?.message ?? "Dados da Ordem Protética inválidos.");
+  }
+
+  const d = parsed.data;
+  const shouldGenerateExpense = Boolean(options?.generateExpenseInFinance && d.lab_cost > 0);
+
+  const { error } = await db.from("prosthetic_lab_orders").insert({
+    clinic_id: clinicId,
+    patient_id: d.patient_id,
+    professional_id: d.professional_id ?? null,
+    laboratory_name: d.laboratory_name,
+    prosthesis_type: d.prosthesis_type,
+    tooth_numbers: d.tooth_numbers?.trim() || null,
+    vita_shade: d.vita_shade?.trim() || null,
+    stage: d.stage,
+    sent_date: d.sent_date,
+    due_date: d.due_date,
+    delivered_date:
+      d.stage === "delivered_to_clinic" || d.stage === "installed_in_patient"
+        ? new Date().toISOString().slice(0, 10)
+        : null,
+    lab_cost: d.lab_cost,
+    financial_entry_generated: shouldGenerateExpense,
+    notes: d.notes?.trim() || null,
+  });
+
+  if (error) {
+    throw new Error(normalizeSupabaseError(error).message);
+  }
+
+  if (shouldGenerateExpense) {
+    await createFinancialEntriesWithInstallments(clinicId, {
+      entry_type: "expense",
+      category: "Laboratório de Prótese",
+      description: `Lab. ${d.laboratory_name} — ${d.prosthesis_type}${d.tooth_numbers ? ` (Dentes: ${d.tooth_numbers})` : ""}${options?.patientName ? ` • Pac.: ${options.patientName}` : ""}`,
+      total_amount: d.lab_cost,
+      payment_method: "pix",
+      status: "pending",
+      first_due_date: d.due_date,
+      installments: 1,
+      patient_id: d.patient_id,
+      professional_id: d.professional_id ?? null,
+      notes: d.notes ?? undefined,
+    });
+  }
+
+  await createClinicalRecord(clinicId, {
+    patient_id: d.patient_id,
+    professional_id: d.professional_id ?? null,
+    tooth_number: null,
+    record_type: "evolution",
+    title: `OS Prótese Enviada: ${d.prosthesis_type} (${d.laboratory_name})`,
+    content: [
+      `Laboratório: ${d.laboratory_name}`,
+      `Trabalho Protético: ${d.prosthesis_type}`,
+      d.tooth_numbers ? `Elementos / Região: ${d.tooth_numbers}` : null,
+      d.vita_shade ? `Cor / Escala Vita: ${d.vita_shade}` : null,
+      `Etapa: ${PROSTHETIC_STAGE_LABELS[d.stage]}`,
+      `Envio: ${d.sent_date} | Prazo Entrega: ${d.due_date}`,
+      d.notes ? `Instruções Técnicas: ${d.notes}` : null,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  });
+}
+
+export async function updateProstheticLabOrderStage(
+  clinicId: string,
+  order: ProstheticLabOrder,
+  nextStage: ProstheticLabStage,
+): Promise<void> {
+  assertClinicScope(clinicId);
+  const deliveredDate =
+    nextStage === "delivered_to_clinic" || nextStage === "installed_in_patient"
+      ? order.delivered_date ?? new Date().toISOString().slice(0, 10)
+      : order.delivered_date;
+
+  const { error } = await db
+    .from("prosthetic_lab_orders")
+    .update({
+      stage: nextStage,
+      delivered_date: deliveredDate,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("clinic_id", clinicId)
+    .eq("id", order.id);
+
+  if (error) {
+    throw new Error(normalizeSupabaseError(error).message);
+  }
+
+  if (nextStage === "installed_in_patient" && order.stage !== "installed_in_patient") {
+    await createClinicalRecord(clinicId, {
+      patient_id: order.patient_id,
+      professional_id: order.professional_id,
+      tooth_number: null,
+      record_type: "evolution",
+      title: `Prótese Instalada / Cimentada: ${order.prosthesis_type}`,
+      content: `Trabalho protético (${order.prosthesis_type}${order.tooth_numbers ? ` — Dentes ${order.tooth_numbers}` : ""}${order.vita_shade ? ` — Cor ${order.vita_shade}` : ""}) confeccionado pelo laboratório ${order.laboratory_name} foi instalado/cimentado no paciente.`,
+    });
+  }
+}
+
+export async function registerProstheticOrderExpenseInFinance(
+  clinicId: string,
+  order: ProstheticLabOrder,
+  patientName?: string,
+): Promise<void> {
+  assertClinicScope(clinicId);
+  const cost = Number(order.lab_cost) || 0;
+  if (cost <= 0) {
+    throw new Error("Informe um custo laboratorial maior que zero para lançar no Contas a Pagar.");
+  }
+
+  await createFinancialEntriesWithInstallments(clinicId, {
+    entry_type: "expense",
+    category: "Laboratório de Prótese",
+    description: `Lab. ${order.laboratory_name} — ${order.prosthesis_type}${order.tooth_numbers ? ` (Dentes: ${order.tooth_numbers})` : ""}${patientName ? ` • Pac.: ${patientName}` : ""}`,
+    total_amount: cost,
+    payment_method: "pix",
+    status: "pending",
+    first_due_date: order.due_date,
+    installments: 1,
+    patient_id: order.patient_id,
+    professional_id: order.professional_id,
+    notes: order.notes ?? undefined,
+  });
+
+  const { error } = await db
+    .from("prosthetic_lab_orders")
+    .update({
+      financial_entry_generated: true,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("clinic_id", clinicId)
+    .eq("id", order.id);
+
+  if (error) {
+    throw new Error(normalizeSupabaseError(error).message);
+  }
+}
+
+export async function deleteProstheticLabOrder(
+  clinicId: string,
+  orderId: string,
+): Promise<void> {
+  assertClinicScope(clinicId);
+  const { error } = await db
+    .from("prosthetic_lab_orders")
+    .delete()
+    .eq("clinic_id", clinicId)
+    .eq("id", orderId);
+
+  if (error) {
+    throw new Error(normalizeSupabaseError(error).message);
+  }
+}
+
 
 
 
