@@ -169,6 +169,13 @@
       "when": 1793881200000,
       "tag": "0023_whatsapp_automatic_reminders",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793884800000,
+      "tag": "0024_orthodontics_module",
+      "breakpoints": true
     }
   ]
 }

@@ -1144,6 +1144,54 @@ export interface ProcedureAbcReport {
   shareClassC: number;
 }
 
+// ============================================================================
+// ORTODONTIA AVANÇADA (TRATAMENTOS, FIOS, ELÁSTICOS E MANUTENÇÕES)
+// ============================================================================
+
+export type OrthodonticTreatmentStatus = "active" | "retention" | "completed" | "interrupted";
+export type HygieneScore = "excellent" | "good" | "regular" | "poor";
+
+export interface OrthodonticTreatment {
+  id: string;
+  clinic_id: string;
+  patient_id: string;
+  professional_id: string | null;
+  diagnosis: string;
+  appliance_type: string;
+  bracket_prescription: string;
+  treatment_goal: string | null;
+  start_date: string;
+  estimated_duration_months: number;
+  monthly_fee: number;
+  status: OrthodonticTreatmentStatus;
+  upper_current_arch: string | null;
+  lower_current_arch: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrthodonticMaintenance {
+  id: string;
+  treatment_id: string;
+  clinic_id: string;
+  patient_id: string;
+  appointment_id: string | null;
+  maintenance_number: number;
+  maintenance_date: string;
+  upper_archwire: string | null;
+  lower_archwire: string | null;
+  elastics_used: string | null;
+  brackets_replaced: string | null;
+  procedures_performed: string;
+  patient_hygiene_score: HygieneScore;
+  next_step_plan: string | null;
+  next_appointment_date: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
+
 
 
 

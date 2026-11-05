@@ -26,6 +26,7 @@ import { PatientExamsGalleryPanel } from "@/components/records/PatientExamsGalle
 import { StructuredAnamnesisPanel } from "@/components/records/StructuredAnamnesisPanel";
 import { ProstheticLabOrdersPanel } from "@/components/records/ProstheticLabOrdersPanel";
 import { PediatricDentalPanel } from "@/components/records/PediatricDentalPanel";
+import { OrthodonticsRecordPanel } from "@/components/orthodontics/OrthodonticsRecordPanel";
 
 export const Route = createFileRoute("/_authenticated/app/records")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -226,8 +227,9 @@ function ClinicalRecordsPage() {
             </div>
 
             <Tabs defaultValue="odontogram" className="space-y-5">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 lg:w-full lg:grid-cols-8">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:w-full lg:grid-cols-9">
                 <TabsTrigger value="odontogram">{t("rec.tabOdontogram")}</TabsTrigger>
+                <TabsTrigger value="orthodontics">Ortodontia</TabsTrigger>
                 <TabsTrigger value="pediatric">Odontopediatria (51-85)</TabsTrigger>
                 <TabsTrigger value="anamnesis">Anamnese & Risco</TabsTrigger>
                 <TabsTrigger value="evolutions">{t("rec.tabEvolutions")}</TabsTrigger>
@@ -247,6 +249,15 @@ function ClinicalRecordsPage() {
                   selectedTooth={selectedTooth}
                   onSelectTooth={setSelectedTooth}
                   dateLocale={dateLocale}
+                />
+              </TabsContent>
+
+              <TabsContent value="orthodontics">
+                <OrthodonticsRecordPanel
+                  clinicId={clinicId}
+                  patientId={activePatient.id}
+                  patientName={activePatient.full_name}
+                  canWrite={canWrite}
                 />
               </TabsContent>
 

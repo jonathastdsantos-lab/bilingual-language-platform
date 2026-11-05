@@ -84,6 +84,12 @@ import {
   buildWhatsAppReminderUrl,
 } from "@/modules/whatsapp/reminders";
 import {
+  calculateOrthodonticProgress,
+  ARCHWIRE_CATALOG,
+  BRACKET_PRESCRIPTIONS,
+  ELASTICS_CATALOG,
+} from "@/modules/orthodontics";
+import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
   buildPrintableDocumentHtml,
@@ -2006,6 +2012,51 @@ describe("Certificado Digital ICP-Brasil & Assinatura Qualificada do Cirurgião-
       expect(itemLast?.procedureName).toBe("Profilaxia e Raspagem");
       expect(itemLast?.classification).toBe("C");
       expect(itemLast?.cumulativeSharePct).toBe(100);
+    });
+  });
+
+  describe("Ortodontia Avançada (Tratamentos, Fios, Elásticos e Manutenções)", () => {
+    it("disponibiliza catálogos ortodônticos completos de fios, prescrições e elásticos", () => {
+      expect(ARCHWIRE_CATALOG).toContain("0.014 NiTi Termoativado");
+      expect(ARCHWIRE_CATALOG).toContain("19x25 Aço Retangular (Fechamento de Espaço)");
+      expect(ARCHWIRE_CATALOG).toContain("17x25 TMA");
+
+      expect(BRACKET_PRESCRIPTIONS).toContain("Roth .022");
+      expect(BRACKET_PRESCRIPTIONS).toContain("MBT .022");
+      expect(BRACKET_PRESCRIPTIONS).toContain("Damon System (Autoligado Passivo)");
+
+      expect(ELASTICS_CATALOG).toContain("Classe II (3/16 Médio)");
+      expect(ELASTICS_CATALOG).toContain("Classe III (3/16 Médio)");
+      expect(ELASTICS_CATALOG).toContain("Interdigitação Triangular (1/8 Médio)");
+    });
+
+    it("calcula o progresso do tratamento ortodôntico e detecta atrasos", () => {
+      const mockTreatment = {
+        id: "ortho-1",
+        clinic_id: CLINIC_A,
+        patient_id: "pat-1",
+        professional_id: "prof-1",
+        diagnosis: "Classe II com apinhamento superior",
+        appliance_type: "Autoligado Metálico",
+        bracket_prescription: "Roth .022",
+        treatment_goal: "Alinhamento e correção de sobremordida",
+        start_date: "2026-01-01",
+        estimated_duration_months: 24,
+        monthly_fee: 180,
+        status: "active" as const,
+        upper_current_arch: "19x25 Aço",
+        lower_current_arch: "17x25 NiTi",
+        notes: null,
+        created_at: "2026-01-01T10:00:00Z",
+        updated_at: "2026-11-05T10:00:00Z",
+      };
+
+      // 12 manutenções realizadas de 24 previstas = 50% de progresso
+      const progress = calculateOrthodonticProgress(mockTreatment, 12);
+
+      expect(progress.progressPct).toBe(50);
+      expect(progress.elapsedMonths).toBeGreaterThanOrEqual(10);
+      expect(progress.isOverdue).toBe(false);
     });
   });
 });
