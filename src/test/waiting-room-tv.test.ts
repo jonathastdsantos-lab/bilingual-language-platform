@@ -97,6 +97,20 @@ describe("Painel de Chamada em Sala de Espera (TV / Totem)", () => {
       const calls = await fetchWaitingRoomCalls(validClinicId, validUnitId);
       expect(Array.isArray(calls)).toBe(true);
     });
+
+    it("deve recuperar chamadas criadas mesmo se o clinicId consultado tiver pequena variação ou fallback", async () => {
+      await createWaitingRoomCall({
+        clinicId: validClinicId,
+        patientName: "Paciente Teste Fallback",
+        professionalName: "Dra. Carolina",
+        roomName: "Consultório 01",
+      });
+
+      const calls = await fetchWaitingRoomCalls("qualquer-outro-id");
+      expect(Array.isArray(calls)).toBe(true);
+      expect(calls.length).toBeGreaterThan(0);
+      expect(calls.some((c) => c.patient_name === "Paciente Teste Fallback")).toBe(true);
+    });
   });
 
   describe("Multimídia: Som do Sino e Síntese de Fala", () => {

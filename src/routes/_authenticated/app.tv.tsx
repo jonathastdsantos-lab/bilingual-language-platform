@@ -12,6 +12,8 @@ import {
   UserCheck,
   CheckCircle2,
   Play,
+  Copy,
+  Check,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -40,6 +42,7 @@ function AppTvManagementPage() {
 
   const [callModalOpen, setCallModalOpen] = useState(false);
   const [isCallingTest, setIsCallingTest] = useState(false);
+  const [hasCopied, setHasCopied] = useState(false);
 
   // Queries de profissionais e consultórios para a chamada
   const { data: refs } = useQuery({
@@ -252,12 +255,32 @@ function AppTvManagementPage() {
           <p className="text-slate-700 font-medium">
             <strong>Opção 1 (Recomendada no Consultório):</strong> Conecte um cabo HDMI do computador da recepção à TV ou segundo monitor e clique no botão acima <strong>"Abrir TV Nesta Aba (Projetor)"</strong> ou <strong>"Abrir TV (Nova Aba)"</strong>. Pressione F11 para tela cheia.
           </p>
-          <p className="text-slate-600">
-            <strong>Opção 2 (Smart TV / Totem Independente):</strong> Digite o endereço direto no navegador da TV:
-            <code className="ml-1.5 rounded-lg bg-sky-100 px-2 py-0.5 font-mono font-bold text-sky-800">
-              {typeof window !== "undefined" ? `${window.location.origin}${tvUrl}` : tvUrl}
-            </code>
-          </p>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <p className="text-slate-600">
+              <strong>Opção 2 (Smart TV / Totem Independente):</strong> Digite ou cole o endereço direto:
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="rounded-lg bg-sky-100 px-2 py-1 font-mono font-bold text-sky-800 text-[11px] break-all">
+                {typeof window !== "undefined" ? `${window.location.origin}${tvUrl}` : tvUrl}
+              </code>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2.5 text-[11px] gap-1.5 shrink-0 bg-white"
+                onClick={() => {
+                  const fullUrl = typeof window !== "undefined" ? `${window.location.origin}${tvUrl}` : tvUrl;
+                  navigator.clipboard.writeText(fullUrl);
+                  setHasCopied(true);
+                  toast.success(isEn ? "TV Link copied to clipboard!" : "Link da TV copiado para a área de transferência!");
+                  setTimeout(() => setHasCopied(false), 2500);
+                }}
+              >
+                {hasCopied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-600" />}
+                <span>{hasCopied ? (isEn ? "Copied" : "Copiado") : (isEn ? "Copy Link" : "Copiar Link")}</span>
+              </Button>
+            </div>
+          </div>
         </div>
 
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3 text-[11px] text-amber-900 flex items-start gap-2.5">

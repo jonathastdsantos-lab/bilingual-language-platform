@@ -83,19 +83,29 @@ function WaitingRoomTvPage() {
     }
   };
 
+  const searchClinicId =
+    clinicId ||
+    (typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("clinicId") ||
+        new URLSearchParams(window.location.search).get("clinic_id") ||
+        localStorage.getItem("sondapro.clinic") ||
+        undefined
+      : undefined);
+
   // Se clinicId não vier na URL, tenta buscar da clínica do usuário logado
-  const [effectiveClinicId, setEffectiveClinicId] = useState<string | null>(clinicId ?? null);
+  const [effectiveClinicId, setEffectiveClinicId] = useState<string | null>(searchClinicId ?? null);
   const [clinicName, setClinicName] = useState<string>("SondaPro Odontologia");
 
   useEffect(() => {
-    if (clinicId) {
-      setEffectiveClinicId(clinicId);
+    const activeId = clinicId || searchClinicId;
+    if (activeId) {
+      setEffectiveClinicId(activeId);
       // Busca nome da clínica
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any)
         .from("clinics")
         .select("name")
-        .eq("id", clinicId)
+        .eq("id", activeId)
         .single()
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .then(({ data }: any) => {
@@ -123,13 +133,14 @@ function WaitingRoomTvPage() {
           }
         });
     });
-  }, [clinicId]);
+  }, [clinicId, searchClinicId]);
 
-  // Query: Busca chamadas com auto-refetch a cada 3 segundos
+  const queryClinicId = effectiveClinicId || searchClinicId || "default";
+
+  // Query: Busca chamadas com auto-refetch a cada 3 segundos (sempre ativa)
   const { data: calls = [] } = useQuery({
-    queryKey: ["waiting_room_calls", effectiveClinicId, unitId],
-    queryFn: () => fetchWaitingRoomCalls(effectiveClinicId!, unitId),
-    enabled: !!effectiveClinicId,
+    queryKey: ["waiting_room_calls", queryClinicId, unitId],
+    queryFn: () => fetchWaitingRoomCalls(queryClinicId, unitId),
     refetchInterval: 3000,
   });
 
@@ -140,7 +151,19 @@ function WaitingRoomTvPage() {
       if ("BroadcastChannel" in window) {
         bc = new BroadcastChannel("sondapro_waiting_room");
         bc.onmessage = (event) => {
-          if (event.data?.type === "CALL_PATIENT") {
+          if (event.data?.type === "CALL_PATIENT" && event.data?.call) {
+            const newCall = event.data.call as WaitingRoomCall;
+            if (soundEnabled) playWaitingRoomChime();
+            if (speechEnabled) speakPatientCall(newCall.patient_name, newCall.room_name);
+
+            // Injeta imediatamente no estado para latência zero
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            qc.setQueriesData({ queryKey: ["waiting_room_calls"] }, (old: any) => {
+              if (Array.isArray(old)) {
+                return [newCall, ...old.filter((c: any) => c.id !== newCall.id)];
+              }
+              return [newCall];
+            });
             qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
           }
         };
@@ -149,7 +172,20 @@ function WaitingRoomTvPage() {
       // ignore
     }
 
-    const handleLocalSync = () => {
+    const handleLocalSync = (e?: Event) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detailCall = (e as any)?.detail as WaitingRoomCall | undefined;
+      if (detailCall) {
+        if (soundEnabled) playWaitingRoomChime();
+        if (speechEnabled) speakPatientCall(detailCall.patient_name, detailCall.room_name);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        qc.setQueriesData({ queryKey: ["waiting_room_calls"] }, (old: any) => {
+          if (Array.isArray(old)) {
+            return [detailCall, ...old.filter((c: any) => c.id !== detailCall.id)];
+          }
+          return [detailCall];
+        });
+      }
       qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
     };
 
@@ -161,7 +197,7 @@ function WaitingRoomTvPage() {
       window.removeEventListener("sondapro:waiting_room_call", handleLocalSync);
       window.removeEventListener("storage", handleLocalSync);
     };
-  }, [qc]);
+  }, [qc, soundEnabled, speechEnabled]);
 
   // Supabase Realtime Subscription para chamadas remotas instantâneas
   useEffect(() => {

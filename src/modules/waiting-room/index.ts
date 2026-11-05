@@ -14,15 +14,61 @@ export interface CreateCallParams {
 }
 
 const LOCAL_STORAGE_KEY_PREFIX = "sondapro:waiting_room_calls:";
+const LOCAL_STORAGE_LATEST_KEY = "sondapro:waiting_room_calls:latest";
+
+/**
+ * Obtém todas as chamadas salvas no dispositivo, independente de clínica ou pequenas variações de ID
+ */
+export function getAllLocalWaitingRoomCalls(): WaitingRoomCall[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const list: WaitingRoomCall[] = [];
+    const latestRaw = localStorage.getItem(LOCAL_STORAGE_LATEST_KEY);
+    if (latestRaw) {
+      const parsed = JSON.parse(latestRaw);
+      if (Array.isArray(parsed)) list.push(...parsed);
+    }
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(LOCAL_STORAGE_KEY_PREFIX) && key !== LOCAL_STORAGE_LATEST_KEY) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) list.push(...parsed);
+        }
+      }
+    }
+
+    const uniqueMap = new Map<string, WaitingRoomCall>();
+    for (const c of list) {
+      if (c && c.id) uniqueMap.set(c.id, c);
+    }
+
+    return Array.from(uniqueMap.values()).sort(
+      (a, b) => new Date(b.called_at).getTime() - new Date(a.called_at).getTime(),
+    );
+  } catch {
+    return [];
+  }
+}
 
 /**
  * Obtém chamadas salvas localmente como cache resiliente
  */
-export function getLocalWaitingRoomCalls(clinicId: string): WaitingRoomCall[] {
+export function getLocalWaitingRoomCalls(clinicId?: string | null): WaitingRoomCall[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}${clinicId}`);
-    return raw ? (JSON.parse(raw) as WaitingRoomCall[]) : [];
+    if (clinicId) {
+      const raw = localStorage.getItem(`${LOCAL_STORAGE_KEY_PREFIX}${clinicId}`);
+      if (raw) {
+        const parsed = JSON.parse(raw) as WaitingRoomCall[];
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    }
+
+    // Se não encontrou por clinicId específico (ex: erro de digitação na URL), busca do cache global
+    return getAllLocalWaitingRoomCalls();
   } catch {
     return [];
   }
@@ -34,7 +80,9 @@ export function getLocalWaitingRoomCalls(clinicId: string): WaitingRoomCall[] {
 export function saveLocalWaitingRoomCalls(clinicId: string, calls: WaitingRoomCall[]): void {
   if (typeof window === "undefined") return;
   try {
-    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}${clinicId}`, JSON.stringify(calls.slice(0, 50)));
+    const trimmed = calls.slice(0, 50);
+    localStorage.setItem(`${LOCAL_STORAGE_KEY_PREFIX}${clinicId}`, JSON.stringify(trimmed));
+    localStorage.setItem(LOCAL_STORAGE_LATEST_KEY, JSON.stringify(trimmed));
   } catch {
     // ignore
   }
