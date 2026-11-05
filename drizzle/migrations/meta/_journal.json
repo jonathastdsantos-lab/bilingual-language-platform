@@ -99,6 +99,13 @@
       "when": 1793845200000,
       "tag": "0013_superadmin_advanced_management",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793848800000,
+      "tag": "0014_saas_billing_and_invoices",
+      "breakpoints": true
     }
   ]
 }

@@ -498,6 +498,30 @@ export interface SaasPlan {
   created_at?: string;
 }
 
+export type InvoiceStatus = "pending" | "paid" | "overdue" | "cancelled";
+export type BillingCycle = "monthly" | "yearly";
+
+export interface SaasInvoice {
+  id: string;
+  clinic_id: string;
+  plan_id: string;
+  billing_cycle: BillingCycle;
+  amount: number;
+  payment_method: "pix" | "credit_card" | "bank_slip";
+  status: InvoiceStatus;
+  due_date: string;
+  paid_at: string | null;
+  pix_code: string | null;
+  pix_qr_code_url: string | null;
+  gateway_payment_id: string | null;
+  card_last4: string | null;
+  card_brand: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  saas_plans?: SaasPlan | null;
+}
+
 export interface PlatformClinicOverview {
   id: string;
   name: string;

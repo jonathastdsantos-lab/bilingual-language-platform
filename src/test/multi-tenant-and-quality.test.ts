@@ -48,6 +48,7 @@ import {
   tissGuideFormSchema,
   tissGuideItemSchema,
 } from "@/modules/tiss";
+import { generatePixCopyPasteCode } from "@/modules/saas-billing";
 import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
@@ -1429,5 +1430,22 @@ describe("Portal do Paciente / Confirmação de Consulta via WhatsApp sem Login"
       link_confirmacao: "https://sondapro.com.br/confirm/token-123",
     });
     expect(res).toBe("Olá, Maria Silva! Confirme sua consulta em: https://sondapro.com.br/confirm/token-123");
+  });
+});
+
+describe("Módulo de Faturamento Direto com PIX e Cartão para Assinatura SaaS", () => {
+  it("gera payload e chave PIX Copia e Cola estruturados no formato EMVCo", () => {
+    const { pixCode, qrCodeUrl } = generatePixCopyPasteCode(299, "inv-test-12345", "Clínica Dental Prime");
+    expect(pixCode).toContain("br.gov.bcb.pix");
+    expect(pixCode).toContain("299.00");
+    expect(pixCode).toContain("SONDAPRO");
+    expect(qrCodeUrl).toContain("https://api.qrserver.com/v1/create-qr-code");
+    expect(qrCodeUrl).toContain(encodeURIComponent(pixCode));
+  });
+
+  it("gera payload PIX com fallback quando nome da clínica não é fornecido", () => {
+    const { pixCode } = generatePixCopyPasteCode(1490, "a1b2c3d4-e5f6-7890");
+    expect(pixCode).toContain("1490.00");
+    expect(pixCode).toContain("SONDAPRO SAAS");
   });
 });
