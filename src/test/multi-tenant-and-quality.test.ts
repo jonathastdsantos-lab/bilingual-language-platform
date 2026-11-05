@@ -35,7 +35,8 @@ import { appointmentFormSchema } from "@/modules/appointments";
 import { buildPublicConfirmationUrl } from "@/modules/appointments/tokens";
 import { authCredentialsSchema } from "@/modules/auth";
 import {
-  calculatePlatformStats,
+  calculateDetailedPlatformStats,
+  exportClinicsToCsv,
   isMasterDeveloperEmail,
   MASTER_DEVELOPER_EMAIL,
 } from "@/modules/superadmin";
@@ -1121,17 +1122,120 @@ describe("SuperAdmin / Desenvolvedor da Plataforma & Métricas SaaS", () => {
     ];
 
     const clinics = [
-      { id: "c1", name: "Clínica A", created_at: "2026-01-01", plan_id: "starter", subscription_status: "active" as const, current_period_end: null },
-      { id: "c2", name: "Clínica B", created_at: "2026-02-01", plan_id: "pro", subscription_status: "active" as const, current_period_end: null },
-      { id: "c3", name: "Clínica C", created_at: "2026-03-01", plan_id: "corporate", subscription_status: "trialing" as const, current_period_end: null },
-      { id: "c4", name: "Clínica D", created_at: "2026-04-01", plan_id: "pro", subscription_status: "cancelled" as const, current_period_end: null },
+      {
+        id: "c1",
+        name: "Clínica A",
+        created_at: "2026-01-01",
+        plan_id: "starter",
+        plan_name: "Starter",
+        monthly_price: 149,
+        subscription_status: "active" as const,
+        trial_ends_at: null,
+        current_period_end: null,
+        patients_count: 50,
+        appointments_month_count: 20,
+        members_count: 2,
+        dentists_count: 1,
+        last_appointment_at: "2026-11-01",
+        exam_files_count: 5,
+        exam_storage_bytes: 1048576,
+      },
+      {
+        id: "c2",
+        name: "Clínica B",
+        created_at: "2026-02-01",
+        plan_id: "pro",
+        plan_name: "Pro",
+        monthly_price: 299,
+        subscription_status: "active" as const,
+        trial_ends_at: null,
+        current_period_end: null,
+        patients_count: 100,
+        appointments_month_count: 45,
+        members_count: 4,
+        dentists_count: 3,
+        last_appointment_at: "2026-11-04",
+        exam_files_count: 12,
+        exam_storage_bytes: 5242880,
+      },
+      {
+        id: "c3",
+        name: "Clínica C",
+        created_at: "2026-03-01",
+        plan_id: "corporate",
+        plan_name: "Corporate",
+        monthly_price: 599,
+        subscription_status: "trialing" as const,
+        trial_ends_at: "2026-11-15",
+        current_period_end: null,
+        patients_count: 10,
+        appointments_month_count: 2,
+        members_count: 1,
+        dentists_count: 1,
+        last_appointment_at: null,
+        exam_files_count: 0,
+        exam_storage_bytes: 0,
+      },
+      {
+        id: "c4",
+        name: "Clínica D",
+        created_at: "2026-04-01",
+        plan_id: "pro",
+        plan_name: "Pro",
+        monthly_price: 299,
+        subscription_status: "cancelled" as const,
+        trial_ends_at: null,
+        current_period_end: null,
+        patients_count: 0,
+        appointments_month_count: 0,
+        members_count: 1,
+        dentists_count: 1,
+        last_appointment_at: null,
+        exam_files_count: 0,
+        exam_storage_bytes: 0,
+      },
     ];
 
-    const stats = calculatePlatformStats(clinics, plans);
+    const stats = calculateDetailedPlatformStats(clinics, plans);
     expect(stats.totalClinics).toBe(4);
     expect(stats.activeClinics).toBe(2);
     expect(stats.trialClinics).toBe(1);
     expect(stats.mrrEstimated).toBe(149 + 299);
+    expect(stats.totalPatientsEstimate).toBe(160);
+    expect(stats.totalAppointmentsMonth).toBe(67);
+  });
+
+  it("exporta lista de clínicas para CSV com formatação correta", () => {
+    const csv = exportClinicsToCsv([
+      {
+        id: "c1",
+        name: "Clínica Teste",
+        cnpj: "11222333000181",
+        phone: "11999998888",
+        email: "contato@clinica.com",
+        address: "Av Paulista 1000",
+        plan_id: "pro",
+        plan_name: "SondaPro Pro",
+        monthly_price: 299,
+        subscription_status: "active",
+        trial_ends_at: null,
+        current_period_end: null,
+        created_at: "2026-01-01",
+        owner_name: "Dr. João",
+        owner_email: "joao@clinica.com",
+        patients_count: 42,
+        appointments_month_count: 15,
+        members_count: 3,
+        dentists_count: 2,
+        last_appointment_at: "2026-11-04",
+        exam_files_count: 8,
+        exam_storage_bytes: 2097152,
+      },
+    ]);
+
+    expect(csv).toContain("Clínica Teste");
+    expect(csv).toContain("SondaPro Pro");
+    expect(csv).toContain("Dr. João");
   });
 });
 

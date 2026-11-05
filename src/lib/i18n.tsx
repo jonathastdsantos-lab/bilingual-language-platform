@@ -386,6 +386,16 @@ const pt = {
   "set.commission": "Comissão (%)",
   "set.roomName": "Nome do consultório",
   "set.language": "Idioma da interface",
+  "superadmin.title": "Console do Desenvolvedor & SuperAdmin",
+  "superadmin.subtitle": "Supervisão global da infraestrutura, clínicas e assinaturas SaaS",
+  "superadmin.tabOverview": "Visão Geral & Métricas",
+  "superadmin.tabClinics": "Clínicas Cadastradas",
+  "superadmin.tabAudit": "Logs de Auditoria",
+  "superadmin.tabBroadcast": "Avisos Globais",
+  "superadmin.tabSystem": "Diagnóstico do Sistema",
+  "superadmin.impersonate": "Acessar como Clínica (Suporte)",
+  "superadmin.newClinic": "Nova Clínica Manual",
+  "superadmin.exportCsv": "Exportar Planilha (CSV)",
 } as const;
 
 export type TKey = keyof typeof pt;
@@ -774,6 +784,16 @@ const en: Record<TKey, string> = {
   "set.commission": "Commission (%)",
   "set.roomName": "Room name",
   "set.language": "Interface language",
+  "superadmin.title": "Developer & SuperAdmin Console",
+  "superadmin.subtitle": "Global infrastructure, clinic oversight and SaaS subscriptions",
+  "superadmin.tabOverview": "Overview & Metrics",
+  "superadmin.tabClinics": "Registered Clinics",
+  "superadmin.tabAudit": "Audit Logs",
+  "superadmin.tabBroadcast": "Global Announcements",
+  "superadmin.tabSystem": "System Diagnostics",
+  "superadmin.impersonate": "Access as Clinic (Support)",
+  "superadmin.newClinic": "Manual Clinic Entry",
+  "superadmin.exportCsv": "Export Spreadsheet (CSV)",
 };
 
 const dicts: Record<Locale, Record<TKey, string>> = { pt, en };

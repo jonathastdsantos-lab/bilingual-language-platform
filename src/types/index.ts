@@ -516,6 +516,61 @@ export interface PlatformDeveloperStats {
   trialClinics: number;
   mrrEstimated: number;
   totalPatientsEstimate: number;
+  totalAppointmentsMonth: number;
+  totalStorageBytes: number;
+}
+
+export interface DetailedPlatformClinic {
+  id: string;
+  name: string;
+  cnpj?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  plan_id: string;
+  plan_name: string;
+  monthly_price: number;
+  subscription_status: SubscriptionStatus;
+  trial_ends_at: string | null;
+  current_period_end: string | null;
+  created_at: string;
+  owner_name?: string | null;
+  owner_email?: string | null;
+  patients_count: number;
+  appointments_month_count: number;
+  members_count: number;
+  dentists_count: number;
+  last_appointment_at: string | null;
+  exam_files_count: number;
+  exam_storage_bytes: number;
+}
+
+export interface PlatformClinicNote {
+  id: string;
+  clinic_id: string;
+  author_email: string;
+  content: string;
+  created_at: string;
+}
+
+export interface PlatformAuditLog {
+  id: string;
+  admin_email: string;
+  action: string;
+  target_clinic_id: string | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface PlatformBroadcastAnnouncement {
+  id: string;
+  target_clinic_id: string | null;
+  title: string;
+  message: string;
+  priority: "normal" | "urgent" | "maintenance";
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
 }
 
 export type TissGuideType = "treatment" | "initial_exam" | "urgency";

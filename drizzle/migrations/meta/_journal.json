@@ -92,6 +92,13 @@
       "when": 1793841600000,
       "tag": "0012_patient_portal_confirmation_tokens",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793845200000,
+      "tag": "0013_superadmin_advanced_management",
+      "breakpoints": true
     }
   ]
 }
