@@ -2,11 +2,12 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, Megaphone, PackageMinus, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, ExternalLink, Globe, Megaphone, PackageMinus, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 import { STANDARD_TUSS_PROCEDURES, fetchProcedureCatalog } from "@/modules/clinics";
 import { fetchStockItems, recordStockMovement } from "@/modules/stock";
+import { generateBookingLink } from "@/modules/online-booking";
 import { useClinic } from "@/lib/clinic";
 import { useT, type TKey } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,17 @@ function Agenda() {
   const [kitQty, setKitQty] = useState<string>("1");
   const [callModalOpen, setCallModalOpen] = useState(false);
   const [patientToCall, setPatientToCall] = useState<{ id?: string | undefined; name: string; profId?: string | undefined; roomId?: string | undefined } | null>(null);
+  const [bookingLinkModalOpen, setBookingLinkModalOpen] = useState(false);
+
+  const clinicInfoQuery = useQuery({
+    queryKey: ["clinicSlugInfo", clinicId],
+    enabled: canRead,
+    queryFn: async () => {
+      const { data } = await supabase.from("clinics").select("name, slug").eq("id", clinicId).single();
+      return data;
+    },
+  });
+  const publicBookingUrl = generateBookingLink(clinicInfoQuery.data?.slug || clinicId);
 
   const stockItemsQuery = useQuery({
     queryKey: ["stockItems", clinicId],
@@ -308,6 +320,14 @@ function Agenda() {
             </button>
           ))}
         </div>
+        <Button
+          variant="outline"
+          className="gap-2 text-teal border-teal/30 hover:bg-teal/5 font-medium"
+          onClick={() => setBookingLinkModalOpen(true)}
+        >
+          <Globe className="h-4 w-4 text-teal" />
+          <span>Agendamento Online</span>
+        </Button>
         {canWrite && (
           <Button variant="hero" onClick={() => openNew(cursor)}>
             <Plus />
@@ -631,6 +651,62 @@ function Agenda() {
         defaultProfessionalId={patientToCall?.profId}
         defaultRoomId={patientToCall?.roomId}
       />
+
+      {/* Modal do Link de Agendamento Online */}
+      <Dialog open={bookingLinkModalOpen} onOpenChange={setBookingLinkModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-navy">
+              <Globe className="h-5 w-5 text-teal" />
+              <span>Link de Agendamento Online</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Envie este link para pacientes pelo WhatsApp ou coloque no perfil do Instagram. Eles poderão escolher o procedimento, dentista e horário disponível.
+            </p>
+
+            <div className="rounded-2xl border border-teal/20 bg-teal/5 p-4 space-y-3">
+              <Label className="text-xs font-bold text-slate-700">Link Direto da Clínica:</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  readOnly
+                  value={publicBookingUrl}
+                  className="font-mono text-xs bg-white text-navy select-all"
+                />
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => {
+                    navigator.clipboard.writeText(publicBookingUrl);
+                    toast.success("Link de agendamento copiado!");
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-slate-50 p-3 text-xs text-slate-600">
+              💡 <strong>Dica:</strong> Você pode personalizar procedimentos e horários de atendimento na aba <em>Configurações &rarr; Agendamento Online</em>.
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              asChild
+              className="bg-teal hover:bg-teal-600 text-white gap-2"
+            >
+              <a href={publicBookingUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-4 w-4" />
+                <span>Testar Página Pública</span>
+              </a>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

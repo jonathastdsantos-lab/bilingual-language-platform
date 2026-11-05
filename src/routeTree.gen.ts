@@ -17,6 +17,7 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as ConfirmTokenRouteImport } from './routes/confirm.$token'
 import { Route as AssinarTokenRouteImport } from './routes/assinar.$token'
 import { Route as ValidarCodeRouteImport } from './routes/validar.$code'
+import { Route as AgendarSlugRouteImport } from './routes/agendar.$slug'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppAgendaRouteImport } from './routes/_authenticated/app.agenda'
 import { Route as AuthenticatedAppFinanceRouteImport } from './routes/_authenticated/app.finance'
@@ -68,6 +69,11 @@ const AssinarTokenRoute = AssinarTokenRouteImport.update({
 const ValidarCodeRoute = ValidarCodeRouteImport.update({
   id: '/validar/$code',
   path: '/validar/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgendarSlugRoute = AgendarSlugRouteImport.update({
+  id: '/agendar/$slug',
+  path: '/agendar/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
@@ -148,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/confirm/$token': typeof ConfirmTokenRoute
   '/assinar/$token': typeof AssinarTokenRoute
   '/validar/$code': typeof ValidarCodeRoute
+  '/agendar/$slug': typeof AgendarSlugRoute
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/app/finance': typeof AuthenticatedAppFinanceRoute
   '/app/patients': typeof AuthenticatedAppPatientsRoute
@@ -169,6 +176,7 @@ export interface FileRoutesByTo {
   '/confirm/$token': typeof ConfirmTokenRoute
   '/assinar/$token': typeof AssinarTokenRoute
   '/validar/$code': typeof ValidarCodeRoute
+  '/agendar/$slug': typeof AgendarSlugRoute
   '/tv': typeof TvRoute
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/app/finance': typeof AuthenticatedAppFinanceRoute
@@ -193,6 +201,7 @@ export interface FileRoutesById {
   '/confirm/$token': typeof ConfirmTokenRoute
   '/assinar/$token': typeof AssinarTokenRoute
   '/validar/$code': typeof ValidarCodeRoute
+  '/agendar/$slug': typeof AgendarSlugRoute
   '/tv': typeof TvRoute
   '/_authenticated/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
@@ -343,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ValidarCodeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/agendar/$slug': {
+      id: '/agendar/$slug'
+      path: '/agendar/$slug'
+      fullPath: '/agendar/$slug'
+      preLoaderRoute: typeof AgendarSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/': {
       id: '/_authenticated/app/'
       path: '/'
@@ -489,6 +505,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfirmTokenRoute: ConfirmTokenRoute,
   AssinarTokenRoute: AssinarTokenRoute,
   ValidarCodeRoute: ValidarCodeRoute,
+  AgendarSlugRoute: AgendarSlugRoute,
   TvRoute: TvRoute,
 }
 export const routeTree = rootRouteImport

@@ -72,6 +72,11 @@ import {
   registerProfessionalCertificate,
 } from "@/modules/icp-brasil";
 import {
+  generateBookingLink,
+  generateGoogleCalendarUrl,
+  generateBookingWhatsAppMessage,
+} from "@/modules/online-booking";
+import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
   buildPrintableDocumentHtml,
@@ -1797,5 +1802,49 @@ describe("Certificado Digital ICP-Brasil & Assinatura Qualificada do Cirurgião-
         valid_to: new Date().toISOString(),
       }),
     ).rejects.toThrow("CPF do titular do certificado digital deve ter 11 dígitos");
+  });
+
+  describe("Agendamento Online Público pelo Paciente", () => {
+    it("gera URL amigável de agendamento online com slug ou UUID", () => {
+      const urlSlug = generateBookingLink("clinica-sorriso-saopaulo");
+      expect(urlSlug).toContain("/agendar/clinica-sorriso-saopaulo");
+
+      const urlId = generateBookingLink(CLINIC_A);
+      expect(urlId).toContain(`/agendar/${CLINIC_A}`);
+    });
+
+    it("gera link universal do Google Agenda com parâmetros codificados", () => {
+      const gcal = generateGoogleCalendarUrl({
+        title: "Avaliação Odontológica",
+        clinicName: "Clínica Odonto Prime",
+        address: "Av. Paulista, 1000 - SP",
+        startsAt: "2026-11-20T10:00:00.000Z",
+        endsAt: "2026-11-20T10:30:00.000Z",
+        details: "Consulta de rotina",
+      });
+
+      expect(gcal).toContain("calendar.google.com/calendar/render");
+      expect(gcal).toContain("action=TEMPLATE");
+      expect(gcal).toContain("Avalia%C3%A7%C3%A3o+Odontol%C3%B3gica+-+Cl%C3%ADnica+Odonto+Prime");
+      expect(gcal).toContain("20261120T100000Z%2F20261120T103000Z");
+      expect(gcal).toContain("Av.+Paulista%2C+1000+-+SP");
+    });
+
+    it("formata mensagem de confirmação para envio via WhatsApp", () => {
+      const waMsg = generateBookingWhatsAppMessage({
+        clinicName: "Oral Clean",
+        patientName: "Lucas Mendes",
+        procedure: "Limpeza / Profilaxia Dental",
+        startsAt: "2026-11-25T14:30:00.000Z",
+        professionalName: "Dra. Beatriz Santos",
+      });
+
+      const decoded = decodeURIComponent(waMsg);
+      expect(decoded).toContain("Lucas Mendes");
+      expect(decoded).toContain("Oral Clean");
+      expect(decoded).toContain("Limpeza / Profilaxia Dental");
+      expect(decoded).toContain("Dra. Beatriz Santos");
+      expect(decoded).toContain("Seu agendamento");
+    });
   });
 });

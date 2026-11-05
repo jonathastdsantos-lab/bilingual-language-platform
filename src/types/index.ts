@@ -896,19 +896,91 @@ export interface QualifiedDocumentSignature {
 
 export interface PublicQualifiedValidationInfo {
   valid: boolean;
-  error?: string;
-  validation_code?: string;
-  document_type?: string;
-  document_title?: string;
-  document_content?: string;
-  document_hash?: string;
-  signer_name?: string;
-  signer_cpf?: string;
-  signer_cro?: string;
-  timestamp_authority?: string;
-  signed_at?: string;
-  clinic_name?: string;
-  clinic_phone?: string | null;
-  patient_name?: string;
-  patient_cpf?: string | null;
+  error?: string | undefined;
+  validation_code?: string | undefined;
+  document_type?: string | undefined;
+  document_title?: string | undefined;
+  document_content?: string | undefined;
+  document_hash?: string | undefined;
+  signer_name?: string | undefined;
+  signer_cpf?: string | undefined;
+  signer_cro?: string | undefined;
+  timestamp_authority?: string | undefined;
+  signed_at?: string | undefined;
+  clinic_name?: string | undefined;
+  clinic_phone?: string | null | undefined;
+  patient_name?: string | undefined;
+  patient_cpf?: string | null | undefined;
 }
+
+// ============================================================================
+// AGENDAMENTO ONLINE PÚBLICO
+// ============================================================================
+
+export interface ClinicBookingSettings {
+  clinic_id: string;
+  online_booking_enabled: boolean;
+  auto_confirm: boolean;
+  slot_duration_minutes: number;
+  start_hour: string;
+  end_hour: string;
+  operating_days: number[];
+  available_procedures: string[];
+  instructions: string | null;
+  updated_at: string;
+}
+
+export interface PublicClinicUnit {
+  id: string;
+  name: string;
+  address: string | null;
+  phone: string | null;
+}
+
+export interface PublicClinicProfessional {
+  id: string;
+  name: string;
+  cro: string | null;
+  specialty: string | null;
+}
+
+export interface PublicClinicBookingData {
+  valid: boolean;
+  error?: string | undefined;
+  clinic_id?: string | undefined;
+  clinic_name?: string | undefined;
+  clinic_slug?: string | null | undefined;
+  units?: PublicClinicUnit[] | undefined;
+  professionals?: PublicClinicProfessional[] | undefined;
+  available_procedures?: string[] | undefined;
+  slot_duration_minutes?: number | undefined;
+  start_hour?: string | undefined;
+  end_hour?: string | undefined;
+  operating_days?: number[] | undefined;
+  instructions?: string | null | undefined;
+}
+
+export interface SubmitBookingParams {
+  clinic_id: string;
+  unit_id: string;
+  professional_id?: string | null | undefined;
+  procedure: string;
+  starts_at: string;
+  patient_name: string;
+  patient_cpf?: string | null | undefined;
+  patient_phone: string;
+  patient_email?: string | null | undefined;
+  notes?: string | null | undefined;
+}
+
+export interface PublicBookingResult {
+  success: boolean;
+  appointment_id?: string | undefined;
+  token?: string | undefined;
+  status?: string | undefined;
+  starts_at?: string | undefined;
+  ends_at?: string | undefined;
+  message?: string | undefined;
+  error?: string | undefined;
+}
+

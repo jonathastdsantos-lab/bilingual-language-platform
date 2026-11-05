@@ -148,6 +148,13 @@
       "when": 1793870400000,
       "tag": "0020_icp_brasil_digital_certificates",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793874000000,
+      "tag": "0021_public_online_booking",
+      "breakpoints": true
     }
   ]
 }
