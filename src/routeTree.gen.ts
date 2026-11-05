@@ -22,6 +22,7 @@ import { Route as AuthenticatedAppRecordsRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppReportsRouteImport } from './routes/_authenticated/app.reports'
 import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenticated/app.settings'
 import { Route as AuthenticatedAppStockRouteImport } from './routes/_authenticated/app.stock'
+import { Route as AuthenticatedAppSuperadminRouteImport } from './routes/_authenticated/app.superadmin'
 import { Route as AuthenticatedAppTeamRouteImport } from './routes/_authenticated/app.team'
 import { Route as AuthenticatedAppWhatsappRouteImport } from './routes/_authenticated/app.whatsapp'
 
@@ -59,30 +60,27 @@ const AuthenticatedAppAgendaRoute = AuthenticatedAppAgendaRouteImport.update({
   path: '/agenda',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppFinanceRoute =
-  AuthenticatedAppFinanceRouteImport.update({
-    id: '/finance',
-    path: '/finance',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
+const AuthenticatedAppFinanceRoute = AuthenticatedAppFinanceRouteImport.update({
+  id: '/finance',
+  path: '/finance',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppPatientsRoute =
   AuthenticatedAppPatientsRouteImport.update({
     id: '/patients',
     path: '/patients',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppRecordsRoute =
-  AuthenticatedAppRecordsRouteImport.update({
-    id: '/records',
-    path: '/records',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppReportsRoute =
-  AuthenticatedAppReportsRouteImport.update({
-    id: '/reports',
-    path: '/reports',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
+const AuthenticatedAppRecordsRoute = AuthenticatedAppRecordsRouteImport.update({
+  id: '/records',
+  path: '/records',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppReportsRoute = AuthenticatedAppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppSettingsRoute =
   AuthenticatedAppSettingsRouteImport.update({
     id: '/settings',
@@ -94,6 +92,12 @@ const AuthenticatedAppStockRoute = AuthenticatedAppStockRouteImport.update({
   path: '/stock',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppSuperadminRoute =
+  AuthenticatedAppSuperadminRouteImport.update({
+    id: '/superadmin',
+    path: '/superadmin',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppTeamRoute = AuthenticatedAppTeamRouteImport.update({
   id: '/team',
   path: '/team',
@@ -118,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/stock': typeof AuthenticatedAppStockRoute
+  '/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
   '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/app/': typeof AuthenticatedAppIndexRoute
@@ -133,6 +138,7 @@ export interface FileRoutesByTo {
   '/app/reports': typeof AuthenticatedAppReportsRoute
   '/app/settings': typeof AuthenticatedAppSettingsRoute
   '/app/stock': typeof AuthenticatedAppStockRoute
+  '/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
   '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/app': typeof AuthenticatedAppIndexRoute
@@ -151,6 +157,7 @@ export interface FileRoutesById {
   '/_authenticated/app/reports': typeof AuthenticatedAppReportsRoute
   '/_authenticated/app/settings': typeof AuthenticatedAppSettingsRoute
   '/_authenticated/app/stock': typeof AuthenticatedAppStockRoute
+  '/_authenticated/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/_authenticated/app/team': typeof AuthenticatedAppTeamRoute
   '/_authenticated/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
@@ -169,6 +176,7 @@ export interface FileRouteTypes {
     | '/app/reports'
     | '/app/settings'
     | '/app/stock'
+    | '/app/superadmin'
     | '/app/team'
     | '/app/whatsapp'
     | '/app/'
@@ -184,6 +192,7 @@ export interface FileRouteTypes {
     | '/app/reports'
     | '/app/settings'
     | '/app/stock'
+    | '/app/superadmin'
     | '/app/team'
     | '/app/whatsapp'
     | '/app'
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/reports'
     | '/_authenticated/app/settings'
     | '/_authenticated/app/stock'
+    | '/_authenticated/app/superadmin'
     | '/_authenticated/app/team'
     | '/_authenticated/app/whatsapp'
     | '/_authenticated/app/'
@@ -306,6 +316,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppStockRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/superadmin': {
+      id: '/_authenticated/app/superadmin'
+      path: '/superadmin'
+      fullPath: '/app/superadmin'
+      preLoaderRoute: typeof AuthenticatedAppSuperadminRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/team': {
       id: '/_authenticated/app/team'
       path: '/team'
@@ -331,6 +348,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppReportsRoute: typeof AuthenticatedAppReportsRoute
   AuthenticatedAppSettingsRoute: typeof AuthenticatedAppSettingsRoute
   AuthenticatedAppStockRoute: typeof AuthenticatedAppStockRoute
+  AuthenticatedAppSuperadminRoute: typeof AuthenticatedAppSuperadminRoute
   AuthenticatedAppTeamRoute: typeof AuthenticatedAppTeamRoute
   AuthenticatedAppWhatsappRoute: typeof AuthenticatedAppWhatsappRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
@@ -344,6 +362,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppReportsRoute: AuthenticatedAppReportsRoute,
   AuthenticatedAppSettingsRoute: AuthenticatedAppSettingsRoute,
   AuthenticatedAppStockRoute: AuthenticatedAppStockRoute,
+  AuthenticatedAppSuperadminRoute: AuthenticatedAppSuperadminRoute,
   AuthenticatedAppTeamRoute: AuthenticatedAppTeamRoute,
   AuthenticatedAppWhatsappRoute: AuthenticatedAppWhatsappRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,

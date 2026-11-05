@@ -71,6 +71,13 @@
       "when": 1793830800000,
       "tag": "0009_prosthetic_lab_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1793834400000,
+      "tag": "0010_superadmin_and_saas_management",
+      "breakpoints": true
     }
   ]
 }

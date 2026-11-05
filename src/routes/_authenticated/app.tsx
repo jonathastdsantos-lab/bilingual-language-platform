@@ -58,6 +58,7 @@ function Shell({ email, onMembershipsRefresh }: { email: string; onMembershipsRe
       >
         <AppSidebar
           collapsed={collapsed}
+          userEmail={email}
           onToggleCollapse={toggleCollapsed}
           onClinicCreated={(newId) => {
             localStorage.setItem("sondapro.clinic", newId);
@@ -68,6 +69,7 @@ function Shell({ email, onMembershipsRefresh }: { email: string; onMembershipsRe
       <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
         <SheetContent side="left" className="w-64 border-0 p-0">
           <AppSidebar
+            userEmail={email}
             onNav={() => setMobileOpen(false)}
             onClinicCreated={(newId) => {
               localStorage.setItem("sondapro.clinic", newId);

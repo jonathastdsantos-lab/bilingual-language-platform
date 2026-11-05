@@ -15,8 +15,10 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Terminal,
 } from "lucide-react";
 import { supabase } from "@/services/supabase";
+import { isMasterDeveloperEmail } from "@/modules/superadmin";
 import { useClinic } from "@/lib/clinic";
 import { useT, type TKey } from "@/lib/i18n";
 import type { PermissionKey } from "@/types";
@@ -43,11 +45,13 @@ const NAV_ITEMS: { to: string; icon: typeof Users; k: TKey; permission?: Permiss
 
 export function AppSidebar({
   collapsed = false,
+  userEmail,
   onToggleCollapse,
   onNav,
   onClinicCreated,
 }: {
   collapsed?: boolean;
+  userEmail?: string;
   onToggleCollapse?: () => void;
   onNav?: () => void;
   onClinicCreated?: (newClinicId: string) => void;
@@ -157,6 +161,21 @@ export function AppSidebar({
             }
             return linkEl;
           })}
+
+          {isMasterDeveloperEmail(userEmail) && (
+            <div className="pt-2">
+              <Link
+                to="/app/superadmin"
+                onClick={onNav}
+                className={`flex items-center gap-3 rounded-lg border border-teal/40 bg-teal/15 px-3 py-2.5 text-sm font-bold text-teal transition hover:bg-teal/25 ${
+                  collapsed ? "justify-center px-2" : ""
+                }`}
+              >
+                <Terminal className="h-4 w-4 shrink-0" />
+                {!collapsed && <span className="truncate">SuperAdmin (Dev)</span>}
+              </Link>
+            </div>
+          )}
         </nav>
 
         <Dialog open={newClinicOpen} onOpenChange={setNewClinicOpen}>

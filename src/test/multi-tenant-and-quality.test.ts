@@ -34,6 +34,11 @@ import { patientFormSchema } from "@/modules/patients";
 import { appointmentFormSchema } from "@/modules/appointments";
 import { authCredentialsSchema } from "@/modules/auth";
 import {
+  calculatePlatformStats,
+  isMasterDeveloperEmail,
+  MASTER_DEVELOPER_EMAIL,
+} from "@/modules/superadmin";
+import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
   buildPrintableDocumentHtml,
@@ -1090,5 +1095,36 @@ describe("Controle de Laboratório de Prótese (Rastreamento de Trabalhos Proté
       lab_cost: 400,
     });
     expect(invalidDueDate.success).toBe(false);
+  });
+});
+
+describe("SuperAdmin / Desenvolvedor da Plataforma & Métricas SaaS", () => {
+  it("identifica corretamente o e-mail do desenvolvedor master", () => {
+    expect(isMasterDeveloperEmail("jonathastdsantos@gmail.com")).toBe(true);
+    expect(isMasterDeveloperEmail("JONATHASTDSANTOS@GMAIL.COM")).toBe(true);
+    expect(isMasterDeveloperEmail("outro@clinica.com.br")).toBe(false);
+    expect(isMasterDeveloperEmail(null)).toBe(false);
+    expect(MASTER_DEVELOPER_EMAIL).toBe("jonathastdsantos@gmail.com");
+  });
+
+  it("calcula estatísticas e MRR da plataforma para o desenvolvedor", () => {
+    const plans = [
+      { id: "starter", name: "Starter", description: "", monthly_price: 149, yearly_price: 1490, max_professionals: 1, max_units: 1, whatsapp_included: false, storage_limit_mb: 2000, active: true },
+      { id: "pro", name: "Pro", description: "", monthly_price: 299, yearly_price: 2990, max_professionals: 5, max_units: 2, whatsapp_included: true, storage_limit_mb: 10000, active: true },
+      { id: "corporate", name: "Corporate", description: "", monthly_price: 599, yearly_price: 5990, max_professionals: 999, max_units: 10, whatsapp_included: true, storage_limit_mb: 50000, active: true },
+    ];
+
+    const clinics = [
+      { id: "c1", name: "Clínica A", created_at: "2026-01-01", plan_id: "starter", subscription_status: "active" as const, current_period_end: null },
+      { id: "c2", name: "Clínica B", created_at: "2026-02-01", plan_id: "pro", subscription_status: "active" as const, current_period_end: null },
+      { id: "c3", name: "Clínica C", created_at: "2026-03-01", plan_id: "corporate", subscription_status: "trialing" as const, current_period_end: null },
+      { id: "c4", name: "Clínica D", created_at: "2026-04-01", plan_id: "pro", subscription_status: "cancelled" as const, current_period_end: null },
+    ];
+
+    const stats = calculatePlatformStats(clinics, plans);
+    expect(stats.totalClinics).toBe(4);
+    expect(stats.activeClinics).toBe(2);
+    expect(stats.trialClinics).toBe(1);
+    expect(stats.mrrEstimated).toBe(149 + 299);
   });
 });

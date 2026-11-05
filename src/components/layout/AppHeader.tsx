@@ -1,8 +1,9 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, Building2, LogOut, Menu, Search, Shield } from "lucide-react";
+import { Bell, Building2, Code2, LogOut, Menu, Search, Shield } from "lucide-react";
 import { supabase } from "@/services/supabase";
+import { isMasterDeveloperEmail } from "@/modules/superadmin";
 import { useClinic } from "@/lib/clinic";
 import { useT, type TKey } from "@/lib/i18n";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -106,6 +107,18 @@ export function AppHeader({
       )}
 
       <div className="ml-auto flex items-center gap-2">
+        {isMasterDeveloperEmail(email) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate({ to: "/app/superadmin" })}
+            className="hidden items-center gap-1.5 border-teal/40 bg-teal/10 text-xs font-extrabold text-teal hover:bg-teal/20 md:flex"
+          >
+            <Code2 className="h-3.5 w-3.5" />
+            SuperAdmin (Dev)
+          </Button>
+        )}
+
         <LanguageToggle className="hidden sm:inline-flex" />
 
         <Popover>

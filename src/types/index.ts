@@ -481,3 +481,39 @@ export interface ProstheticLabOrder {
   updated_at: string;
   professionals?: { name: string | null } | null;
 }
+
+export type SubscriptionStatus = "active" | "trialing" | "past_due" | "cancelled";
+
+export interface SaasPlan {
+  id: "starter" | "pro" | "corporate" | string;
+  name: string;
+  description: string;
+  monthly_price: number;
+  yearly_price: number;
+  max_professionals: number;
+  max_units: number;
+  whatsapp_included: boolean;
+  storage_limit_mb: number;
+  active: boolean;
+  created_at?: string;
+}
+
+export interface PlatformClinicOverview {
+  id: string;
+  name: string;
+  created_at: string;
+  plan_id: string | null;
+  subscription_status: SubscriptionStatus;
+  current_period_end: string | null;
+  members_count?: number;
+  patients_count?: number;
+  saas_plans?: SaasPlan | null;
+}
+
+export interface PlatformDeveloperStats {
+  totalClinics: number;
+  activeClinics: number;
+  trialClinics: number;
+  mrrEstimated: number;
+  totalPatientsEstimate: number;
+}
