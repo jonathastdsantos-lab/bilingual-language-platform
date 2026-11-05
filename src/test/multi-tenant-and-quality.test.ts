@@ -65,6 +65,13 @@ import {
   createSignatureRequest,
 } from "@/modules/signatures";
 import {
+  generateValidationCode,
+  generateCmsSignaturePayload,
+  buildIcpBrasilVisualStampHtml,
+  createQualifiedSignature,
+  registerProfessionalCertificate,
+} from "@/modules/icp-brasil";
+import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
   buildPrintableDocumentHtml,
@@ -1714,5 +1721,81 @@ describe("Assinatura Eletrônica Touch de Termos (TCLE, Contratos e Atestados)",
     expect(req.clinic_id).toBe(CLINIC_A);
     expect(req.document_type).toBe("tcle");
     expect(new Date(req.expires_at).getTime()).toBeGreaterThan(Date.now());
+  });
+});
+
+describe("Certificado Digital ICP-Brasil & Assinatura Qualificada do Cirurgião-Dentista", () => {
+  it("gera código de controle legível no padrão ICP-Brasil (SP-XXXX-XXXX-XXXX)", () => {
+    const code = generateValidationCode("SP");
+    expect(code).toMatch(/^SP-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+    const code2 = generateValidationCode("SP");
+    expect(code).not.toBe(code2);
+  });
+
+  it("gera envelope criptográfico CMS PKCS#7 / Base64 para a assinatura qualificada", () => {
+    const hash = "a9f8e7d6c5b4a321987654321fedcba0123456789abcdef0123456789abcdef0";
+    const sig = generateCmsSignaturePayload(hash, "SN-TEST-1234", "AC SOLUTI Multipla v5");
+    expect(typeof sig).toBe("string");
+
+    const decoded = JSON.parse(atob(sig)) as { standard: string; algorithm: string; digest: string };
+    expect(decoded.standard).toContain("ICP-Brasil");
+    expect(decoded.algorithm).toBe("sha256WithRSAEncryption");
+    expect(decoded.digest).toBe(hash);
+  });
+
+  it("gera selo visual HTML oficial com código de validação, QR Code e referências legais ANVISA/MP 2.200-2", () => {
+    const stamp = buildIcpBrasilVisualStampHtml({
+      signerName: "Dra. Patrícia Albuquerque",
+      cro: "CRO-SP 98765",
+      validationCode: "SP-ABCD-1234-EFGH",
+      validationUrl: "https://app.sondapro.com.br/validar/SP-ABCD-1234-EFGH",
+      signedAt: "2026-11-05T12:00:00.000Z",
+      documentHash: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      issuer: "AC SOLUTI Multipla v5 (ICP-Brasil)",
+    });
+
+    expect(stamp).toContain("ICP-Brasil");
+    expect(stamp).toContain("DOCUMENTO ASSINADO DIGITALMENTE");
+    expect(stamp).toContain("Dra. Patrícia Albuquerque");
+    expect(stamp).toContain("CRO-SP 98765");
+    expect(stamp).toContain("SP-ABCD-1234-EFGH");
+    expect(stamp).toContain("Medida Provisória nº 2.200-2/2001");
+    expect(stamp).toContain("Portaria SVS/MS nº 344/1998");
+    expect(stamp).toContain("create-qr-code");
+  });
+
+  it("emite assinatura qualificada para receita com hash e código de validação", async () => {
+    const sig = await createQualifiedSignature(CLINIC_A, {
+      professionalId: "prof-1",
+      patientId: "p1",
+      documentType: "prescription_controlled",
+      documentTitle: "Receituário de Controle Especial (Amoxicilina)",
+      documentContent: "Amoxicilina 500mg - 21 cápsulas - Tomar 1 cápsula de 8 em 8 horas.",
+      signerName: "Dr. Roberto Martins",
+      signerCpf: "12345678901",
+      signerCro: "CRO-SP 54321",
+    });
+
+    expect(sig.clinic_id).toBe(CLINIC_A);
+    expect(sig.document_type).toBe("prescription_controlled");
+    expect(sig.validation_code).toMatch(/^SP-/);
+    expect(sig.validation_url).toContain(`/validar/${sig.validation_code}`);
+    expect(sig.document_hash).toBeDefined();
+    expect(sig.cryptographic_signature).toBeDefined();
+  });
+
+  it("rejeita cadastro de certificado ICP-Brasil com CPF inválido", async () => {
+    await expect(
+      registerProfessionalCertificate(CLINIC_A, {
+        professional_id: "prof-1",
+        certificate_type: "a1_file",
+        issuer: "AC CERTISIGN",
+        subject_name: "Dr. Teste",
+        subject_cpf: "123", // inválido
+        serial_number: "SN-9999",
+        valid_from: new Date().toISOString(),
+        valid_to: new Date().toISOString(),
+      }),
+    ).rejects.toThrow("CPF do titular do certificado digital deve ter 11 dígitos");
   });
 });

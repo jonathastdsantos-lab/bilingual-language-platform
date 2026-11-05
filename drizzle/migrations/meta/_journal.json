@@ -141,6 +141,13 @@
       "when": 1793866800000,
       "tag": "0019_external_signature_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793870400000,
+      "tag": "0020_icp_brasil_digital_certificates",
+      "breakpoints": true
     }
   ]
 }

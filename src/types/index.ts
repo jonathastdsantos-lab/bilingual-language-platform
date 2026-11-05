@@ -842,3 +842,73 @@ export interface PublicSignatureRequestInfo {
   clinic_name?: string;
   clinic_phone?: string | null;
 }
+
+export type DigitalCertificateType =
+  | "a1_file"
+  | "cloud_birdid"
+  | "cloud_safeid"
+  | "cloud_vidaas"
+  | "cloud_neoid";
+
+export interface ProfessionalDigitalCertificate {
+  id: string;
+  clinic_id: string;
+  professional_id: string;
+  certificate_type: DigitalCertificateType;
+  issuer: string;
+  subject_name: string;
+  subject_cpf: string;
+  cro_number?: string | null;
+  cro_state?: string | null;
+  serial_number: string;
+  valid_from: string;
+  valid_to: string;
+  status: "active" | "expired" | "revoked";
+  certificate_public_pem?: string | null;
+  cloud_account_email?: string | null;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QualifiedDocumentSignature {
+  id: string;
+  clinic_id: string;
+  professional_id: string;
+  patient_id: string;
+  certificate_id?: string | null;
+  document_type: string;
+  document_title: string;
+  document_content: string;
+  document_hash: string;
+  cryptographic_signature: string;
+  validation_code: string;
+  validation_url: string;
+  signer_name: string;
+  signer_cpf: string;
+  signer_cro: string;
+  authority_chain?: string[];
+  timestamp_authority?: string;
+  signed_at: string;
+  metadata?: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PublicQualifiedValidationInfo {
+  valid: boolean;
+  error?: string;
+  validation_code?: string;
+  document_type?: string;
+  document_title?: string;
+  document_content?: string;
+  document_hash?: string;
+  signer_name?: string;
+  signer_cpf?: string;
+  signer_cro?: string;
+  timestamp_authority?: string;
+  signed_at?: string;
+  clinic_name?: string;
+  clinic_phone?: string | null;
+  patient_name?: string;
+  patient_cpf?: string | null;
+}

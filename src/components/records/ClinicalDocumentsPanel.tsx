@@ -15,6 +15,7 @@ import { generateDentalContractTemplate } from "@/modules/signatures";
 import { SignaturePadModal } from "@/components/signatures/SignaturePadModal";
 import { SignedDocumentsList } from "@/components/signatures/SignedDocumentsList";
 import { SendSignatureWhatsAppModal } from "@/components/signatures/SendSignatureWhatsAppModal";
+import { SignWithIcpBrasilModal } from "@/components/icp-brasil/SignWithIcpBrasilModal";
 import { formatCPF } from "@/utils/validators";
 import { toSaoPauloDateKey } from "@/utils/timezone";
 import { Button } from "@/components/ui/button";
@@ -63,6 +64,7 @@ export function ClinicalDocumentsPanel({
   const [bodyText, setBodyText] = useState<string>(DENTAL_PRESCRIPTION_PRESETS[0].text);
   const [signatureModalOpen, setSignatureModalOpen] = useState<boolean>(false);
   const [whatsAppModalOpen, setWhatsAppModalOpen] = useState<boolean>(false);
+  const [icpModalOpen, setIcpModalOpen] = useState<boolean>(false);
 
   const selectedProfName =
     professionals.find((p) => p.id === professionalId)?.name ?? "Cirurgião-Dentista Responsável";
@@ -440,6 +442,14 @@ export function ClinicalDocumentsPanel({
               </Button>
               <Button
                 type="button"
+                onClick={() => setIcpModalOpen(true)}
+                className="gap-1.5 bg-emerald-700 text-white hover:bg-emerald-800 shadow-sm"
+              >
+                <ShieldCheck className="h-4 w-4" />
+                Assinar com ICP-Brasil (Dentista)
+              </Button>
+              <Button
+                type="button"
                 onClick={() => setSignatureModalOpen(true)}
                 className="gap-1.5 bg-teal text-white hover:bg-teal-600 shadow-sm"
               >
@@ -609,6 +619,39 @@ export function ClinicalDocumentsPanel({
                 ? "Atestado Odontológico"
                 : kind === "contract"
                   ? "Contrato de Prestação de Serviços Odontológicos"
+                  : `Termo de Consentimento Livre e Esclarecido (TCLE) — ${procedureName}`
+        }
+        documentContent={bodyText}
+      />
+
+      <SignWithIcpBrasilModal
+        open={icpModalOpen}
+        onOpenChange={setIcpModalOpen}
+        clinicId={clinicId}
+        patientId={patient.id}
+        professionalId={professionalId}
+        professionalName={selectedProfName}
+        professionalCro={professionalCro}
+        documentType={
+          kind === "prescription_simple"
+            ? "prescription_simple"
+            : kind === "prescription_controlled"
+              ? "prescription_controlled"
+              : kind === "certificate"
+                ? "certificate"
+                : kind === "tcle"
+                  ? "tcle"
+                  : "other"
+        }
+        documentTitle={
+          kind === "prescription_simple"
+            ? "Receituário Simples"
+            : kind === "prescription_controlled"
+              ? "Receituário de Controle Especial (2 Vias)"
+              : kind === "certificate"
+                ? "Atestado Odontológico"
+                : kind === "contract"
+                  ? "Contrato Odontológico"
                   : `Termo de Consentimento Livre e Esclarecido (TCLE) — ${procedureName}`
         }
         documentContent={bodyText}
