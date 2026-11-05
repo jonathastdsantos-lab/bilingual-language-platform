@@ -47,7 +47,9 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/lib/i18n";
+import { supabase } from "@/services/supabase";
 import { SaasAnalyticsCharts } from "@/components/superadmin/SaasAnalyticsCharts";
+import { GatewayWebhooksPanel } from "@/components/superadmin/GatewayWebhooksPanel";
 import {
   addClinicNote,
   calculateDetailedPlatformStats,
@@ -70,6 +72,7 @@ import type {
   PlatformAuditLog,
   PlatformBroadcastAnnouncement,
   PlatformClinicNote,
+  SaasInvoice,
   SaasPlan,
   SubscriptionStatus,
 } from "@/types";
@@ -87,7 +90,8 @@ export const Route = createFileRoute("/_authenticated/app/superadmin")({
 });
 
 export function SuperAdminPage() {
-  const { t } = useT();
+  const { t, locale } = useT();
+  const isEn = locale === "en";
   const qc = useQueryClient();
   const navigate = useNavigate();
 
@@ -174,6 +178,25 @@ export function SuperAdminPage() {
     queryKey: ["clinicNotes", selectedClinic?.id],
     enabled: !!selectedClinic,
     queryFn: () => (selectedClinic ? fetchClinicNotes(selectedClinic.id) : Promise.resolve([])),
+  });
+
+  const { data: superadminInvoices = [] } = useQuery<SaasInvoice[]>({
+    queryKey: ["superadminInvoices"],
+    enabled: !!isSuperadmin,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const client = supabase as any;
+      const { data, error } = await client
+        .from("saas_invoices")
+        .select("*, saas_plans(*)")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) {
+        console.warn("Could not fetch invoices:", error.message);
+        return [];
+      }
+      return (data || []) as unknown as SaasInvoice[];
+    },
   });
 
   const stats = useMemo(() => calculateDetailedPlatformStats(clinics, plans), [clinics, plans]);
@@ -439,7 +462,7 @@ export function SuperAdminPage() {
 
       {/* Tabs Principais da Área de Desenvolvedor */}
       <Tabs defaultValue="overview" className="space-y-5">
-        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-6">
           <TabsTrigger value="overview">{t("superadmin.tabOverview")}</TabsTrigger>
           <TabsTrigger value="clinics">
             {t("superadmin.tabClinics")} ({clinics.length})
@@ -447,6 +470,7 @@ export function SuperAdminPage() {
           <TabsTrigger value="audit">{t("superadmin.tabAudit")}</TabsTrigger>
           <TabsTrigger value="broadcast">Avisos & Comunicados</TabsTrigger>
           <TabsTrigger value="system">{t("superadmin.tabSystem")}</TabsTrigger>
+          <TabsTrigger value="webhooks">Webhooks & Gateways</TabsTrigger>
         </TabsList>
 
         {/* =========================================================================
@@ -897,6 +921,13 @@ export function SuperAdminPage() {
               </div>
             </div>
           </div>
+        </TabsContent>
+
+        {/* =========================================================================
+            ABA 6: WEBHOOKS REAIS DE GATEWAY (ASAAS / MERCADO PAGO)
+        ========================================================================= */}
+        <TabsContent value="webhooks" className="space-y-4">
+          <GatewayWebhooksPanel invoices={superadminInvoices} isEn={isEn} />
         </TabsContent>
       </Tabs>
 

@@ -120,6 +120,13 @@
       "when": 1793856000000,
       "tag": "0016_waiting_room_calls",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793859600000,
+      "tag": "0017_payment_gateway_webhooks",
+      "breakpoints": true
     }
   ]
 }

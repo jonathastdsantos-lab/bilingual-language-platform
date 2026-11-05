@@ -196,3 +196,4 @@ export function speakPatientCall(
     console.warn("Speech synthesis failed:", e);
   }
 }
+

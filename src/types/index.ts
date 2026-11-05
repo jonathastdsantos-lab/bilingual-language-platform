@@ -514,6 +514,37 @@ export interface PediatricToothEruptionInfo {
 export type WaitingRoomCallStatus = "called" | "in_attendance" | "completed" | "cancelled";
 export type CallPriority = "normal" | "priority" | "urgent";
 
+export type PaymentGateway = "asaas" | "mercadopago" | "stripe";
+
+export interface PaymentWebhookEvent {
+  id: string;
+  gateway: PaymentGateway;
+  event_type: string;
+  payload: Record<string, unknown>;
+  external_reference: string | null;
+  invoice_id: string | null;
+  processed: boolean;
+  processed_at: string | null;
+  processing_error: string | null;
+  created_at: string;
+}
+
+export interface PlatformGatewaySettings {
+  id: string;
+  asaas_enabled: boolean;
+  asaas_environment: "sandbox" | "production";
+  asaas_api_key?: string | null;
+  asaas_webhook_token?: string | null;
+  mercadopago_enabled: boolean;
+  mercadopago_environment: "sandbox" | "production";
+  mercadopago_access_token?: string | null;
+  mercadopago_webhook_secret?: string | null;
+  stripe_enabled: boolean;
+  stripe_secret_key?: string | null;
+  stripe_webhook_secret?: string | null;
+  updated_at: string;
+}
+
 export interface WaitingRoomCall {
   id: string;
   clinic_id: string;

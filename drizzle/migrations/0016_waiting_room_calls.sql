@@ -26,3 +26,4 @@ CREATE INDEX IF NOT EXISTS idx_waiting_room_calls_status
   ON public.waiting_room_calls (clinic_id, status);
 
 ALTER TABLE public.waiting_room_calls ENABLE ROW LEVEL SECURITY;
+

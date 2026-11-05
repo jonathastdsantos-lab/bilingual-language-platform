@@ -54,6 +54,8 @@ import {
   calculatePediatricCariesRisk,
 } from "@/modules/records";
 import { playWaitingRoomChime, speakPatientCall } from "@/modules/waiting-room";
+import { handleWebhookRequest } from "@/modules/webhooks/server-handler";
+import { processAsaasWebhook, processMercadoPagoWebhook } from "@/modules/webhooks";
 import {
   aggregateOdontogramState,
   buildClinicalDocumentRecordPayload,
@@ -1496,5 +1498,75 @@ describe("Painel de Chamada em Sala de Espera (Display TV / Totem)", () => {
   it("executa funções de áudio e síntese de voz de forma segura em qualquer ambiente", () => {
     expect(() => playWaitingRoomChime()).not.toThrow();
     expect(() => speakPatientCall("João Silva", "Consultório 01")).not.toThrow();
+  });
+});
+
+describe("Webhook Real de Gateway de Pagamento (Asaas / Mercado Pago)", () => {
+  it("responde 200 no healthcheck GET para validação de url pelo gateway", async () => {
+    const req = new Request("https://app.sondapro.com.br/api/webhooks/asaas", { method: "GET" });
+    const url = new URL(req.url);
+    const res = await handleWebhookRequest(req, url);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { status: string; gateway_endpoint: string };
+    expect(body.status).toBe("active");
+    expect(body.gateway_endpoint).toBe("/api/webhooks/asaas");
+  });
+
+  it("retorna 400 em caso de payload JSON corrompido", async () => {
+    const req = new Request("https://app.sondapro.com.br/api/webhooks/asaas", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: "{ corrupt_json: ",
+    });
+    const url = new URL(req.url);
+    const res = await handleWebhookRequest(req, url);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe("Invalid JSON payload");
+  });
+
+  it("processa webhook Asaas com registro de log e tratamento de evento", async () => {
+    // 1. Evento informativo (sem baixa)
+    const infoPayload = {
+      event: "PAYMENT_DUEDATE_WARNING",
+      payment: {
+        id: "pay_test_asaas_info",
+        customer: "cus_001",
+        value: 299.9,
+      },
+    };
+    const infoRes = await processAsaasWebhook(infoPayload);
+    expect(infoRes.success).toBe(true);
+    expect(infoRes.eventId).toBeDefined();
+
+    // 2. Evento de pagamento com identificador de fatura
+    const payPayload = {
+      event: "PAYMENT_RECEIVED",
+      payment: {
+        id: "pay_test_asaas_12345",
+        customer: "cus_001",
+        value: 299.9,
+        billingType: "PIX",
+        status: "RECEIVED",
+        externalReference: "inv_mock_9999",
+      },
+    };
+    const payRes = await processAsaasWebhook(payPayload);
+    expect(payRes.eventId).toBeDefined();
+    expect(payRes.invoiceId).toBe("inv_mock_9999");
+  });
+
+  it("processa webhook Mercado Pago com reconciliação idempotente", async () => {
+    const mpPayload = {
+      action: "payment.created",
+      type: "payment",
+      data: {
+        id: "mp_test_payment_987654",
+      },
+    };
+
+    const result = await processMercadoPagoWebhook(mpPayload);
+    expect(result.success).toBe(true);
+    expect(result.eventId).toBeDefined();
   });
 });

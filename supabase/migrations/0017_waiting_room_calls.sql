@@ -69,3 +69,4 @@ CREATE POLICY "waiting_room_calls_delete" ON public.waiting_room_calls
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.waiting_room_calls TO authenticated;
 GRANT SELECT ON public.waiting_room_calls TO anon;
+
