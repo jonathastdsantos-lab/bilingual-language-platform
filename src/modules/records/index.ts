@@ -502,52 +502,180 @@ export type PrintableDocumentKind =
   | "prescription_simple"
   | "prescription_controlled"
   | "certificate"
+  | "attendance_declaration"
+  | "orientation_post_op"
   | "tcle"
   | "contract";
 
 export type PrintablePageSize = "A4" | "A5";
 
 export const DENTAL_CID10_CODES = [
-  { code: "Z01.2", description: "Exame odontológico" },
+  { code: "Z01.2", description: "Exame odontológico de rotina" },
   { code: "K02.9", description: "Cárie dentária não especificada" },
-  { code: "K04.0", description: "Pulpite (Urgência Endodôntica)" },
+  { code: "K04.0", description: "Pulpite aguda / Urgência Endodôntica" },
   { code: "K04.7", description: "Abscesso periapical sem fístula" },
-  { code: "K01.1", description: "Dentes impactados (Exodontia de Siso)" },
-  { code: "K05.1", description: "Gengivite / Tratamento Periodontal" },
-  { code: "K08.1", description: "Perda de dentes / Implante Osteointegrado" },
-  { code: "K07.6", description: "Transtornos da ATM (DTM)" },
+  { code: "K01.1", description: "Dentes impactados / Exodontia de 3º Molar (Siso)" },
+  { code: "K05.1", description: "Gengivite crônica / Raspagem Periodontal" },
+  { code: "K05.3", description: "Periodontite crônica avançada" },
+  { code: "K08.1", description: "Perda de dentes / Cirurgia de Implante Osteointegrado" },
+  { code: "K07.6", description: "Transtorno da ATM / Disfunção Temporomandibular" },
+  { code: "K03.0", description: "Atrito e desgaste dentário excessivo (Bruxismo)" },
 ] as const;
 
-export const DENTAL_PRESCRIPTION_PRESETS = [
+export interface DentalPrescriptionPreset {
+  id: string;
+  category: "analgesic" | "anti_inflammatory" | "antibiotic" | "antiseptic" | "corticoid_topical" | "anxiolytic" | "pediatric";
+  categoryLabel: string;
+  label: string;
+  text: string;
+}
+
+export const DENTAL_PRESCRIPTION_PRESETS: readonly DentalPrescriptionPreset[] = [
+  // 1. Analgésicos
   {
-    id: "dipirona",
-    label: "Analgésico — Dipirona 500mg",
-    text: "1) Uso Interno (Via Oral)\nDipirona Monoidratada 500mg ------------------------ 1 caixa\nTomar 01 (um) comprimido de 6 em 6 horas, por 3 dias, em caso de dor.",
+    id: "dipirona_500",
+    category: "analgesic",
+    categoryLabel: "Analgésicos",
+    label: "Dipirona 500mg Comp.",
+    text: "1) Uso Interno (Via Oral)\nDipirona Monoidratada 500mg ------------------------ 1 caixa (10 comprimidos)\nTomar 01 (um) comprimido de 6 em 6 horas, por até 3 dias, em caso de dor ou febre.",
   },
   {
-    id: "ibuprofeno",
-    label: "Anti-inflamatório — Ibuprofeno 600mg",
-    text: "1) Uso Interno (Via Oral)\nIbuprofeno 600mg ---------------------------------- 1 caixa\nTomar 01 (um) comprimido de 8 em 8 horas, após as refeições, durante 3 dias.",
+    id: "dipirona_1000",
+    category: "analgesic",
+    categoryLabel: "Analgésicos",
+    label: "Dipirona 1g Comp.",
+    text: "1) Uso Interno (Via Oral)\nDipirona Monoidratada 1g --------------------------- 1 caixa (10 comprimidos)\nTomar 01 (um) comprimido de 6 em 6 horas em caso de dor intensa, por no máximo 3 dias.",
   },
   {
-    id: "amoxicilina",
-    label: "Antibiótico — Amoxicilina 500mg (7 dias)",
-    text: "1) Uso Interno (Via Oral)\nAmoxicilina 500mg --------------------------------- 21 cápsulas\nTomar 01 (uma) cápsula de 8 em 8 horas, rigorosamente no horário, durante 7 dias.",
+    id: "paracetamol_750",
+    category: "analgesic",
+    categoryLabel: "Analgésicos",
+    label: "Paracetamol 750mg Comp.",
+    text: "1) Uso Interno (Via Oral)\nParacetamol 750mg ---------------------------------- 1 caixa (10 comprimidos)\nTomar 01 (um) comprimido de 6 em 6 horas em caso de dor (não ultrapassar 4 comprimidos ao dia).",
   },
   {
-    id: "clindamicina",
-    label: "Antibiótico (Alérgicos a Penicilina) — Clindamicina 300mg",
-    text: "1) Uso Interno (Via Oral)\nCloridrato de Clindamicina 300mg ------------------ 21 cápsulas\nTomar 01 (uma) cápsula de 8 em 8 horas, durante 7 dias.",
+    id: "toragesic_10",
+    category: "analgesic",
+    categoryLabel: "Analgésicos",
+    label: "Toragesic 10mg Sublingual",
+    text: "1) Uso Sublingual\nTrometamol Cetorolaco 10mg SL ---------------------- 1 caixa (10 comprimidos)\nDissolver 01 (um) comprimido sob a língua de 8 em 8 horas em caso de dor aguda pós-operatória (máx. 3 dias).",
+  },
+  // 2. Anti-inflamatórios
+  {
+    id: "ibuprofeno_600",
+    category: "anti_inflammatory",
+    categoryLabel: "Anti-inflamatórios",
+    label: "Ibuprofeno 600mg Comp.",
+    text: "1) Uso Interno (Via Oral)\nIbuprofeno 600mg ---------------------------------- 1 caixa (20 comprimidos)\nTomar 01 (um) comprimido de 8 em 8 horas, preferencialmente após as refeições, por 3 a 5 dias.",
   },
   {
-    id: "clorexidina",
-    label: "Antisséptico Bucal — Clorexidina 0,12%",
-    text: "1) Uso Tópico Bucal (Bochecho)\nDigluconato de Clorexidina 0,12% ------------------ 1 frasco (250ml)\nBochechar 15ml sem diluir durante 1 minuto, de 12 em 12 horas, por 7 dias (iniciar 24h após o procedimento).",
+    id: "nimesulida_100",
+    category: "anti_inflammatory",
+    categoryLabel: "Anti-inflamatórios",
+    label: "Nimesulida 100mg Comp.",
+    text: "1) Uso Interno (Via Oral)\nNimesulida 100mg ---------------------------------- 1 caixa (12 comprimidos)\nTomar 01 (um) comprimido de 12 em 12 horas, após alimentação, por 3 dias.",
+  },
+  {
+    id: "dexametasona_4",
+    category: "anti_inflammatory",
+    categoryLabel: "Anti-inflamatórios",
+    label: "Dexametasona 4mg (Pré-Op Dose Única)",
+    text: "1) Uso Interno (Via Oral)\nDexametasona 4mg ---------------------------------- 1 comprimido\nTomar 01 (um) comprimido dose única 1 hora antes do procedimento cirúrgico (redução de edema).",
+  },
+  {
+    id: "cetoprofeno_150",
+    category: "anti_inflammatory",
+    categoryLabel: "Anti-inflamatórios",
+    label: "Cetoprofeno 150mg Liberação Prolongada",
+    text: "1) Uso Interno (Via Oral)\nCetoprofeno 150mg LP ------------------------------ 1 caixa (10 comprimidos)\nTomar 01 (um) comprimido ao dia, após o almoço ou jantar, durante 3 a 5 dias.",
+  },
+  // 3. Antibióticos
+  {
+    id: "amoxicilina_500",
+    category: "antibiotic",
+    categoryLabel: "Antibióticos",
+    label: "Amoxicilina 500mg (7 dias)",
+    text: "1) Uso Interno (Via Oral)\nAmoxicilina 500mg --------------------------------- 21 cápsulas\nTomar 01 (uma) cápsula de 8 em 8 horas, rigorosamente nos horários estipulados, por 7 dias completos.",
+  },
+  {
+    id: "amox_clav_875",
+    category: "antibiotic",
+    categoryLabel: "Antibióticos",
+    label: "Amoxicilina + Clavulanato 875/125mg",
+    text: "1) Uso Interno (Via Oral)\nAmoxicilina 875mg + Clavulanato de Potássio 125mg - 14 comprimidos\nTomar 01 (um) comprimido de 12 em 12 horas, no início das principais refeições, por 7 dias.",
+  },
+  {
+    id: "azitromicina_500",
+    category: "antibiotic",
+    categoryLabel: "Antibióticos",
+    label: "Azitromicina 500mg (3 dias)",
+    text: "1) Uso Interno (Via Oral)\nAzitromicina 500mg -------------------------------- 3 comprimidos\nTomar 01 (um) comprimido ao dia, sempre no mesmo horário, 1 hora antes ou 2 horas após refeições, por 3 dias.",
+  },
+  {
+    id: "clindamicina_300",
+    category: "antibiotic",
+    categoryLabel: "Antibióticos",
+    label: "Clindamicina 300mg (Alérgicos a Penicilina)",
+    text: "1) Uso Interno (Via Oral)\nCloridrato de Clindamicina 300mg ------------------ 21 cápsulas\nTomar 01 (uma) cápsula de 8 em 8 horas, com copo cheio de água, durante 7 dias.",
+  },
+  // 4. Antissépticos
+  {
+    id: "clorexidina_012",
+    category: "antiseptic",
+    categoryLabel: "Antissépticos",
+    label: "Clorexidina 0,12% (Sem Álcool)",
+    text: "1) Uso Tópico Bucal (Bochecho)\nDigluconato de Clorexidina 0,12% (Sem Álcool) ----- 1 frasco (250ml)\nBochechar 15ml puros durante 1 minuto, a cada 12 horas, por 7 dias (iniciar somente 24h após cirurgias). Não engolir nem enxaguar com água.",
+  },
+  // 5. Corticoides Tópicos
+  {
+    id: "triancinolona_orabase",
+    category: "corticoid_topical",
+    categoryLabel: "Tópicos Bucais",
+    label: "Triancinolona Orabase (Aftas/Lesões)",
+    text: "1) Uso Tópico Bucal\nTriancinolona Acetonida 1mg/g Pomada Orabase ------ 1 bisnaga (10g)\nAplicar pequena quantidade sobre a lesão/afta sem friccionar, 2 a 3 vezes ao dia, preferencialmente antes de dormir.",
+  },
+  // 6. Ansiolíticos / Pré-operatório
+  {
+    id: "midazolam_15",
+    category: "anxiolytic",
+    categoryLabel: "Sedação Leve",
+    label: "Midazolam 15mg Comp. (Controle Especial)",
+    text: "1) Uso Interno (Via Oral)\nMaleato de Midazolam 15mg ------------------------- 1 comprimido\nTomar 01 (um) comprimido 30 a 45 minutos antes da cirurgia odontológica. Necessário vir acompanhado(a) de maior responsável.",
+  },
+  // 7. Pediátricos
+  {
+    id: "dipirona_gotas",
+    category: "pediatric",
+    categoryLabel: "Odontopediatria",
+    label: "Dipirona Gotas 500mg/ml (Pediátrico)",
+    text: "1) Uso Interno (Via Oral - Pediátrico)\nDipirona Monoidratada Gotas 500mg/ml -------------- 1 frasco (20ml)\nAdministrar 1 gota por kg de peso corporal (máximo 35 gotas por tomada), de 6 em 6 horas se houver dor ou febre.",
+  },
+  {
+    id: "paracetamol_gotas",
+    category: "pediatric",
+    categoryLabel: "Odontopediatria",
+    label: "Paracetamol Gotas 200mg/ml (Pediátrico)",
+    text: "1) Uso Interno (Via Oral - Pediátrico)\nParacetamol Gotas 200mg/ml ------------------------ 1 frasco (15ml)\nAdministrar 1 gota por kg de peso (máximo 35 gotas), de 6 em 6 horas se necessário.",
+  },
+  {
+    id: "amox_suspensao",
+    category: "pediatric",
+    categoryLabel: "Odontopediatria",
+    label: "Amoxicilina Suspensão 250mg/5ml",
+    text: "1) Uso Interno (Via Oral - Pediátrico)\nAmoxicilina Pó para Suspensão Oral 250mg/5ml ------ 1 frasco (150ml)\nApós reconstituição, administrar conforme peso corporal a cada 8 horas, por 7 dias ininterruptos.",
   },
 ] as const;
 
 export const clinicalDocumentInputSchema = z.object({
-  kind: z.enum(["prescription_simple", "prescription_controlled", "certificate", "tcle", "contract"]),
+  kind: z.enum([
+    "prescription_simple",
+    "prescription_controlled",
+    "certificate",
+    "attendance_declaration",
+    "orientation_post_op",
+    "tcle",
+    "contract",
+  ]),
   pageSize: z.enum(["A4", "A5"]).default("A4"),
   clinicName: z.string().trim().min(2),
   unitName: z.string().trim().optional(),
@@ -565,6 +693,9 @@ export const clinicalDocumentInputSchema = z.object({
   attendanceEndTime: z.string().trim().optional(),
   authorizeCidDisclosure: z.boolean().optional(),
   procedureName: z.string().trim().optional(),
+  validationCode: z.string().trim().optional(),
+  validationUrl: z.string().trim().optional(),
+  signatureDataUrl: z.string().trim().optional(),
 });
 
 export type ClinicalDocumentInput = z.infer<typeof clinicalDocumentInputSchema>;
@@ -617,6 +748,26 @@ export function buildClinicalDocumentRecordPayload(input: ClinicalDocumentInput)
     };
   }
 
+  if (d.kind === "attendance_declaration") {
+    const timeInfo =
+      d.attendanceStartTime && d.attendanceEndTime
+        ? `Horário de atendimento: das ${d.attendanceStartTime} às ${d.attendanceEndTime}.`
+        : "Comparecimento odontológico confirmado.";
+    return {
+      recordType: "certificate",
+      title: `Declaração de Comparecimento — ${d.professionalName}`,
+      content: `${headerMeta}\n${timeInfo}\n\n${d.bodyText}`,
+    };
+  }
+
+  if (d.kind === "orientation_post_op") {
+    return {
+      recordType: "evolution",
+      title: `Orientações Pós-Operatórias — ${d.patientName}`,
+      content: `${headerMeta}\n\n${d.bodyText}`,
+    };
+  }
+
   if (d.kind === "contract") {
     return {
       recordType: "evolution",
@@ -660,9 +811,54 @@ export function buildPrintableDocumentHtml(input: ClinicalDocumentInput): string
         ? "RECEITUÁRIO DE CONTROLE ESPECIAL (2 VIAS)"
         : d.kind === "certificate"
           ? "ATESTADO ODONTOLÓGICO"
-          : d.kind === "contract"
-            ? "CONTRATO DE PRESTAÇÃO DE SERVIÇOS ODONTOLÓGICOS"
-            : "TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE)";
+          : d.kind === "attendance_declaration"
+            ? "DECLARAÇÃO DE COMPARECIMENTO ODONTOLÓGICO"
+            : d.kind === "orientation_post_op"
+              ? "ORIENTAÇÕES E CUIDADOS PÓS-OPERATÓRIOS"
+              : d.kind === "contract"
+                ? "CONTRATO DE PRESTAÇÃO DE SERVIÇOS ODONTOLÓGICOS"
+                : "TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE)";
+
+  const validationSealBlock = d.validationCode
+    ? `<div class="security-seal">
+        <div class="seal-header">
+          <span class="seal-tag">ASSINATURA DIGITAL OFICIAL — ICP-BRASIL / MP 2.200-2/2001</span>
+          <span class="seal-code">Código: <strong>${escapeHtml(d.validationCode)}</strong></span>
+        </div>
+        <div class="seal-body">
+          <div class="seal-text">
+            Este documento foi emitido e assinado eletronicamente por <strong>${escapeHtml(d.professionalName)} (${escapeHtml(d.professionalCro)})</strong>.<br/>
+            A autenticidade e validade jurídica deste receituário/atestado pode ser confirmada por farmácias e órgãos competentes apontando a câmera para o QR Code ao lado ou acessando:
+            <br/><a href="${escapeHtml(d.validationUrl || `https://app.sondapro.com.br/validar/${d.validationCode}`)}" target="_blank" style="color: #0b3b75; font-weight: bold; text-decoration: underline;">${escapeHtml(d.validationUrl || `https://app.sondapro.com.br/validar/${d.validationCode}`)}</a>
+          </div>
+          <div class="seal-qr">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="70" height="70" style="display: block;">
+              <rect width="100" height="100" fill="#ffffff" />
+              <g fill="#0b1f3a">
+                <rect x="10" y="10" width="26" height="26" />
+                <rect x="14" y="14" width="18" height="18" fill="#ffffff" />
+                <rect x="18" y="18" width="10" height="10" />
+                <rect x="64" y="10" width="26" height="26" />
+                <rect x="68" y="14" width="18" height="18" fill="#ffffff" />
+                <rect x="72" y="18" width="10" height="10" />
+                <rect x="10" y="64" width="26" height="26" />
+                <rect x="14" y="68" width="18" height="18" fill="#ffffff" />
+                <rect x="18" y="72" width="10" height="10" />
+                <rect x="42" y="14" width="6" height="12" />
+                <rect x="52" y="14" width="6" height="6" />
+                <rect x="42" y="42" width="16" height="16" />
+                <rect x="64" y="42" width="10" height="6" />
+                <rect x="78" y="48" width="12" height="12" />
+                <rect x="42" y="64" width="8" height="14" />
+                <rect x="54" y="72" width="14" height="6" />
+                <rect x="72" y="72" width="18" height="18" />
+              </g>
+            </svg>
+            <div style="font-size: 8px; font-weight: 700; color: #475569; text-align: center; margin-top: 2px;">SCAN TO VERIFY</div>
+          </div>
+        </div>
+      </div>`
+    : "";
 
   const cidBlock =
     d.kind === "certificate" && d.cid10Code && d.authorizeCidDisclosure
@@ -720,6 +916,13 @@ export function buildPrintableDocumentHtml(input: ClinicalDocumentInput): string
     .signatures { display: flex; justify-content: space-around; gap: 24px; margin-top: 38px; text-align: center; }
     .sig-col { flex: 1; max-width: 280px; font-size: 12px; }
     .sig-line { border-top: 1px solid #0b1f3a; margin-bottom: 6px; }
+    .security-seal { border: 1.5px solid #0b3b75; border-radius: 8px; background: #f0f7ff; padding: 10px 14px; margin-top: 18px; }
+    .seal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #bfdbfe; padding-bottom: 6px; margin-bottom: 8px; font-size: 11px; }
+    .seal-tag { background: #0b3b75; color: #ffffff; padding: 2px 6px; border-radius: 4px; font-weight: 800; font-size: 9.5px; letter-spacing: 0.5px; }
+    .seal-code { font-family: monospace; color: #0b3b75; font-size: 11.5px; }
+    .seal-body { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .seal-text { font-size: 11px; color: #1e3a8a; line-height: 1.45; flex: 1; }
+    .seal-qr { flex-shrink: 0; background: #ffffff; padding: 4px; border: 1px solid #93c5fd; border-radius: 6px; }
     @media print { .no-print { display: none !important; } }
   </style>
 </head>
@@ -748,6 +951,7 @@ export function buildPrintableDocumentHtml(input: ClinicalDocumentInput): string
 
   ${cidBlock}
   ${controlledBuyerSupplierBox}
+  ${validationSealBlock}
 
   <div class="footer-date">
     Data de emissão: <strong>${formattedDate}</strong>
@@ -755,6 +959,10 @@ export function buildPrintableDocumentHtml(input: ClinicalDocumentInput): string
 
   <div class="signatures">
     <div class="sig-col">
+      ${d.signatureDataUrl
+      ? `<img src="${d.signatureDataUrl}" alt="Assinatura Digital" style="max-height: 48px; max-width: 180px; display: block; margin: 0 auto 4px auto;" />`
+      : ""
+    }
       <div class="sig-line"></div>
       <strong>${escapeHtml(d.professionalName)}</strong>
       <div>Cirurgião-Dentista — ${escapeHtml(d.professionalCro)}</div>

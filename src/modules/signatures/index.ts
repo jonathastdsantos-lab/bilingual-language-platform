@@ -175,6 +175,131 @@ export async function revokeElectronicSignature(
   }
 }
 
+export interface DentalTclePreset {
+  id: string;
+  title: string;
+  procedureName: string;
+  category: "surgery" | "implant" | "endodontics" | "orthodontics" | "prosthesis" | "aesthetic" | "anesthesia";
+  categoryLabel: string;
+  generateText: (params: {
+    patientName: string;
+    patientCpf?: string | null;
+    dentistName?: string;
+    dentistCro?: string;
+    clinicName?: string;
+  }) => string;
+}
+
+export const DENTAL_TCLE_PRESETS: readonly DentalTclePreset[] = [
+  {
+    id: "surgery_wisdom",
+    title: "TCLE — Cirurgia de Terceiro Molar (Siso) e Cirurgia Oral Menor",
+    procedureName: "Exodontia Cirúrgica de Terceiros Molares (Dentes do Siso)",
+    category: "surgery",
+    categoryLabel: "Cirurgia Oral & Sisos",
+    generateText: ({ patientName, patientCpf, dentistName = "Cirurgião-Dentista", dentistCro = "CRO", clinicName = "SondaPro" }) =>
+      `TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE) — CIRURGIA ORAL E EXODONTIA DE SISOS\n\n` +
+      `Eu, ${patientName}${patientCpf ? `, CPF nº ${formatCPF(patientCpf)}` : ""}, declaro que fui devidamente esclarecido(a) pelo(a) Dr(a). ${dentistName} (${dentistCro}) na clínica ${clinicName} acerca da necessidade, objetivos e riscos inerentes ao procedimento cirúrgico de remoção dos dentes indicados no planejamento clínico.\n\n` +
+      `1. ESCLARECIMENTOS SOBRE O PROCEDIMENTO:\n` +
+      `Fui informado(a) que a cirurgia exige anestesia local, incisão cirúrgica, osteotomia (desgaste ósseo) e odontossecção (secção dental) conforme a posição do dente na arcada.\n\n` +
+      `2. RISCOS E EFEITOS PÓS-OPERATÓRIOS INERENTES:\n` +
+      `Compreendo que todo ato cirúrgico bucal envolve riscos biológicos conhecidos, incluindo:\n` +
+      `• Edema (inchaço facial), hematomas, equimoses e dor controlável com medicamentos;\n` +
+      `• Trismo (dificuldade temporária de abertura de boca);\n` +
+      `• Parestesia (sensação temporária ou raramente prolongada de dormência/formigamento no lábio, queixo ou língua por proximidade anatômica com os nervos Alveolar Inferior ou Lingual);\n` +
+      `• Comunicação bucosinusal e sinusite maxilar transitória nos dentes superiores posteriores;\n` +
+      `• Hemorragia pós-operatória e alveolite seca/úmida (infecção do alvéolo).\n\n` +
+      `3. MEUS DEVERES E CUIDADOS:\n` +
+      `Comprometo-me a cumprir rigorosamente as orientações pós-operatórias (bolsa de gelo nas primeiras 24h, alimentação líquida/fria, não cuspir, não fazer bochechos, repouso físico e não fumar), bem como tomar os medicamentos prescritos e retornar para remoção de suturas.\n\n` +
+      `Declaro estar plenamente esclarecido(a) e autorizo a execução do procedimento.`,
+  },
+  {
+    id: "implant_bone_graft",
+    title: "TCLE — Implante Dentário Osteointegrado & Enxerto Ósseo",
+    procedureName: "Instalação Cirúrgica de Implante Dentário Osteointegrado",
+    category: "implant",
+    categoryLabel: "Implantodontia",
+    generateText: ({ patientName, patientCpf, dentistName = "Cirurgião-Dentista", dentistCro = "CRO", clinicName = "SondaPro" }) =>
+      `TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE) — IMPLANTE DENTÁRIO OSTEOINTEGRADO\n\n` +
+      `Eu, ${patientName}${patientCpf ? `, CPF nº ${formatCPF(patientCpf)}` : ""}, autorizo a realização do procedimento cirúrgico de implante dentário osteointegrado pelo(a) Dr(a). ${dentistName} (${dentistCro}) na clínica ${clinicName}.\n\n` +
+      `1. PROCESSO BIOLÓGICO DE OSSEOINTEGRAÇÃO:\n` +
+      `Fui informado(a) de que o implante de titânio necessita de um período de cicatrização óssea (osseointegração) que varia entre 3 a 6 meses, conforme a densidade óssea e eventual necessidade de enxerto ósseo/biomateriais.\n\n` +
+      `2. RISCOS, CONTRAINDICAÇÕES E TAXA DE SUCESSO:\n` +
+      `Embora a implantodontia possua taxa de sucesso superior a 95%, compreendo que a medicina e odontologia não são ciências exatas e que existe risco de não osseointegração ou perda tardia por peri-implantite, influenciada por fatores sistêmicos (diabetes descompensada, fumo, osteoporose ou bruxismo).\n\n` +
+      `3. CUIDADOS E COMPROMISSO:\n` +
+      `Comprometo-me a manter higienização meticulosa com escovas interdentais e comparecer às manutenções preventivas periódicas (a cada 6 meses) sob pena de perda de garantia do trabalho.\n\n` +
+      `Declaro que tive oportunidade de sanar todas as dúvidas e autorizo a intervenção cirúrgica.`,
+  },
+  {
+    id: "endodontics_canal",
+    title: "TCLE — Tratamento e Retratamento Endodôntico (Canal)",
+    procedureName: "Tratamento Endodôntico / Desinfecção e Obturação de Canal",
+    category: "endodontics",
+    categoryLabel: "Endodontia",
+    generateText: ({ patientName, patientCpf, dentistName = "Cirurgião-Dentista", dentistCro = "CRO", clinicName = "SondaPro" }) =>
+      `TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE) — TRATAMENTO DE CANAL (ENDODONTIA)\n\n` +
+      `Eu, ${patientName}${patientCpf ? `, CPF nº ${formatCPF(patientCpf)}` : ""}, autorizo o(a) Dr(a). ${dentistName} (${dentistCro}) a realizar o tratamento/retratamento endodôntico na clínica ${clinicName}.\n\n` +
+      `1. OBJETIVO DO TRATAMENTO:\n` +
+      `O objetivo do tratamento de canal é remover a polpa dentária inflamada ou necrosada, desinfectar os condutos radiculares e selá-los hermeticamente para debelar a infecção e preservar o elemento dental em boca.\n\n` +
+      `2. RISCOS E LIMITAÇÕES BIOLÓGICAS:\n` +
+      `Fui cientificado(a) de que canais atrésicos, curvos ou calcificados podem apresentar dificuldades anatômicas, tais como fratura de lima/instrumento endodôntico no interior do canal, perfurações de raiz, dor pós-operatória inflamatória ou necessidade de complementação cirúrgica parendodôntica.\n\n` +
+      `3. RESTAURAÇÃO DEFINITIVA INDISPENSÁVEL:\n` +
+      `Estou ciente de que um dente tratado endodonticamente torna-se mais frágil e necessita de restauração definitiva (resina, bloco, pino de fibra de vidro ou coroa protética) o mais breve possível para evitar fraturas coronorradiculares irreparáveis que levariam à extração.\n\n` +
+      `Concordo plenamente com os termos e autorizo o tratamento.`,
+  },
+  {
+    id: "orthodontics_braces",
+    title: "TCLE — Tratamento Ortodôntico (Aparelhos Fixos & Alinhadores)",
+    procedureName: "Instalação e Manutenção de Aparelho Ortodôntico / Alinhadores",
+    category: "orthodontics",
+    categoryLabel: "Ortodontia",
+    generateText: ({ patientName, patientCpf, dentistName = "Cirurgião-Dentista", dentistCro = "CRO", clinicName = "SondaPro" }) =>
+      `TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE) — TRATAMENTO ORTODÔNTICO\n\n` +
+      `Eu, ${patientName}${patientCpf ? `, CPF nº ${formatCPF(patientCpf)}` : ""}, declaro que contratei o tratamento ortodôntico sob responsabilidade do(a) Dr(a). ${dentistName} (${dentistCro}) na clínica ${clinicName}.\n\n` +
+      `1. DINÂMICA E DURAÇÃO DO TRATAMENTO:\n` +
+      `Fui orientado(a) de que a movimentação dental biológica é contínua e a estimativa de tempo depende da resposta óssea individual e do meu comparecimento rigoroso às manutenções mensais.\n\n` +
+      `2. RESPONSABILIDADES DO PACIENTE:\n` +
+      `Reconheço que a higienização bucal redobrada é crucial para evitar desmineralizações (manchas brancas no esmalte), gengivite e cáries durante o uso do aparelho. Devo evitar mastigar alimentos excessivamente duros ou grudentos que possam descolar braquetes e danificar fios.\n\n` +
+      `3. FASE DE CONTENÇÃO PÓS-TRATAMENTO:\n` +
+      `Estou ciente de que, após a remoção do aparelho fixo ou finalização dos alinhadores, é OBRIGATÓRIO o uso das contenções ortodônticas superiores e inferiores conforme prescrito, sob pena de recidiva (desalinhamento dos dentes).\n\n` +
+      `Li e concordo com todas as condições do tratamento ortodôntico.`,
+  },
+  {
+    id: "prosthesis_laminates",
+    title: "TCLE — Próteses Fixas, Facetas & Lentes de Contato Cerâmicas",
+    procedureName: "Reabilitação Estética Cerâmica / Facetas / Lentes de Contato",
+    category: "prosthesis",
+    categoryLabel: "Prótese & Estética",
+    generateText: ({ patientName, patientCpf, dentistName = "Cirurgião-Dentista", dentistCro = "CRO", clinicName = "SondaPro" }) =>
+      `TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE) — PRÓTESES E FACETAS CERÂMICAS\n\n` +
+      `Eu, ${patientName}${patientCpf ? `, CPF nº ${formatCPF(patientCpf)}` : ""}, autorizo o planejamento e execução da reabilitação protética/estética pelo(a) Dr(a). ${dentistName} (${dentistCro}) na clínica ${clinicName}.\n\n` +
+      `1. PREPARO DENTAL E ETAPAS CLÍNICAS:\n` +
+      `Fui informado(a) sobre a necessidade de preparos dentais (desgastes biológicos conservadores e controlados), moldagens ou escaneamentos digitais, confecção de provisórios e provas clínicas de cor e adaptação.\n\n` +
+      `2. PROVA DE COR E APROVAÇÃO ESTÉTICA:\n` +
+      `Declaro que antes da cimentação definitiva terei a oportunidade de avaliar a forma, cor e sorriso com as peças cerâmicas em boca. A cimentação definitiva representará o meu aceite estético e funcional das peças.\n\n` +
+      `3. CUIDADOS E BRUXISMO:\n` +
+      `Estou ciente de que cerâmicas odontológicas possuem resistência similar ao esmalte dental e exigem uso de placa miorrelaxante caso eu apresente bruxismo ou apertamento dental noturno, além de visitas semestrais de revisão.\n\n` +
+      `Autorizo a confecção e cimentação dos trabalhos protéticos.`,
+  },
+  {
+    id: "bleaching_teeth",
+    title: "TCLE — Clareamento Dental (Consultório & Caseiro)",
+    procedureName: "Clareamento Dental Supervisionado com Gel de Peróxido",
+    category: "aesthetic",
+    categoryLabel: "Clareamento Dental",
+    generateText: ({ patientName, patientCpf, dentistName = "Cirurgião-Dentista", dentistCro = "CRO", clinicName = "SondaPro" }) =>
+      `TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO (TCLE) — CLAREAMENTO DENTAL\n\n` +
+      `Eu, ${patientName}${patientCpf ? `, CPF nº ${formatCPF(patientCpf)}` : ""}, declaro que optei pela realização de clareamento dental supervisionado pelo(a) Dr(a). ${dentistName} (${dentistCro}) na clínica ${clinicName}.\n\n` +
+      `1. RESULTADO INDIVIDUALIZADO:\n` +
+      `Fui orientado(a) de que a resposta de clareamento depende da estrutura e mineralização do esmalte de cada paciente, não sendo possível garantir um tom exato pré-determinado de branco.\n\n` +
+      `2. SENSIBILIDADE DENTINÁRIA TRANSITÓRIA:\n` +
+      `Compreendo que sensibilidade térmica a líquidos frios ou ar é um efeito colateral comum e temporário durante o tratamento, que cessa após a conclusão das aplicações e uso de dessensibilizantes.\n\n` +
+      `3. RESTAURAÇÕES NÃO CLAREIAM:\n` +
+      `Estou ciente de que restaurações de resina composta e coroas de porcelana já existentes NÃO sofrem clareamento com o gel, podendo ser necessária sua troca estética após a finalização do clareamento para equalizar as cores.\n\n` +
+      `Autorizo o procedimento de clareamento dental.`,
+  },
+];
+
 /**
  * Gera modelo padrão de Contrato de Prestação de Serviços Odontológicos
  */

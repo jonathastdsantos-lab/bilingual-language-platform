@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { createElectronicSignature } from "@/modules/signatures";
-import type { ElectronicSignatureDocumentType, SignerRole } from "@/types";
+import type { ElectronicSignatureDocumentType, PatientElectronicSignature, SignerRole } from "@/types";
 import { formatCPF } from "@/utils/validators";
 
 export interface SignaturePadModalProps {
@@ -31,7 +31,7 @@ export interface SignaturePadModalProps {
   documentType: ElectronicSignatureDocumentType;
   documentTitle: string;
   documentContent: string;
-  onSuccess?: () => void;
+  onSuccess?: (sig?: PatientElectronicSignature) => void;
 }
 
 export function SignaturePadModal({
@@ -181,11 +181,11 @@ export function SignaturePadModal({
         signature_data_url: signatureDataUrl,
       });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("Termo assinado e selado com hash criptográfico com sucesso!");
       qc.invalidateQueries({ queryKey: ["patientSignatures", clinicId, patientId] });
       onOpenChange(false);
-      if (onSuccess) onSuccess();
+      if (onSuccess) onSuccess(data);
     },
     onError: (err: Error) => {
       toast.error(err.message);
