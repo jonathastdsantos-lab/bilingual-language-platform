@@ -24,14 +24,40 @@ import {
   fetchWaitingRoomCalls,
   playWaitingRoomChime,
   speakPatientCall,
+  isValidUuid,
 } from "@/modules/waiting-room";
 import type { WaitingRoomCall } from "@/types";
 
 export const Route = createFileRoute("/tv")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    clinicId: typeof search["clinicId"] === "string" ? (search["clinicId"] as string) : undefined,
-    unitId: typeof search["unitId"] === "string" ? (search["unitId"] as string) : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>) => {
+    // Busca clinicId com tolerância máxima a erros de digitação (ex: 'cl' confundido com 'd' -> dinicId)
+    let clinicId: string | undefined = undefined;
+    for (const key of ["clinicId", "dinicId", "clinic_id", "dinic_id", "clinic", "id", "c"]) {
+      const val = search[key];
+      if (typeof val === "string" && val.trim().length > 0) {
+        clinicId = val.trim();
+        break;
+      }
+    }
+
+    if (!clinicId) {
+      for (const val of Object.values(search)) {
+        if (typeof val === "string" && isValidUuid(val)) {
+          clinicId = val.trim();
+          break;
+        }
+      }
+    }
+
+    let unitId: string | undefined = undefined;
+    if (typeof search["unitId"] === "string") unitId = search["unitId"] as string;
+    else if (typeof search["unit_id"] === "string") unitId = search["unit_id"] as string;
+
+    return {
+      clinicId,
+      unitId,
+    };
+  },
   head: () => ({
     meta: [
       { title: "Painel de Chamada TV — SondaPro" },
@@ -83,22 +109,33 @@ function WaitingRoomTvPage() {
     }
   };
 
-  const searchClinicId =
-    clinicId ||
-    (typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("clinicId") ||
-        new URLSearchParams(window.location.search).get("clinic_id") ||
-        localStorage.getItem("sondapro.clinic") ||
-        undefined
-      : undefined);
+  const searchClinicId = (() => {
+    if (clinicId && isValidUuid(clinicId)) return clinicId;
+    if (typeof window !== "undefined") {
+      const searchStr = window.location.search || "";
+      const params = new URLSearchParams(searchStr);
+      for (const key of ["clinicId", "dinicId", "clinic_id", "dinic_id", "clinic", "id", "c"]) {
+        const val = params.get(key);
+        if (val && isValidUuid(val)) return val;
+      }
+      for (const [, val] of params.entries()) {
+        if (isValidUuid(val)) return val;
+      }
+      const match = (searchStr + " " + window.location.href).match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      if (match) return match[0];
+      const stored = localStorage.getItem("sondapro.clinic");
+      if (stored && isValidUuid(stored)) return stored;
+    }
+    return clinicId || undefined;
+  })();
 
-  // Se clinicId não vier na URL, tenta buscar da clínica do usuário logado
+  // Se clinicId não vier na URL, tenta buscar da chamada mais recente ou do usuário logado
   const [effectiveClinicId, setEffectiveClinicId] = useState<string | null>(searchClinicId ?? null);
   const [clinicName, setClinicName] = useState<string>("SondaPro Odontologia");
 
   useEffect(() => {
     const activeId = clinicId || searchClinicId;
-    if (activeId) {
+    if (activeId && isValidUuid(activeId)) {
       setEffectiveClinicId(activeId);
       // Busca nome da clínica
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -114,6 +151,22 @@ function WaitingRoomTvPage() {
       return;
     }
 
+    // Se aberto na Smart TV sem parâmetros, descobre a clínica pela chamada mais recente
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("waiting_room_calls")
+      .select("clinic_id")
+      .order("called_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .then(({ data }: any) => {
+        if (data?.clinic_id && isValidUuid(data.clinic_id)) {
+          setEffectiveClinicId(data.clinic_id);
+        }
+      });
+
+    // Se o usuário estiver logado, recupera a clínica da associação
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any).auth.getUser().then(({ data }: any) => {
       const user = data?.user;
@@ -135,7 +188,7 @@ function WaitingRoomTvPage() {
     });
   }, [clinicId, searchClinicId]);
 
-  const queryClinicId = effectiveClinicId || searchClinicId || "default";
+  const queryClinicId = effectiveClinicId || searchClinicId || "";
 
   // Query: Busca chamadas com auto-refetch a cada 3 segundos (sempre ativa)
   const { data: calls = [] } = useQuery({
@@ -143,6 +196,13 @@ function WaitingRoomTvPage() {
     queryFn: () => fetchWaitingRoomCalls(queryClinicId, unitId),
     refetchInterval: 3000,
   });
+
+  // Atualiza effectiveClinicId caso as chamadas tragam a clínica real
+  useEffect(() => {
+    if (!effectiveClinicId && calls.length > 0 && calls[0]?.clinic_id) {
+      setEffectiveClinicId(calls[0].clinic_id);
+    }
+  }, [calls, effectiveClinicId]);
 
   // Sincronização multi-canal: Supabase Realtime + BroadcastChannel + Local Events
   useEffect(() => {
@@ -201,20 +261,25 @@ function WaitingRoomTvPage() {
 
   // Supabase Realtime Subscription para chamadas remotas instantâneas
   useEffect(() => {
-    if (!effectiveClinicId) return;
+    const channelName = effectiveClinicId ? `tv_screen_${effectiveClinicId}` : "tv_screen_discovery";
+    const filter = effectiveClinicId ? `clinic_id=eq.${effectiveClinicId}` : undefined;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const channel = (supabase as any)
-      .channel(`tv_screen_${effectiveClinicId}`)
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
           table: "waiting_room_calls",
-          filter: `clinic_id=eq.${effectiveClinicId}`,
+          ...(filter ? { filter } : {}),
         },
-        () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (payload: any) => {
+          if (payload?.new?.clinic_id && !effectiveClinicId) {
+            setEffectiveClinicId(payload.new.clinic_id);
+          }
           qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
         }
       )

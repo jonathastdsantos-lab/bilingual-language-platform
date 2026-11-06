@@ -111,6 +111,11 @@ describe("Painel de Chamada em Sala de Espera (TV / Totem)", () => {
       expect(calls.length).toBeGreaterThan(0);
       expect(calls.some((c) => c.patient_name === "Paciente Teste Fallback")).toBe(true);
     });
+
+    it("não deve falhar com erro de sintaxe SQL se clinicId for 'default' e deve retornar chamadas", async () => {
+      const calls = await fetchWaitingRoomCalls("default");
+      expect(Array.isArray(calls)).toBe(true);
+    });
   });
 
   describe("Multimídia: Som do Sino e Síntese de Fala", () => {

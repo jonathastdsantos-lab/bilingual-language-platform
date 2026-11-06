@@ -154,9 +154,13 @@ export async function fetchWaitingRoomCalls(
     let query = client
       .from("waiting_room_calls")
       .select("*")
-      .eq("clinic_id", clinicId)
       .order("called_at", { ascending: false })
       .limit(30);
+
+    // Só filtra por clinic_id quando for um UUID válido, evitando erro 22P02 do PostgreSQL
+    if (isValidUuid(clinicId)) {
+      query = query.eq("clinic_id", clinicId);
+    }
 
     if (unitId && unitId !== "all" && isValidUuid(unitId)) {
       query = query.eq("unit_id", unitId);
@@ -178,7 +182,10 @@ export async function fetchWaitingRoomCalls(
       const merged = Array.from(map.values()).sort(
         (a, b) => new Date(b.called_at).getTime() - new Date(a.called_at).getTime(),
       );
-      saveLocalWaitingRoomCalls(clinicId, merged);
+      const effectiveId = isValidUuid(clinicId) ? clinicId : data[0]?.clinic_id;
+      if (effectiveId) {
+        saveLocalWaitingRoomCalls(effectiveId, merged);
+      }
       return merged;
     }
   } catch (err) {

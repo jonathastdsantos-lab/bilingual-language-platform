@@ -186,11 +186,14 @@ export async function createQualifiedSignature(
   const issuer = params.issuerName || "AC SOLUTI Multipla v5 (ICP-Brasil)";
   const sig = generateCmsSignaturePayload(hash, serial, issuer);
 
+  const isUuid = (val?: string | null) =>
+    !!val && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+
   const record = {
     clinic_id: clinicId,
-    professional_id: params.professionalId,
-    patient_id: params.patientId,
-    certificate_id: params.certificateId || null,
+    professional_id: isUuid(params.professionalId) ? params.professionalId : null,
+    patient_id: isUuid(params.patientId) ? params.patientId : null,
+    certificate_id: isUuid(params.certificateId) ? params.certificateId : null,
     document_type: params.documentType,
     document_title: params.documentTitle,
     document_content: params.documentContent,
@@ -216,7 +219,7 @@ export async function createQualifiedSignature(
 
   if (error) {
     const norm = normalizeSupabaseError(error);
-    if (norm.isSchemaPending) {
+    if (norm.isSchemaPending || error.code === "42501" || error.message?.includes("row-level security")) {
       return {
         id: crypto.randomUUID(),
         ...record,

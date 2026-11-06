@@ -285,23 +285,35 @@ function AppTvManagementPage() {
           <span>Como Exibir na TV da Recepção ou Projetor</span>
         </div>
 
-        <div className="space-y-1.5">
+        <div className="space-y-3">
           <p className="text-slate-700 font-medium">
             <strong>Opção 1 (Recomendada no Consultório):</strong> Conecte um cabo HDMI do computador da recepção à TV ou segundo monitor e clique no botão acima <strong>"Abrir TV Nesta Aba (Projetor)"</strong> ou <strong>"Abrir TV (Nova Aba)"</strong>. Pressione F11 para tela cheia.
           </p>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <p className="text-slate-600">
-              <strong>Opção 2 (Smart TV / Totem Independente):</strong> Digite ou cole o endereço direto:
+
+          <div className="rounded-xl border border-sky-200 bg-white p-3.5 space-y-2 shadow-xs">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                <Tv className="h-4 w-4 text-sky-600" />
+                <strong>Opção 2 (Smart TV / Totem / Outro Computador):</strong>
+              </span>
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 font-semibold text-[10px]">
+                ✓ Acesso Público Liberado (Sem Login)
+              </Badge>
+            </div>
+
+            <p className="text-slate-600 text-[11px] leading-relaxed">
+              Abra o navegador da Smart TV ou do outro computador e acesse o endereço abaixo (clique no botão para copiar o link completo):
             </p>
+
             <div className="flex items-center gap-2">
-              <code className="rounded-lg bg-sky-100 px-2 py-1 font-mono font-bold text-sky-800 text-[11px] break-all">
+              <code className="flex-1 rounded-lg bg-sky-50 border border-sky-200 px-3 py-1.5 font-mono font-bold text-sky-900 text-xs break-all select-all">
                 {typeof window !== "undefined" ? `${window.location.origin}${tvUrl}` : tvUrl}
               </code>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-7 px-2.5 text-[11px] gap-1.5 shrink-0 bg-white"
+                className="h-8 px-3 text-xs gap-1.5 shrink-0 bg-sky-600 text-white hover:bg-sky-700 hover:text-white font-medium shadow-xs"
                 onClick={() => {
                   const fullUrl = typeof window !== "undefined" ? `${window.location.origin}${tvUrl}` : tvUrl;
                   navigator.clipboard.writeText(fullUrl);
@@ -310,10 +322,14 @@ function AppTvManagementPage() {
                   setTimeout(() => setHasCopied(false), 2500);
                 }}
               >
-                {hasCopied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5 text-slate-600" />}
-                <span>{hasCopied ? (isEn ? "Copied" : "Copiado") : (isEn ? "Copy Link" : "Copiar Link")}</span>
+                {hasCopied ? <Check className="h-4 w-4 text-white" /> : <Copy className="h-4 w-4" />}
+                <span>{hasCopied ? (isEn ? "Copiado!" : "Copiado!") : (isEn ? "Copiar Link" : "Copiar Link")}</span>
               </Button>
             </div>
+
+            <p className="text-[11px] text-slate-500 pt-1">
+              💡 <strong>Dica de Áudio na Smart TV:</strong> Ao abrir na TV ou em outro computador pela primeira vez, dê <strong>1 clique ou toque na tela</strong> para liberar a voz e o sinal sonoro do navegador (requisito de segurança padrão dos navegadores).
+            </p>
           </div>
         </div>
 

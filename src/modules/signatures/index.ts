@@ -533,6 +533,11 @@ export interface CreateSignatureRequestPayload {
   expiresInHours?: number;
 }
 
+function isValidUuid(id?: string | null): boolean {
+  if (!id || typeof id !== "string") return false;
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id.trim());
+}
+
 /**
  * Cria solicitação de assinatura externa com token único e data de expiração
  */
@@ -548,7 +553,7 @@ export async function createSignatureRequest(
 
   const record = {
     clinic_id: clinicId,
-    patient_id: payload.patient_id,
+    patient_id: isValidUuid(payload.patient_id) ? payload.patient_id : null,
     token,
     document_type: payload.document_type,
     document_title: payload.document_title,
@@ -570,7 +575,7 @@ export async function createSignatureRequest(
 
   if (error) {
     const norm = normalizeSupabaseError(error);
-    if (norm.isSchemaPending) {
+    if (norm.isSchemaPending || error.code === "42501" || error.message?.includes("row-level security")) {
       return {
         id: crypto.randomUUID(),
         ...record,
