@@ -240,14 +240,46 @@ export function WaitingRoomTvPage() {
     return () => clearInterval(timer);
   }, [tvSettings.tickerTexts]);
 
-  // Heartbeat do Player da TV (inspirado no DigitalSignageOS - registra presença a cada 25s)
+  // Heartbeat do Player da TV (inspirado no DigitalSignageOS - registra presença local e via Realtime)
   useEffect(() => {
     if (!effectiveClinicId) return;
     recordTvHeartbeat(effectiveClinicId);
+
+    // Canal Realtime para presença e heartbeat bidirecional entre navegadores
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = (supabase as any).channel(`tv_presence_${effectiveClinicId}`);
+    channel
+      .on("broadcast", { event: "PING_TV" }, () => {
+        channel.send({
+          type: "broadcast",
+          event: "PONG_TV",
+          payload: { clinicId: effectiveClinicId, timestamp: Date.now() },
+        });
+      })
+      .subscribe((status: string) => {
+        if (status === "SUBSCRIBED") {
+          channel.send({
+            type: "broadcast",
+            event: "PONG_TV",
+            payload: { clinicId: effectiveClinicId, timestamp: Date.now() },
+          });
+        }
+      });
+
     const interval = setInterval(() => {
       recordTvHeartbeat(effectiveClinicId);
-    }, 25000);
-    return () => clearInterval(interval);
+      channel.send({
+        type: "broadcast",
+        event: "PONG_TV",
+        payload: { clinicId: effectiveClinicId, timestamp: Date.now() },
+      });
+    }, 12000);
+
+    return () => {
+      clearInterval(interval);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).removeChannel(channel);
+    };
   }, [effectiveClinicId]);
 
   // Listener de comando de recarregamento remoto da tela (inspirado no DigitalSignageOS)
@@ -425,9 +457,9 @@ export function WaitingRoomTvPage() {
     };
   }, [qc, soundEnabled, speechEnabled]);
 
-  // Supabase Realtime Subscription para chamadas remotas instantâneas
+  // Supabase Realtime Subscription para chamadas remotas instantâneas (Postgres Changes + Broadcast direto)
   useEffect(() => {
-    const channelName = effectiveClinicId ? `tv_screen_${effectiveClinicId}` : "tv_screen_discovery";
+    const channelName = effectiveClinicId ? `waiting_room_${effectiveClinicId}` : "waiting_room_discovery";
     const filter = effectiveClinicId ? `clinic_id=eq.${effectiveClinicId}` : undefined;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -449,13 +481,28 @@ export function WaitingRoomTvPage() {
           qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
         }
       )
+      .on("broadcast", { event: "CALL_PATIENT" }, (eventPayload: any) => {
+        const newCall = eventPayload?.payload?.call as WaitingRoomCall | undefined;
+        if (newCall) {
+          if (soundEnabled) playWaitingRoomChime();
+          if (speechEnabled) speakPatientCall(newCall.patient_name, newCall.room_name);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          qc.setQueriesData({ queryKey: ["waiting_room_calls"] }, (old: any) => {
+            if (Array.isArray(old)) {
+              return [newCall, ...old.filter((c: any) => c.id !== newCall.id)];
+            }
+            return [newCall];
+          });
+          qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+        }
+      })
       .subscribe();
 
     return () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any).removeChannel(channel);
     };
-  }, [effectiveClinicId, qc]);
+  }, [effectiveClinicId, qc, soundEnabled, speechEnabled]);
 
   const isFirstRenderRef = useRef(true);
   const lastCallIdRef = useRef<string | null>(null);

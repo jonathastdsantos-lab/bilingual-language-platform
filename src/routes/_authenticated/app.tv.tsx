@@ -153,7 +153,7 @@ function AppTvManagementPage() {
     toast.success(`Banner selecionado: ${preset.title}`);
   };
 
-  // Monitoramento e Controle Remoto do Player de TV (Inspirado no DigitalSignageOS)
+  // Monitoramento e Controle Remoto do Player de TV (Inspirado no DigitalSignageOS - Conexão Realtime Multi-Navegadores)
   const [tvStatus, setTvStatus] = useState(() => getTvHeartbeatStatus(clinicId));
   const [isReloadingTv, setIsReloadingTv] = useState(false);
 
@@ -162,10 +162,47 @@ function AppTvManagementPage() {
   }, [clinicId]);
 
   useEffect(() => {
-    const check = () => setTvStatus(getTvHeartbeatStatus(clinicId));
-    check();
-    const interval = setInterval(check, 4000);
-    return () => clearInterval(interval);
+    if (!clinicId) return;
+
+    // Conecta canal Realtime para escutar o PONG da TV em qualquer navegador (Chrome, Brave, Edge, Smart TV)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = (supabase as any).channel(`tv_presence_${clinicId}`);
+    channel
+      .on("broadcast", { event: "PONG_TV" }, () => {
+        setTvStatus({ isOnline: true, lastSeenSecondsAgo: 0 });
+      })
+      .subscribe((status: string) => {
+        if (status === "SUBSCRIBED") {
+          channel.send({
+            type: "broadcast",
+            event: "PING_TV",
+            payload: { clinicId, timestamp: Date.now() },
+          });
+        }
+      });
+
+    const checkInterval = setInterval(() => {
+      channel.send({
+        type: "broadcast",
+        event: "PING_TV",
+        payload: { clinicId, timestamp: Date.now() },
+      });
+
+      setTvStatus((prev) => {
+        const local = getTvHeartbeatStatus(clinicId);
+        if (local.isOnline) return local;
+        if (prev.isOnline && prev.lastSeenSecondsAgo !== null && prev.lastSeenSecondsAgo < 45) {
+          return { isOnline: true, lastSeenSecondsAgo: prev.lastSeenSecondsAgo + 5 };
+        }
+        return { isOnline: false, lastSeenSecondsAgo: null };
+      });
+    }, 5000);
+
+    return () => {
+      clearInterval(checkInterval);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any).removeChannel(channel);
+    };
   }, [clinicId]);
 
   const handleRemoteTvReload = () => {
@@ -253,6 +290,9 @@ function AppTvManagementPage() {
             qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
           }
         )
+        .on("broadcast", { event: "CALL_PATIENT" }, () => {
+          qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+        })
         .subscribe();
     }
 

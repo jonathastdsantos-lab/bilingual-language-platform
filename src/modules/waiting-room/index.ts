@@ -111,6 +111,23 @@ export function broadcastWaitingRoomCall(call: WaitingRoomCall): void {
   } catch {
     // ignore
   }
+
+  try {
+    // 3. Supabase Realtime Broadcast imediato entre NAVEGADORES / COMPUTADORES DIFERENTES (Chrome -> Brave / Smart TV)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = (supabase as any).channel(`waiting_room_${call.clinic_id}`);
+    channel.subscribe((status: string) => {
+      if (status === "SUBSCRIBED") {
+        channel.send({
+          type: "broadcast",
+          event: "CALL_PATIENT",
+          payload: { call },
+        });
+      }
+    });
+  } catch {
+    // ignore
+  }
 }
 
 /**
@@ -234,30 +251,51 @@ export async function createWaitingRoomCall(
   saveLocalWaitingRoomCalls(params.clinicId, updatedLocal);
   broadcastWaitingRoomCall(payload);
 
-  // 2. Tenta sincronizar com o banco de dados Supabase
+  // 2. Tenta sincronizar com o banco de dados Supabase (com retry limpo se falhar por FK)
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = supabase as any;
-    const { data, error } = await client
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const insertPayload: Record<string, any> = {
+      clinic_id: payload.clinic_id,
+      patient_name: payload.patient_name,
+      professional_name: payload.professional_name,
+      room_name: payload.room_name,
+      priority: payload.priority,
+      status: payload.status,
+      called_at: payload.called_at,
+    };
+    if (payload.unit_id && isValidUuid(payload.unit_id)) insertPayload["unit_id"] = payload.unit_id;
+    if (payload.patient_id && isValidUuid(payload.patient_id)) insertPayload["patient_id"] = payload.patient_id;
+    if (payload.professional_id && isValidUuid(payload.professional_id)) insertPayload["professional_id"] = payload.professional_id;
+    if (payload.room_id && isValidUuid(payload.room_id)) insertPayload["room_id"] = payload.room_id;
+
+    let res = await client
       .from("waiting_room_calls")
-      .insert({
-        clinic_id: payload.clinic_id,
-        unit_id: payload.unit_id,
-        patient_id: payload.patient_id,
-        patient_name: payload.patient_name,
-        professional_id: payload.professional_id,
-        professional_name: payload.professional_name,
-        room_id: payload.room_id,
-        room_name: payload.room_name,
-        priority: payload.priority,
-        status: payload.status,
-        called_at: payload.called_at,
-      })
+      .insert(insertPayload)
       .select("*")
       .single();
 
-    if (!error && data) {
-      const realCall = data as WaitingRoomCall;
+    if (res.error) {
+      console.warn("createWaitingRoomCall: Tentando insert sem chaves opcionais:", res.error.message);
+      // Retenta apenas com clinic_id e campos textuais para garantir persistência mesmo sem dados nas tabelas referenciadas
+      res = await client
+        .from("waiting_room_calls")
+        .insert({
+          clinic_id: payload.clinic_id,
+          patient_name: payload.patient_name,
+          professional_name: payload.professional_name,
+          room_name: payload.room_name,
+          priority: payload.priority,
+          status: payload.status,
+          called_at: payload.called_at,
+        })
+        .select("*")
+        .single();
+    }
+
+    if (!res.error && res.data) {
+      const realCall = res.data as WaitingRoomCall;
       const synced = [realCall, ...updatedLocal.filter((c) => c.id !== payload.id && c.id !== realCall.id)];
       saveLocalWaitingRoomCalls(params.clinicId, synced);
       return realCall;
@@ -605,13 +643,29 @@ export function sendRemoteTvReload(clinicId: string): void {
 }
 
 /**
- * Registra o ping de que a TV está online e transmitindo
+ * Registra o ping de que a TV está online e transmitindo (localmente e via Realtime para outros navegadores)
  */
 export function recordTvHeartbeat(clinicId: string): void {
   if (typeof window === "undefined" || !clinicId) return;
   try {
     const key = `${LOCAL_STORAGE_HEARTBEAT_PREFIX}${clinicId}`;
     localStorage.setItem(key, Date.now().toString());
+  } catch {
+    // ignore
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = (supabase as any).channel(`tv_presence_${clinicId}`);
+    channel.subscribe((status: string) => {
+      if (status === "SUBSCRIBED") {
+        channel.send({
+          type: "broadcast",
+          event: "PONG_TV",
+          payload: { clinicId, timestamp: Date.now() },
+        });
+      }
+    });
   } catch {
     // ignore
   }
