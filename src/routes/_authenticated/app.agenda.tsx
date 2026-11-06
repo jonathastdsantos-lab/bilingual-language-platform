@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { CallPatientModal } from "@/components/waiting-room/CallPatientModal";
 import { dispatchAppointmentNotification } from "@/modules/whatsapp/connection";
+import { dismissWaitingRoomCallForPatient } from "@/modules/waiting-room";
 
 type Status = Database["public"]["Enums"]["appointment_status"];
 const STATUSES: Status[] = ["scheduled", "confirmed", "completed", "cancelled", "no_show"];
@@ -210,8 +211,18 @@ function Agenda() {
         : await supabase.from("appointments").insert(row);
       if (error) throw new Error(error.code === "23P01" ? t("ag.conflict") : error.message);
 
-      // Disparo inteligente de WhatsApp (Automático ou Manual Web) e Alertas do Dono
+      // Automatização Sala de Espera / TV: Se a consulta for marcada como atendida ou confirmada,
+      // encerra a chamada em destaque na TV da recepção imediatamente, voltando aos banners e mantendo no histórico lateral
       const patientObj = refs.data?.patients.find((p) => p.id === f.patient_id);
+      if (f.status === "completed" || f.status === "confirmed") {
+        void dismissWaitingRoomCallForPatient(
+          clinicId,
+          patientObj?.full_name || f.patient_id,
+          f.status === "completed" ? "completed" : "in_attendance",
+        );
+      }
+
+      // Disparo inteligente de WhatsApp (Automático ou Manual Web) e Alertas do Dono
       const profObj = refs.data?.profs.find((pr) => pr.id === f.professional_id);
       const eventType = isNew
         ? "booked"

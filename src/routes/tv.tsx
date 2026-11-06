@@ -230,15 +230,16 @@ export function WaitingRoomTvPage() {
     return () => clearInterval(timer);
   }, [tvSettings.mediaItems, tvSettings.slideIntervalSeconds]);
 
-  // Rotação do letreiro de avisos do rodapé
+  // Rotação do letreiro de avisos do rodapé com tempo configurável
   useEffect(() => {
     const tickers = tvSettings.tickerTexts || [];
     if (tickers.length <= 1) return;
+    const intervalMs = (tvSettings.tickerIntervalSeconds || 7) * 1000;
     const timer = setInterval(() => {
       setTickerIndex((prev) => (prev + 1) % tickers.length);
-    }, 7000);
+    }, intervalMs);
     return () => clearInterval(timer);
-  }, [tvSettings.tickerTexts]);
+  }, [tvSettings.tickerTexts, tvSettings.tickerIntervalSeconds]);
 
   // Heartbeat do Player da TV (inspirado no DigitalSignageOS - registra presença local e via Realtime)
   useEffect(() => {
@@ -423,6 +424,16 @@ export function WaitingRoomTvPage() {
               return [newCall];
             });
             qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+          } else if (event.data?.type === "UPDATE_CALL_STATUS" && event.data?.callId) {
+            const { callId, status } = event.data;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            qc.setQueriesData({ queryKey: ["waiting_room_calls"] }, (old: any) => {
+              if (Array.isArray(old)) {
+                return old.map((c: any) => (c.id === callId ? { ...c, status } : c));
+              }
+              return old;
+            });
+            qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
           }
         };
       }
@@ -447,12 +458,29 @@ export function WaitingRoomTvPage() {
       qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
     };
 
+    const handleStatusSync = (e?: Event) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detail = (e as any)?.detail as { callId: string; status: WaitingRoomCall["status"] } | undefined;
+      if (detail?.callId) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        qc.setQueriesData({ queryKey: ["waiting_room_calls"] }, (old: any) => {
+          if (Array.isArray(old)) {
+            return old.map((c: any) => (c.id === detail.callId ? { ...c, status: detail.status } : c));
+          }
+          return old;
+        });
+        qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+      }
+    };
+
     window.addEventListener("sondapro:waiting_room_call", handleLocalSync);
+    window.addEventListener("sondapro:waiting_room_call_updated", handleStatusSync);
     window.addEventListener("storage", handleLocalSync);
 
     return () => {
       if (bc) bc.close();
       window.removeEventListener("sondapro:waiting_room_call", handleLocalSync);
+      window.removeEventListener("sondapro:waiting_room_call_updated", handleStatusSync);
       window.removeEventListener("storage", handleLocalSync);
     };
   }, [qc, soundEnabled, speechEnabled]);
@@ -496,6 +524,19 @@ export function WaitingRoomTvPage() {
           qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
         }
       })
+      .on("broadcast", { event: "UPDATE_CALL_STATUS" }, (eventPayload: any) => {
+        const payload = eventPayload?.payload as { callId: string; status: WaitingRoomCall["status"] } | undefined;
+        if (payload?.callId) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          qc.setQueriesData({ queryKey: ["waiting_room_calls"] }, (old: any) => {
+            if (Array.isArray(old)) {
+              return old.map((c: any) => (c.id === payload.callId ? { ...c, status: payload.status } : c));
+            }
+            return old;
+          });
+          qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+        }
+      })
       .subscribe();
 
     return () => {
@@ -506,39 +547,55 @@ export function WaitingRoomTvPage() {
 
   const isFirstRenderRef = useRef(true);
   const lastCallIdRef = useRef<string | null>(null);
-  const activeCall: WaitingRoomCall | undefined = calls[0];
+
+  // Duração configurada do tempo em que o paciente fica chamando na tela central da TV (editável no painel)
+  const callDisplaySeconds = tvSettings.callDisplaySeconds || 35;
+  const maxCallAgeMs = callDisplaySeconds * 1000;
+
+  // Busca a chamada mais recente com status "called" dentro do tempo limite configurado
+  const activeFreshCall = calls.find(
+    (c) => c.status === "called" && Date.now() - new Date(c.called_at).getTime() < maxCallAgeMs
+  );
+  const isCallFresh = !!activeFreshCall;
+  const activeCall: WaitingRoomCall | undefined = activeFreshCall || calls[0];
+
+  const callAgeMs = activeFreshCall ? Date.now() - new Date(activeFreshCall.called_at).getTime() : Infinity;
+  const progressPercent = activeFreshCall
+    ? Math.max(0, Math.min(100, 100 - (callAgeMs / maxCallAgeMs) * 100))
+    : 0;
+  const secondsLeft = activeFreshCall
+    ? Math.max(0, Math.ceil((maxCallAgeMs - callAgeMs) / 1000))
+    : 0;
 
   // Disparo de som e fala ao chegar nova chamada
   useEffect(() => {
-    if (!activeCall) return;
+    if (!activeFreshCall) return;
 
     if (isFirstRenderRef.current) {
       isFirstRenderRef.current = false;
-      const callAgeMs = Date.now() - new Date(activeCall.called_at).getTime();
-      if (callAgeMs < 90000) {
+      const ageMs = Date.now() - new Date(activeFreshCall.called_at).getTime();
+      if (ageMs < maxCallAgeMs) {
         if (soundEnabled) playWaitingRoomChime();
-        if (speechEnabled) speakPatientCall(activeCall.patient_name, activeCall.room_name);
+        if (speechEnabled) speakPatientCall(activeFreshCall.patient_name, activeFreshCall.room_name);
       }
-      lastCallIdRef.current = activeCall.id;
+      lastCallIdRef.current = activeFreshCall.id;
       return;
     }
 
-    if (lastCallIdRef.current !== activeCall.id) {
+    if (lastCallIdRef.current !== activeFreshCall.id) {
       if (soundEnabled) playWaitingRoomChime();
-      if (speechEnabled) speakPatientCall(activeCall.patient_name, activeCall.room_name);
-      lastCallIdRef.current = activeCall.id;
+      if (speechEnabled) speakPatientCall(activeFreshCall.patient_name, activeFreshCall.room_name);
+      lastCallIdRef.current = activeFreshCall.id;
     }
-  }, [activeCall, soundEnabled, speechEnabled]);
-
-  // Decisão visual: se a chamada foi feita nos últimos 50 segundos, destaque total na chamada!
-  // Caso contrário, roda o carrossel institucional de imagens/anúncios para valorizar a clínica na sala de espera
-  const callAgeMs = activeCall ? Date.now() - new Date(activeCall.called_at).getTime() : Infinity;
-  const isCallFresh = !!activeCall && callAgeMs < 50000;
+  }, [activeFreshCall, maxCallAgeMs, soundEnabled, speechEnabled]);
 
   const activeMediaList = (tvSettings.mediaItems || []).filter((m) => m.active);
   const currentSlide: TvMediaItem | undefined = activeMediaList[currentSlideIndex % Math.max(1, activeMediaList.length)];
 
-  const recentCalls = calls.slice(isCallFresh ? 1 : 0, isCallFresh ? 6 : 5);
+  // Lista lateral: se há uma chamada em destaque central, exibe as outras; se não, exibe todas
+  const recentCalls = isCallFresh
+    ? calls.filter((c) => c.id !== activeFreshCall?.id).slice(0, 6)
+    : calls.slice(0, 6);
 
   const activeTicker = (tvSettings.tickerTexts || [])[tickerIndex % Math.max(1, tvSettings.tickerTexts.length)] ||
     "Bem-vindo ao SondaPro Odontologia • Mantenha sua escovação diária e consulte seu dentista regularmente.";
@@ -809,6 +866,25 @@ export function WaitingRoomTvPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Barra de Progresso Regressiva da Chamada na TV */}
+              <div className="pt-2">
+                <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium pb-1.5">
+                  <span className="flex items-center gap-1.5 text-sky-300">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                    <span>Destaque na TV ({secondsLeft}s restantes)</span>
+                  </span>
+                  <span className="text-slate-500 text-[10px]">
+                    Após o tempo ou ao ser atendido, a tela volta aos anúncios
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800/80 rounded-full h-2 overflow-hidden border border-slate-700/50 p-0.5">
+                  <div
+                    className="bg-gradient-to-r from-sky-400 via-cyan-400 to-emerald-400 h-full rounded-full transition-all duration-1000 ease-linear shadow-sm"
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
             </>
           ) : (
             /* --- MODO CARROSSEL DE ANÚNCIOS INSTITUCIONAIS / PROMOÇÕES --- */
@@ -902,18 +978,51 @@ export function WaitingRoomTvPage() {
                 Nenhuma chamada anterior hoje.
               </p>
             ) : (
-              recentCalls.map((c) => (
+              recentCalls.map((c, idx) => (
                 <div
                   key={c.id}
-                  className="rounded-2xl border border-slate-800/80 bg-slate-950/60 p-4 transition hover:border-slate-700"
+                  className={`rounded-2xl border p-4 transition ${
+                    idx === 0 && !isCallFresh
+                      ? "border-sky-500/50 bg-sky-950/30 shadow-md shadow-sky-950/40"
+                      : "border-slate-800/80 bg-slate-950/60 hover:border-slate-700"
+                  }`}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-1 flex-wrap">
                     <span className="font-mono text-xs font-semibold text-slate-400">
                       {new Date(c.called_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                     </span>
-                    <Badge variant="outline" className="border-slate-800 text-[10px] text-slate-400 capitalize">
-                      {c.room_name}
-                    </Badge>
+                    <div className="flex items-center gap-1.5">
+                      {idx === 0 && !isCallFresh && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400 bg-sky-950/80 border border-sky-600/40 px-1.5 py-0.5 rounded-md">
+                          Último
+                        </span>
+                      )}
+                      {c.status === "called" && (
+                        <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/40 text-[10px] gap-1 py-0 px-2">
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-ping inline-block" />
+                          Chamando
+                        </Badge>
+                      )}
+                      {c.status === "in_attendance" && (
+                        <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/40 text-[10px] gap-1 py-0 px-2 font-medium">
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 inline-block" />
+                          Em Atendimento
+                        </Badge>
+                      )}
+                      {c.status === "completed" && (
+                        <Badge className="bg-sky-500/20 text-sky-300 border-sky-500/40 text-[10px] py-0 px-2 font-medium">
+                          Atendido
+                        </Badge>
+                      )}
+                      {c.status === "cancelled" && (
+                        <Badge variant="outline" className="border-slate-700 text-slate-400 text-[10px] py-0 px-2">
+                          Cancelado
+                        </Badge>
+                      )}
+                      <Badge variant="outline" className="border-slate-800 text-[10px] text-slate-400 capitalize">
+                        {c.room_name}
+                      </Badge>
+                    </div>
                   </div>
                   <h4 className="mt-2 font-bold text-slate-200 capitalize text-sm truncate">
                     {c.patient_name}

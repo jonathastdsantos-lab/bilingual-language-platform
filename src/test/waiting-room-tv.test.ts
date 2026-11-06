@@ -175,5 +175,75 @@ describe("Painel de Chamada em Sala de Espera (TV / Totem)", () => {
       expect(typeof result).toBe("string");
     });
   });
+
+  describe("Temporizadores e Automatização com a Agenda", () => {
+    it("deve carregar e persistir temporizadores customizados de chamada, banners e letreiro", async () => {
+      const { getTvSettings, saveTvSettings, DEFAULT_TV_SETTINGS } = await import("../modules/waiting-room");
+      const settings = getTvSettings(validClinicId);
+      expect(settings.callDisplaySeconds).toBeDefined();
+      expect(settings.slideIntervalSeconds).toBeDefined();
+      expect(settings.tickerIntervalSeconds).toBeDefined();
+      expect(settings.autoDismissOnAttendance).toBe(true);
+
+      const customSettings = {
+        ...settings,
+        callDisplaySeconds: 45,
+        slideIntervalSeconds: 15,
+        tickerIntervalSeconds: 10,
+        autoDismissOnAttendance: true,
+      };
+      saveTvSettings(validClinicId, customSettings);
+
+      const reloaded = getTvSettings(validClinicId);
+      expect(reloaded.callDisplaySeconds).toBe(45);
+      expect(reloaded.slideIntervalSeconds).toBe(15);
+      expect(reloaded.tickerIntervalSeconds).toBe(10);
+      expect(reloaded.autoDismissOnAttendance).toBe(true);
+    });
+
+    it("deve atualizar status da chamada para 'in_attendance' e 'completed' via updateWaitingRoomCallStatus", async () => {
+      const { createWaitingRoomCall, updateWaitingRoomCallStatus, getLocalWaitingRoomCalls } = await import("../modules/waiting-room");
+      const call = await createWaitingRoomCall({
+        clinicId: validClinicId,
+        patientName: "Paciente Status Transition",
+        roomName: "Consultório 02",
+      });
+
+      expect(call.status).toBe("called");
+
+      // Atualiza para em atendimento
+      await updateWaitingRoomCallStatus(validClinicId, call.id, "in_attendance");
+      const localAfterAttendance = getLocalWaitingRoomCalls(validClinicId);
+      const attendedCall = localAfterAttendance.find((c) => c.id === call.id);
+      expect(attendedCall).toBeDefined();
+      expect(attendedCall?.status).toBe("in_attendance");
+
+      // Atualiza para concluído
+      await updateWaitingRoomCallStatus(validClinicId, call.id, "completed");
+      const localAfterCompleted = getLocalWaitingRoomCalls(validClinicId);
+      const completedCall = localAfterCompleted.find((c) => c.id === call.id);
+      expect(completedCall?.status).toBe("completed");
+    });
+
+    it("deve dispensar chamada ativa na TV automaticamente via dismissWaitingRoomCallForPatient ao confirmar atendimento na agenda", async () => {
+      const { createWaitingRoomCall, dismissWaitingRoomCallForPatient, getLocalWaitingRoomCalls } = await import("../modules/waiting-room");
+      const patientName = "Ana Paula Pereira";
+      const call = await createWaitingRoomCall({
+        clinicId: validClinicId,
+        patientName,
+        roomName: "Consultório 01",
+      });
+
+      expect(call.status).toBe("called");
+
+      // Agenda confirma que paciente foi atendido
+      const dismissed = await dismissWaitingRoomCallForPatient(validClinicId, patientName, "in_attendance");
+      expect(dismissed).toBe(true);
+
+      const localCalls = getLocalWaitingRoomCalls(validClinicId);
+      const updated = localCalls.find((c) => c.id === call.id);
+      expect(updated?.status).toBe("in_attendance");
+    });
+  });
 });
 

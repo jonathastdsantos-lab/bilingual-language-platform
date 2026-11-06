@@ -47,6 +47,7 @@ import {
   fetchWaitingRoomCalls,
   playWaitingRoomChime,
   createWaitingRoomCall,
+  updateWaitingRoomCallStatus,
   checkWaitingRoomTableExists,
   getTvSettings,
   saveTvSettings,
@@ -58,6 +59,7 @@ import {
   TvSettings,
   TvMediaItem,
 } from "@/modules/waiting-room";
+import type { WaitingRoomCall, WaitingRoomCallStatus } from "@/types";
 import { supabase } from "@/services/supabase";
 
 export const Route = createFileRoute("/_authenticated/app/tv")({
@@ -345,6 +347,47 @@ function AppTvManagementPage() {
     }
   };
 
+  // Atualiza o status da chamada (ex: em atendimento, concluído) e reflete instantaneamente na TV
+  const handleUpdateStatus = async (callId: string, status: WaitingRoomCallStatus) => {
+    try {
+      await updateWaitingRoomCallStatus(clinicId, callId, status);
+      qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+      if (status === "in_attendance") {
+        toast.success("Paciente marcado em atendimento! Tela da TV liberada para os anúncios institucionais.");
+      } else if (status === "completed") {
+        toast.success("Atendimento concluído com sucesso!");
+      } else {
+        toast.success("Status atualizado!");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao atualizar status";
+      toast.error(msg);
+    }
+  };
+
+  // Chamar o paciente novamente na TV com 1 clique
+  const handleRecallPatient = async (call: WaitingRoomCall) => {
+    try {
+      await createWaitingRoomCall({
+        clinicId,
+        unitId: call.unit_id,
+        patientId: call.patient_id,
+        patientName: call.patient_name,
+        professionalId: call.professional_id,
+        professionalName: call.professional_name,
+        roomId: call.room_id,
+        roomName: call.room_name,
+        priority: call.priority,
+      });
+      qc.invalidateQueries({ queryKey: ["waiting_room_calls"] });
+      playWaitingRoomChime();
+      toast.success(`Paciente "${call.patient_name}" chamado novamente na TV!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao chamar novamente";
+      toast.error(msg);
+    }
+  };
+
   // Salvar configurações de TV
   const handleSaveTvSettings = () => {
     setIsSavingSettings(true);
@@ -565,10 +608,14 @@ function AppTvManagementPage() {
 
       {/* TABS DE CONFIGURAÇÃO DO MÓDULO TV */}
       <Tabs defaultValue="transmission" className="w-full">
-        <TabsList className="grid grid-cols-3 w-full h-11 bg-white border border-slate-200 p-1 rounded-xl shadow-xs">
+        <TabsList className="grid grid-cols-4 w-full h-11 bg-white border border-slate-200 p-1 rounded-xl shadow-xs">
           <TabsTrigger value="transmission" className="text-xs gap-1.5 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700">
             <Tv className="w-3.5 h-3.5" />
             <span>Chamadas & Transmissão</span>
+          </TabsTrigger>
+          <TabsTrigger value="timers" className="text-xs gap-1.5 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700">
+            <Sliders className="w-3.5 h-3.5" />
+            <span>Temporizadores & Duração</span>
           </TabsTrigger>
           <TabsTrigger value="media" className="text-xs gap-1.5 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700">
             <ImageIcon className="w-3.5 h-3.5" />
@@ -576,12 +623,68 @@ function AppTvManagementPage() {
           </TabsTrigger>
           <TabsTrigger value="weather_device" className="text-xs gap-1.5 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700">
             <Laptop className="w-3.5 h-3.5" />
-            <span>Previsão do Tempo & Raspberry Pi</span>
+            <span>Previsão do Tempo & Totem</span>
           </TabsTrigger>
         </TabsList>
 
         {/* ABA 1: CHAMADAS & TRANSMISSÃO */}
         <TabsContent value="transmission" className="mt-5 space-y-6">
+          {/* Card de Chamada Ativa no Momento (com dispensa em 1 clique) */}
+          {(() => {
+            const callDisplaySec = tvSettings.callDisplaySeconds || 35;
+            const liveCalling = calls.find(
+              (c) => c.status === "called" && Date.now() - new Date(c.called_at).getTime() < callDisplaySec * 1000
+            );
+            if (!liveCalling) return null;
+
+            return (
+              <div className="rounded-2xl border-2 border-emerald-400 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-4 shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600 text-white shrink-0 shadow-md">
+                    <Megaphone className="h-5 w-5 animate-bounce" />
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-emerald-600 text-white text-[10px] uppercase font-bold tracking-wider">
+                        Chamando na TV Agora
+                      </Badge>
+                      <span className="text-xs text-emerald-800 font-semibold font-mono">
+                        {liveCalling.room_name}
+                      </span>
+                    </div>
+                    <p className="text-sm font-extrabold text-emerald-950 mt-0.5">
+                      {liveCalling.patient_name} <span className="font-normal text-xs text-emerald-800">({liveCalling.professional_name})</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold gap-1.5 shadow-xs"
+                    onClick={() => handleUpdateStatus(liveCalling.id, "in_attendance")}
+                    title="Paciente entrou no consultório: encerra a chamada em destaque na TV imediatamente e volta aos anúncios"
+                  >
+                    <UserCheck className="h-3.5 w-3.5" />
+                    <span>Iniciar Atendimento (Liberar TV)</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 border-emerald-300 text-emerald-900 hover:bg-emerald-100 text-xs font-semibold gap-1.5"
+                    onClick={() => handleUpdateStatus(liveCalling.id, "completed")}
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+                    <span>Concluir</span>
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Instruções de Conexão na TV / Projetor */}
           <section className="rounded-2xl border bg-gradient-to-r from-sky-50/70 via-white to-blue-50/50 p-5 shadow-xs text-xs space-y-3">
             <div className="flex items-center gap-2 font-bold text-navy text-sm">
@@ -661,12 +764,13 @@ function AppTvManagementPage() {
                     <th className="py-2.5 px-3">Profissional</th>
                     <th className="py-2.5 px-3">Prioridade</th>
                     <th className="py-2.5 px-3">Status</th>
+                    <th className="py-2.5 px-3 text-right">Ações</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {calls.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-6 text-center text-muted-foreground">
+                      <td colSpan={7} className="py-6 text-center text-muted-foreground">
                         {isEn ? "No calls registered today yet." : "Nenhuma chamada realizada hoje ainda."}
                       </td>
                     </tr>
@@ -694,10 +798,70 @@ function AppTvManagementPage() {
                           </Badge>
                         </td>
                         <td className="py-3 px-3">
-                          <span className="inline-flex items-center gap-1.5 text-emerald-700 font-medium text-xs">
-                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                            <span>Chamado</span>
-                          </span>
+                          {c.status === "called" && (
+                            <span className="inline-flex items-center gap-1.5 text-amber-700 font-semibold text-xs bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping inline-block" />
+                              <span>Chamado</span>
+                            </span>
+                          )}
+                          {c.status === "in_attendance" && (
+                            <span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold text-xs bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                              <span>Em Atendimento</span>
+                            </span>
+                          )}
+                          {c.status === "completed" && (
+                            <span className="inline-flex items-center gap-1.5 text-sky-700 font-semibold text-xs bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-md">
+                              <Check className="h-3 w-3 text-sky-600" />
+                              <span>Atendido</span>
+                            </span>
+                          )}
+                          {c.status === "cancelled" && (
+                            <span className="inline-flex items-center gap-1.5 text-slate-500 font-medium text-xs bg-slate-100 px-2 py-0.5 rounded-md">
+                              <span>Cancelado</span>
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-3 text-right">
+                          <div className="flex items-center justify-end gap-1.5">
+                            {c.status === "called" && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-[11px] gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-50 font-medium"
+                                onClick={() => handleUpdateStatus(c.id, "in_attendance")}
+                                title="Marcar em atendimento e liberar a tela da TV para os banners institucionais"
+                              >
+                                <UserCheck className="w-3 h-3 text-emerald-600" />
+                                <span>Atender</span>
+                              </Button>
+                            )}
+                            {c.status === "in_attendance" && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                className="h-7 px-2 text-[11px] gap-1 border-sky-300 text-sky-700 hover:bg-sky-50 font-medium"
+                                onClick={() => handleUpdateStatus(c.id, "completed")}
+                                title="Concluir atendimento"
+                              >
+                                <Check className="w-3 h-3 text-sky-600" />
+                                <span>Concluir</span>
+                              </Button>
+                            )}
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-[11px] gap-1 text-slate-600 hover:text-sky-700 hover:bg-sky-50"
+                              onClick={() => handleRecallPatient(c)}
+                              title="Chamar paciente novamente na TV"
+                            >
+                              <RefreshCw className="w-3 h-3 text-sky-600" />
+                              <span>Rechamar</span>
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -706,6 +870,172 @@ function AppTvManagementPage() {
               </table>
             </div>
           </section>
+        </TabsContent>
+
+        {/* ABA 2: TEMPORIZADORES & DURAÇÃO (NOVA ÁREA DE EDIÇÃO SOLICITADA) */}
+        <TabsContent value="timers" className="mt-5 space-y-6">
+          <Card className="border-slate-200 shadow-xs">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base font-bold text-navy flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-sky-600" />
+                <span>Configuração de Tempo de Exibição na TV (Chamadas, Banners e Avisos)</span>
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-500">
+                Ajuste quanto tempo cada elemento fica visível na TV da sala de espera. As alterações entram em vigor instantaneamente em todas as telas conectadas.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="space-y-6 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {/* 1. Tempo de Destaque da Chamada */}
+                <div className="p-4 rounded-2xl border border-sky-200 bg-gradient-to-b from-sky-50/70 to-white space-y-3 shadow-xs">
+                  <div className="flex items-center gap-2 text-sky-950 font-bold text-sm">
+                    <Megaphone className="w-4 h-4 text-sky-600" />
+                    <span>Destaque da Chamada</span>
+                  </div>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    Tempo em que o nome do paciente e o consultório permanecem em tela cheia central na TV antes de retornar aos banners.
+                  </p>
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-[11px] font-bold text-slate-700">Duração da Chamada</label>
+                    <select
+                      value={tvSettings.callDisplaySeconds}
+                      onChange={(e) => {
+                        const sec = Number(e.target.value);
+                        const updated = { ...tvSettings, callDisplaySeconds: sec };
+                        setTvSettingsState(updated);
+                        saveTvSettings(clinicId, updated);
+                        toast.success(`Tempo de destaque da chamada atualizado para ${sec}s!`);
+                      }}
+                      className="w-full h-9 rounded-lg border border-sky-200 bg-white px-2.5 text-xs font-semibold text-slate-800 shadow-xs"
+                    >
+                      <option value={15}>15 segundos (Rápido)</option>
+                      <option value={25}>25 segundos</option>
+                      <option value={35}>35 segundos (Padrão Recomendado)</option>
+                      <option value={45}>45 segundos</option>
+                      <option value={60}>60 segundos (1 minuto)</option>
+                      <option value={90}>90 segundos (1 min e meio)</option>
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    💡 O painel exibe uma barra de progresso suave indicando o tempo restante.
+                  </p>
+                </div>
+
+                {/* 2. Tempo de Rotação de Imagens e Banners */}
+                <div className="p-4 rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50/60 to-white space-y-3 shadow-xs">
+                  <div className="flex items-center gap-2 text-emerald-950 font-bold text-sm">
+                    <ImageIcon className="w-4 h-4 text-emerald-600" />
+                    <span>Imagens & Banners</span>
+                  </div>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    Intervalo para troca de cada anúncio, foto de tratamento ou banner institucional na tela central.
+                  </p>
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-[11px] font-bold text-slate-700">Troca de Cada Slide</label>
+                    <select
+                      value={tvSettings.slideIntervalSeconds}
+                      onChange={(e) => {
+                        const sec = Number(e.target.value);
+                        const updated = { ...tvSettings, slideIntervalSeconds: sec };
+                        setTvSettingsState(updated);
+                        saveTvSettings(clinicId, updated);
+                        toast.success(`Tempo de troca de banners atualizado para ${sec}s!`);
+                      }}
+                      className="w-full h-9 rounded-lg border border-emerald-200 bg-white px-2.5 text-xs font-semibold text-slate-800 shadow-xs"
+                    >
+                      <option value={8}>8 segundos (Dinâmico)</option>
+                      <option value={12}>12 segundos (Padrão Recomendado)</option>
+                      <option value={15}>15 segundos</option>
+                      <option value={20}>20 segundos</option>
+                      <option value={30}>30 segundos</option>
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    💡 Permite que os pacientes leiam com tranquilidade as informações dos tratamentos.
+                  </p>
+                </div>
+
+                {/* 3. Tempo de Rotação do Letreiro Animado */}
+                <div className="p-4 rounded-2xl border border-indigo-200 bg-gradient-to-b from-indigo-50/60 to-white space-y-3 shadow-xs">
+                  <div className="flex items-center gap-2 text-indigo-950 font-bold text-sm">
+                    <MessageSquare className="w-4 h-4 text-indigo-600" />
+                    <span>Letreiro de Notícias</span>
+                  </div>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">
+                    Intervalo para troca de cada frase no letreiro inferior da TV (Wi-Fi, avisos e dicas de saúde bucal).
+                  </p>
+                  <div className="space-y-1.5 pt-1">
+                    <label className="text-[11px] font-bold text-slate-700">Troca de Frases</label>
+                    <select
+                      value={tvSettings.tickerIntervalSeconds}
+                      onChange={(e) => {
+                        const sec = Number(e.target.value);
+                        const updated = { ...tvSettings, tickerIntervalSeconds: sec };
+                        setTvSettingsState(updated);
+                        saveTvSettings(clinicId, updated);
+                        toast.success(`Tempo de rotação do letreiro atualizado para ${sec}s!`);
+                      }}
+                      className="w-full h-9 rounded-lg border border-indigo-200 bg-white px-2.5 text-xs font-semibold text-slate-800 shadow-xs"
+                    >
+                      <option value={5}>5 segundos (Rápido)</option>
+                      <option value={7}>7 segundos (Padrão Recomendado)</option>
+                      <option value={10}>10 segundos</option>
+                      <option value={15}>15 segundos</option>
+                      <option value={20}>20 segundos</option>
+                    </select>
+                  </div>
+                  <p className="text-[10px] text-slate-500">
+                    💡 O letreiro passa as mensagens de forma contínua e suave para a recepção.
+                  </p>
+                </div>
+              </div>
+
+              {/* Automação com a Agenda Odontológica */}
+              <div className="rounded-2xl border border-sky-200 bg-gradient-to-r from-sky-50/80 via-white to-blue-50/60 p-5 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="space-y-1 max-w-2xl">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-4 h-4 text-sky-600" />
+                      <h4 className="font-extrabold text-navy text-sm">
+                        Automatização Inteligente com a Agenda Odontológica
+                      </h4>
+                    </div>
+                    <p className="text-slate-600 text-xs leading-relaxed">
+                      Quando o paciente for atendido (recepcionista ou dentista confirma na agenda que foi atendido ou status muda para concluído/em atendimento), o nome do paciente <strong>não fica mais chamando na tela principal da TV</strong>. A tela volta imediatamente aos anúncios e o paciente passa a figurar nas <em>Últimas Chamadas</em> da barra lateral com o badge "Em Atendimento" ou "Atendido".
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={tvSettings.autoDismissOnAttendance}
+                      onCheckedChange={(checked) => {
+                        const updated = { ...tvSettings, autoDismissOnAttendance: checked };
+                        setTvSettingsState(updated);
+                        saveTvSettings(clinicId, updated);
+                        toast.success(checked ? "Automação com a Agenda ativada!" : "Automação desativada.");
+                      }}
+                    />
+                    <span className="text-xs font-bold text-slate-800">
+                      {tvSettings.autoDismissOnAttendance ? "Ativado" : "Desativado"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <Button
+                  type="button"
+                  onClick={handleSaveTvSettings}
+                  disabled={isSavingSettings}
+                  className="bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs h-9 gap-1.5 px-4 shadow-xs"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Salvar Todos os Temporizadores</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* ABA 2: ANÚNCIOS & BANNERS */}

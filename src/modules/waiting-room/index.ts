@@ -326,7 +326,55 @@ export async function createWaitingRoomCall(
 }
 
 /**
- * Atualiza o status de atendimento de uma chamada (ex: em atendimento, concluído)
+ * Dispara notificação de atualização de status de chamada entre abas e dispositivos
+ */
+export function broadcastCallStatusUpdate(
+  clinicId: string,
+  callId: string,
+  status: WaitingRoomCallStatus,
+): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    if ("BroadcastChannel" in window) {
+      const bc = new BroadcastChannel("sondapro_waiting_room");
+      bc.postMessage({ type: "UPDATE_CALL_STATUS", callId, status, clinicId });
+      bc.close();
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    window.dispatchEvent(
+      new CustomEvent("sondapro:waiting_room_call_updated", {
+        detail: { callId, status, clinicId },
+      }),
+    );
+  } catch {
+    // ignore
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = (supabase as any).channel(`waiting_room_${clinicId}`);
+    channel.subscribe((subStatus: string) => {
+      if (subStatus === "SUBSCRIBED") {
+        channel.send({
+          type: "broadcast",
+          event: "UPDATE_CALL_STATUS",
+          payload: { callId, status, clinicId },
+        });
+      }
+    });
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Atualiza o status de atendimento de uma chamada (ex: chamado, em atendimento, concluído, cancelado)
+ * Atualiza no banco Supabase, no cache local e emite broadcast em tempo real para a TV
  */
 export async function updateWaitingRoomCallStatus(
   clinicId: string,
@@ -335,17 +383,92 @@ export async function updateWaitingRoomCallStatus(
 ): Promise<void> {
   assertClinicScope(clinicId);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const client = supabase as any;
-  const { error } = await client
-    .from("waiting_room_calls")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("clinic_id", clinicId)
-    .eq("id", callId);
-
-  if (error) {
-    throw new Error(normalizeSupabaseError(error).message);
+  // 1. Atualiza no cache local imediatamente
+  const localCalls = getLocalWaitingRoomCalls(clinicId);
+  let updatedLocally = false;
+  const newLocalCalls = localCalls.map((c) => {
+    if (c.id === callId) {
+      updatedLocally = true;
+      return { ...c, status, updated_at: new Date().toISOString() };
+    }
+    return c;
+  });
+  if (updatedLocally) {
+    saveLocalWaitingRoomCalls(clinicId, newLocalCalls);
   }
+
+  // 2. Dispara broadcast para a TV encerrar o banner imediatamente e atualizar histórico lateral
+  broadcastCallStatusUpdate(clinicId, callId, status);
+
+  // 3. Persiste no banco Supabase
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = supabase as any;
+    const { error } = await client
+      .from("waiting_room_calls")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("clinic_id", clinicId)
+      .eq("id", callId);
+
+    if (error && error.code !== "PGRST205" && error.code !== "42P01") {
+      console.warn("updateWaitingRoomCallStatus Supabase warning:", error.message);
+    }
+  } catch (err) {
+    console.warn("updateWaitingRoomCallStatus error:", err);
+  }
+}
+
+/**
+ * Automatização com a Agenda: dispensa chamadas ativas na TV quando o paciente é atendido ou concluído
+ */
+export async function dismissWaitingRoomCallForPatient(
+  clinicId: string,
+  patientIdentifier: string,
+  newStatus: WaitingRoomCallStatus = "in_attendance",
+): Promise<boolean> {
+  if (!clinicId || !patientIdentifier) return false;
+
+  const settings = getTvSettings(clinicId);
+  if (!settings.autoDismissOnAttendance) {
+    return false;
+  }
+
+  const cleanIdent = patientIdentifier.trim().toLowerCase();
+  const localCalls = getLocalWaitingRoomCalls(clinicId);
+
+  // Encontra chamadas em status "called" associadas ao paciente
+  const matchingCalls = localCalls.filter((c) => {
+    if (c.status !== "called") return false;
+    if (c.patient_id && c.patient_id === patientIdentifier) return true;
+    if (c.patient_name && c.patient_name.toLowerCase().includes(cleanIdent)) return true;
+    return false;
+  });
+
+  if (matchingCalls.length === 0) {
+    // Se não encontrou no cache local, tenta buscar as mais recentes e atualizar
+    try {
+      const recent = await fetchWaitingRoomCalls(clinicId);
+      const matchRemote = recent.filter((c) => {
+        if (c.status !== "called") return false;
+        if (c.patient_id && c.patient_id === patientIdentifier) return true;
+        if (c.patient_name && c.patient_name.toLowerCase().includes(cleanIdent)) return true;
+        return false;
+      });
+
+      for (const call of matchRemote) {
+        await updateWaitingRoomCallStatus(clinicId, call.id, newStatus);
+      }
+      return matchRemote.length > 0;
+    } catch {
+      return false;
+    }
+  }
+
+  for (const call of matchingCalls) {
+    await updateWaitingRoomCallStatus(clinicId, call.id, newStatus);
+  }
+
+  return true;
 }
 
 /**
@@ -460,7 +583,10 @@ export interface TvSettings {
   showWeather: boolean;
   tickerTexts: string[];
   mediaItems: TvMediaItem[];
-  slideIntervalSeconds: number;
+  slideIntervalSeconds: number; // Intervalo para rotação de imagens/banners (segundos)
+  callDisplaySeconds: number; // Tempo em que a chamada do paciente fica em destaque central na TV (segundos)
+  tickerIntervalSeconds: number; // Intervalo de rotação dos textos no letreiro animado de rodapé (segundos)
+  autoDismissOnAttendance: boolean; // Dispensar imediatamente da tela principal da TV ao iniciar atendimento na agenda
 }
 
 export interface WeatherInfo {
@@ -503,12 +629,15 @@ export const DEFAULT_TV_SETTINGS: TvSettings = {
     },
   ],
   slideIntervalSeconds: 12,
+  callDisplaySeconds: 35,
+  tickerIntervalSeconds: 7,
+  autoDismissOnAttendance: true,
 };
 
 const LOCAL_STORAGE_TV_SETTINGS_PREFIX = "sondapro:tv_settings:";
 
 /**
- * Obtém as configurações de mídia, letreiro e clima da TV
+ * Obtém as configurações de mídia, letreiro, clima e temporizadores da TV
  */
 export function getTvSettings(clinicId?: string | null): TvSettings {
   if (typeof window === "undefined") return DEFAULT_TV_SETTINGS;
@@ -520,6 +649,10 @@ export function getTvSettings(clinicId?: string | null): TvSettings {
       return {
         ...DEFAULT_TV_SETTINGS,
         ...parsed,
+        slideIntervalSeconds: Number(parsed.slideIntervalSeconds) || DEFAULT_TV_SETTINGS.slideIntervalSeconds,
+        callDisplaySeconds: Number(parsed.callDisplaySeconds) || DEFAULT_TV_SETTINGS.callDisplaySeconds,
+        tickerIntervalSeconds: Number(parsed.tickerIntervalSeconds) || DEFAULT_TV_SETTINGS.tickerIntervalSeconds,
+        autoDismissOnAttendance: parsed.autoDismissOnAttendance !== undefined ? Boolean(parsed.autoDismissOnAttendance) : DEFAULT_TV_SETTINGS.autoDismissOnAttendance,
         mediaItems: Array.isArray(parsed.mediaItems) && parsed.mediaItems.length > 0 ? parsed.mediaItems : DEFAULT_TV_SETTINGS.mediaItems,
         tickerTexts: Array.isArray(parsed.tickerTexts) && parsed.tickerTexts.length > 0 ? parsed.tickerTexts : DEFAULT_TV_SETTINGS.tickerTexts,
       };
