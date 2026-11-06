@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Building2, Globe, Sparkles, Trash2 } from "lucide-react";
+import { Building2, Globe, Sparkles, Trash2, Smartphone } from "lucide-react";
 import { supabase, normalizeSupabaseError } from "@/services/supabase";
 import { useClinic } from "@/lib/clinic";
 import { useT } from "@/lib/i18n";
@@ -15,6 +15,7 @@ import { ClinicUnitForm } from "@/components/forms/ClinicUnitForm";
 import { ProceduresAndInsurancesPanel } from "@/components/clinics/ProceduresAndInsurancesPanel";
 import { SaasBillingSettingsPanel } from "@/components/settings/SaasBillingSettingsPanel";
 import { OnlineBookingSettingsPanel } from "@/components/settings/OnlineBookingSettingsPanel";
+import { PatientPortalSettingsPanel } from "@/components/settings/PatientPortalSettingsPanel";
 
 export const Route = createFileRoute("/_authenticated/app/settings")({
   head: () => ({
@@ -72,18 +73,22 @@ function SettingsPage() {
       <h1 className="text-3xl font-extrabold text-navy">{t("set.title")}</h1>
 
       <Tabs defaultValue="general" className="w-full space-y-6">
-        <TabsList className="grid w-full max-w-xl grid-cols-3">
+        <TabsList className="grid w-full max-w-2xl grid-cols-4">
           <TabsTrigger value="general" className="gap-2">
             <Building2 className="h-4 w-4" />
             <span>{isEn ? "General & Setup" : "Geral & Estrutura"}</span>
           </TabsTrigger>
           <TabsTrigger value="booking" className="gap-2">
             <Globe className="h-4 w-4 text-teal" />
-            <span>{isEn ? "Online Booking" : "Agendamento Online"}</span>
+            <span>{isEn ? "Online Booking" : "Agendamento"}</span>
+          </TabsTrigger>
+          <TabsTrigger value="portal" className="gap-2">
+            <Smartphone className="h-4 w-4 text-teal" />
+            <span>{isEn ? "Patient App" : "App do Paciente"}</span>
           </TabsTrigger>
           <TabsTrigger value="subscription" className="gap-2">
             <Sparkles className="h-4 w-4 text-sky-600" />
-            <span>{isEn ? "SaaS Subscription" : "Minha Assinatura"}</span>
+            <span>{isEn ? "Subscription" : "Assinatura"}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -231,6 +236,14 @@ function SettingsPage() {
         <TabsContent value="booking">
           <OnlineBookingSettingsPanel
             clinicId={clinicId}
+            canManage={canManageSettings}
+          />
+        </TabsContent>
+
+        <TabsContent value="portal">
+          <PatientPortalSettingsPanel
+            clinicId={clinicId}
+            clinicName={clinicName}
             canManage={canManageSettings}
           />
         </TabsContent>
