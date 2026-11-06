@@ -23,6 +23,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClearAlignerPlanningPanel } from "./ClearAlignerPlanningPanel";
 import {
   fetchOrthodonticTreatment,
   saveOrthodonticTreatment,
@@ -45,6 +47,7 @@ interface OrthodonticsRecordPanelProps {
   clinicId: string;
   patientId: string;
   patientName: string;
+  patientPhone?: string | undefined;
   canWrite: boolean;
 }
 
@@ -52,6 +55,7 @@ export function OrthodonticsRecordPanel({
   clinicId,
   patientId,
   patientName,
+  patientPhone,
   canWrite,
 }: OrthodonticsRecordPanelProps) {
   const qc = useQueryClient();
@@ -192,8 +196,38 @@ export function OrthodonticsRecordPanel({
 
   return (
     <div className="space-y-6">
-      {/* CARD DO TRATAMENTO / APARELHO ATUAL */}
-      {treatment ? (
+      <Tabs defaultValue="alinhadores" className="space-y-6">
+        <TabsList className="bg-slate-100 p-1 border">
+          <TabsTrigger
+            value="alinhadores"
+            className="gap-2 font-bold data-[state=active]:bg-teal data-[state=active]:text-white"
+          >
+            <Sparkles className="h-4 w-4" />
+            Alinhadores Invisíveis
+          </TabsTrigger>
+          <TabsTrigger
+            value="fixa"
+            className="gap-2 font-bold data-[state=active]:bg-teal data-[state=active]:text-white"
+          >
+            <Smile className="h-4 w-4" />
+            Ortodontia Fixa & Manutenções
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="alinhadores" className="space-y-6">
+          <ClearAlignerPlanningPanel
+            clinicId={clinicId}
+            clinicName="SondaPro Dental"
+            patientId={patientId}
+            patientName={patientName}
+            patientPhone={patientPhone}
+            canWrite={canWrite}
+          />
+        </TabsContent>
+
+        <TabsContent value="fixa" className="space-y-6">
+          {/* CARD DO TRATAMENTO / APARELHO ATUAL */}
+          {treatment ? (
         <div className="rounded-3xl border-2 border-teal/20 bg-gradient-to-br from-teal/5 via-white to-slate-50 p-6 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4">
             <div className="flex items-center gap-3">
@@ -423,6 +457,8 @@ export function OrthodonticsRecordPanel({
           )}
         </div>
       )}
+        </TabsContent>
+      </Tabs>
 
       {/* MODAL: FICHA DO TRATAMENTO ORTODÔNTICO */}
       <Dialog open={treatmentModalOpen} onOpenChange={setTreatmentModalOpen}>

@@ -6,6 +6,8 @@ import type {
   HygieneScore,
 } from "@/types";
 
+export * from "./aligners";
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const client = supabase as any;
 

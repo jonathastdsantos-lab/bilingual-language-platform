@@ -259,6 +259,7 @@ function ClinicalRecordsPage() {
                   clinicId={clinicId}
                   patientId={activePatient.id}
                   patientName={activePatient.full_name}
+                  patientPhone={activePatient.phone ?? undefined}
                   canWrite={canWrite}
                 />
               </TabsContent>
