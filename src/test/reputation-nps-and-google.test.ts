@@ -244,9 +244,10 @@ describe("Reputação & Crescimento: Pesquisa NPS + Google Meu Negócio", () => 
 
       const waUrl = buildDetractorAlertWhatsAppUrl("11999998888", detractor, "Odonto Excellence");
       expect(waUrl).toContain("https://wa.me/5511999998888");
-      expect(waUrl).toContain("ALERTA+IMEDIATO+NPS");
-      expect(waUrl).toContain("Julia+Ramos");
-      expect(waUrl).toContain("Nota%3A+3%2F10");
+      const decoded = decodeURIComponent(waUrl);
+      expect(decoded).toContain("ALERTA IMEDIATO NPS");
+      expect(decoded).toContain("Julia Ramos");
+      expect(decoded).toContain("*Nota:* 3/10");
     });
   });
 });
