@@ -144,3 +144,4 @@ describe("Financeiro, Meios de Pagamento & Comissões (Clinicorp / Asaas)", () =
     });
   });
 });
+

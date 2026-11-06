@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AvaliacaoRouteImport } from './routes/avaliacao'
 import { Route as CheckinRouteImport } from './routes/checkin'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -46,6 +47,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AvaliacaoRoute = AvaliacaoRouteImport.update({
+  id: '/avaliacao',
+  path: '/avaliacao',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CheckinRoute = CheckinRouteImport.update({
@@ -161,6 +167,7 @@ const AuthenticatedAppWhatsappRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/avaliacao': typeof AvaliacaoRoute
   '/checkin': typeof CheckinRoute
   '/portal': typeof PortalRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -186,6 +193,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/avaliacao': typeof AvaliacaoRoute
   '/checkin': typeof CheckinRoute
   '/portal': typeof PortalRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -212,6 +220,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/avaliacao': typeof AvaliacaoRoute
   '/checkin': typeof CheckinRoute
   '/portal': typeof PortalRoute
   '/reset-password': typeof ResetPasswordRoute
@@ -239,6 +248,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/avaliacao'
     | '/portal'
     | '/reset-password'
     | '/tv'
@@ -313,6 +323,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  AvaliacaoRoute: typeof AvaliacaoRoute
   CheckinRoute: typeof CheckinRoute
   PortalRoute: typeof PortalRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
@@ -344,6 +355,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/avaliacao': {
+      id: '/avaliacao'
+      path: '/avaliacao'
+      fullPath: '/avaliacao'
+      preLoaderRoute: typeof AvaliacaoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/checkin': {
@@ -544,6 +562,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  AvaliacaoRoute: AvaliacaoRoute,
   CheckinRoute: CheckinRoute,
   PortalRoute: PortalRoute,
   ResetPasswordRoute: ResetPasswordRoute,

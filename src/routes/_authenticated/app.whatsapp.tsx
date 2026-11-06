@@ -17,6 +17,7 @@ import {
   Bot,
   Sparkles,
   RotateCcw,
+  Star,
 } from "lucide-react";
 import { AutomaticRemindersPanel } from "@/components/whatsapp/AutomaticRemindersPanel";
 import { WhatsappQrCodeConnection } from "@/components/whatsapp/WhatsappQrCodeConnection";
@@ -25,6 +26,7 @@ import { WhatsappOwnerAlertsPanel } from "@/components/whatsapp/WhatsappOwnerAle
 import { WhatsappOwnerAssistantPanel } from "@/components/whatsapp/WhatsappOwnerAssistantPanel";
 import { WhatsappCrmKanbanPanel } from "@/components/whatsapp/WhatsappCrmKanbanPanel";
 import { WhatsappRelationshipRuleConfigPanel } from "@/components/whatsapp/WhatsappRelationshipRuleConfigPanel";
+import { ReputationManagementPanel } from "@/components/reputation/ReputationManagementPanel";
 import { supabase } from "@/services/supabase";
 import { useClinic } from "@/lib/clinic";
 import { useT } from "@/lib/i18n";
@@ -293,6 +295,10 @@ function WhatsappCenterPage() {
               <RotateCcw className="h-4 w-4 text-sky-500" />
               Régua de Relacionamento
             </TabsTrigger>
+            <TabsTrigger value="nps-reputation" className="gap-2 text-xs font-bold text-amber-700 dark:text-amber-400">
+              <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+              NPS & Google Meu Negócio
+            </TabsTrigger>
             <TabsTrigger value="connection" className="gap-2 text-xs">
               <QrCode className="h-4 w-4 text-emerald-600" />
               Conexão & QR Code
@@ -338,6 +344,14 @@ function WhatsappCenterPage() {
           {/* TAB: RÉGUA DE RELACIONAMENTO AUTOMÁTICA */}
           <TabsContent value="relationship-rules" className="space-y-4">
             <WhatsappRelationshipRuleConfigPanel
+              clinicId={clinicId}
+              clinicName={clinicName}
+            />
+          </TabsContent>
+
+          {/* TAB: REPUTAÇÃO NPS & GOOGLE MEU NEGÓCIO */}
+          <TabsContent value="nps-reputation" className="space-y-4">
+            <ReputationManagementPanel
               clinicId={clinicId}
               clinicName={clinicName}
             />

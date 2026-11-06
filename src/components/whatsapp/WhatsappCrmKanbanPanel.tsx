@@ -75,49 +75,49 @@ export function WhatsappCrmKanbanPanel({
     color: string;
     badgeBg: string;
   }> = [
-    {
-      key: "welcome",
-      title: "Boas-vindas",
-      icon: <UserCheck className="w-4 h-4 text-sky-500" />,
-      color: "border-sky-500/30",
-      badgeBg: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
-    },
-    {
-      key: "confirmation_48h",
-      title: "Confirmação 48h",
-      icon: <Calendar className="w-4 h-4 text-emerald-500" />,
-      color: "border-emerald-500/30",
-      badgeBg: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
-    },
-    {
-      key: "post_op_care",
-      title: "Pós-Operatório",
-      icon: <Activity className="w-4 h-4 text-indigo-500" />,
-      color: "border-indigo-500/30",
-      badgeBg: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300",
-    },
-    {
-      key: "nps_survey",
-      title: "NPS & Google",
-      icon: <Star className="w-4 h-4 text-amber-500" />,
-      color: "border-amber-500/30",
-      badgeBg: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
-    },
-    {
-      key: "birthday_greeting",
-      title: "Aniversariantes",
-      icon: <Gift className="w-4 h-4 text-pink-500" />,
-      color: "border-pink-500/30",
-      badgeBg: "bg-pink-500/15 text-pink-700 dark:text-pink-300",
-    },
-    {
-      key: "preventive_recall",
-      title: "Recall (6 Meses)",
-      icon: <RotateCcw className="w-4 h-4 text-purple-500" />,
-      color: "border-purple-500/30",
-      badgeBg: "bg-purple-500/15 text-purple-700 dark:text-purple-300",
-    },
-  ];
+      {
+        key: "welcome",
+        title: "Boas-vindas",
+        icon: <UserCheck className="w-4 h-4 text-sky-500" />,
+        color: "border-sky-500/30",
+        badgeBg: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+      },
+      {
+        key: "confirmation_48h",
+        title: "Confirmação 48h",
+        icon: <Calendar className="w-4 h-4 text-emerald-500" />,
+        color: "border-emerald-500/30",
+        badgeBg: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+      },
+      {
+        key: "post_op_care",
+        title: "Pós-Operatório",
+        icon: <Activity className="w-4 h-4 text-indigo-500" />,
+        color: "border-indigo-500/30",
+        badgeBg: "bg-indigo-500/15 text-indigo-700 dark:text-indigo-300",
+      },
+      {
+        key: "nps_survey",
+        title: "NPS & Google",
+        icon: <Star className="w-4 h-4 text-amber-500" />,
+        color: "border-amber-500/30",
+        badgeBg: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
+      },
+      {
+        key: "birthday_greeting",
+        title: "Aniversariantes",
+        icon: <Gift className="w-4 h-4 text-pink-500" />,
+        color: "border-pink-500/30",
+        badgeBg: "bg-pink-500/15 text-pink-700 dark:text-pink-300",
+      },
+      {
+        key: "preventive_recall",
+        title: "Recall (6 Meses)",
+        icon: <RotateCcw className="w-4 h-4 text-purple-500" />,
+        color: "border-purple-500/30",
+        badgeBg: "bg-purple-500/15 text-purple-700 dark:text-purple-300",
+      },
+    ];
 
   // Ação de envio via WhatsApp Web / App
   const handleSendLeadWhatsApp = (lead: CrmPatientLead) => {
@@ -273,11 +273,10 @@ export function WhatsappCrmKanbanPanel({
                       return (
                         <div
                           key={`${lead.patientId}_${lead.stage}`}
-                          className={`p-3.5 rounded-xl border bg-card transition-all shadow-xs space-y-2.5 ${
-                            isSent
+                          className={`p-3.5 rounded-xl border bg-card transition-all shadow-xs space-y-2.5 ${isSent
                               ? "opacity-60 border-emerald-300 dark:border-emerald-900"
                               : "hover:border-primary/40 hover:shadow-md"
-                          }`}
+                            }`}
                         >
                           <div>
                             <div className="flex items-center justify-between gap-1">
@@ -334,11 +333,10 @@ export function WhatsappCrmKanbanPanel({
                             <Button
                               type="button"
                               size="sm"
-                              className={`h-7 text-[10px] flex-1 gap-1 font-bold ${
-                                isSent
+                              className={`h-7 text-[10px] flex-1 gap-1 font-bold ${isSent
                                   ? "bg-slate-700 hover:bg-slate-800 text-white"
                                   : "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                              }`}
+                                }`}
                               onClick={() => handleSendLeadWhatsApp(lead)}
                             >
                               <MessageCircle className="w-3 h-3" />

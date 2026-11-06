@@ -10,8 +10,10 @@ import {
   Award,
   Clock,
   Sparkles,
+  Star,
 } from "lucide-react";
 import { ExecutiveIntelligenceDashboard } from "@/components/reports/ExecutiveIntelligenceDashboard";
+import { ReputationManagementPanel } from "@/components/reputation/ReputationManagementPanel";
 import { supabase } from "@/services/supabase";
 import { useClinic } from "@/lib/clinic";
 import { useT, formatBRL } from "@/lib/i18n";
@@ -295,10 +297,14 @@ function ReportsPage() {
         </div>
       ) : (
         <Tabs defaultValue="intelligence" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-5">
             <TabsTrigger value="intelligence" className="gap-2">
               <Sparkles className="h-4 w-4 text-teal" />
               Inteligência & Curva ABC
+            </TabsTrigger>
+            <TabsTrigger value="reputation" className="gap-2">
+              <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+              Reputação & NPS
             </TabsTrigger>
             <TabsTrigger value="dre" className="gap-2">
               <TrendingUp className="h-4 w-4" />
@@ -319,6 +325,14 @@ function ReportsPage() {
             <ExecutiveIntelligenceDashboard
               dre={dre}
               appointments={appointments}
+              clinicName={clinicName}
+            />
+          </TabsContent>
+
+          {/* TAB: REPUTAÇÃO, NPS & GOOGLE MEU NEGÓCIO */}
+          <TabsContent value="reputation" className="space-y-4">
+            <ReputationManagementPanel
+              clinicId={clinicId}
               clinicName={clinicName}
             />
           </TabsContent>
