@@ -96,3 +96,4 @@ describe("Pilar 2: Atendimento Clínico & Prontuário com Inteligência Artifici
     });
   });
 });
+

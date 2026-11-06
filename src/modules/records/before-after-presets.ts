@@ -61,3 +61,4 @@ export const DENTAL_AESTHETIC_PRESETS: DentalBeforeAfterCase[] = [
     durationWeeks: 24,
   },
 ];
+

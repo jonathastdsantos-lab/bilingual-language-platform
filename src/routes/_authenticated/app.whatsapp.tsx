@@ -15,12 +15,16 @@ import {
   Sliders,
   Bell,
   Bot,
+  Sparkles,
+  RotateCcw,
 } from "lucide-react";
 import { AutomaticRemindersPanel } from "@/components/whatsapp/AutomaticRemindersPanel";
 import { WhatsappQrCodeConnection } from "@/components/whatsapp/WhatsappQrCodeConnection";
 import { WhatsappSendModeConfig } from "@/components/whatsapp/WhatsappSendModeConfig";
 import { WhatsappOwnerAlertsPanel } from "@/components/whatsapp/WhatsappOwnerAlertsPanel";
 import { WhatsappOwnerAssistantPanel } from "@/components/whatsapp/WhatsappOwnerAssistantPanel";
+import { WhatsappCrmKanbanPanel } from "@/components/whatsapp/WhatsappCrmKanbanPanel";
+import { WhatsappRelationshipRuleConfigPanel } from "@/components/whatsapp/WhatsappRelationshipRuleConfigPanel";
 import { supabase } from "@/services/supabase";
 import { useClinic } from "@/lib/clinic";
 import { useT } from "@/lib/i18n";
@@ -281,6 +285,14 @@ function WhatsappCenterPage() {
       ) : (
         <Tabs defaultValue="connection" className="space-y-4">
           <TabsList className="grid w-full grid-cols-2 sm:flex sm:flex-wrap sm:w-auto gap-1">
+            <TabsTrigger value="crm-kanban" className="gap-2 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+              <Sparkles className="h-4 w-4 text-emerald-500 animate-pulse" />
+              CRM & Funil WhatsApp
+            </TabsTrigger>
+            <TabsTrigger value="relationship-rules" className="gap-2 text-xs font-bold text-sky-700 dark:text-sky-400">
+              <RotateCcw className="h-4 w-4 text-sky-500" />
+              Régua de Relacionamento
+            </TabsTrigger>
             <TabsTrigger value="connection" className="gap-2 text-xs">
               <QrCode className="h-4 w-4 text-emerald-600" />
               Conexão & QR Code
@@ -314,6 +326,22 @@ function WhatsappCenterPage() {
               {t("wa.tabHistory")} ({logs.length})
             </TabsTrigger>
           </TabsList>
+
+          {/* TAB: CRM & FUNIL WHATSAPP */}
+          <TabsContent value="crm-kanban" className="space-y-4">
+            <WhatsappCrmKanbanPanel
+              clinicId={clinicId}
+              clinicName={clinicName}
+            />
+          </TabsContent>
+
+          {/* TAB: RÉGUA DE RELACIONAMENTO AUTOMÁTICA */}
+          <TabsContent value="relationship-rules" className="space-y-4">
+            <WhatsappRelationshipRuleConfigPanel
+              clinicId={clinicId}
+              clinicName={clinicName}
+            />
+          </TabsContent>
 
           {/* TAB: CONEXÃO & QR CODE */}
           <TabsContent value="connection" className="space-y-4">
