@@ -21,6 +21,7 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as AgendarSlugRouteImport } from './routes/agendar.$slug'
 import { Route as AssinarTokenRouteImport } from './routes/assinar.$token'
 import { Route as ConfirmTokenRouteImport } from './routes/confirm.$token'
+import { Route as TeleconsultaTokenRouteImport } from './routes/teleconsulta.$token'
 import { Route as ValidarCodeRouteImport } from './routes/validar.$code'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppAgendaRouteImport } from './routes/_authenticated/app.agenda'
@@ -32,6 +33,7 @@ import { Route as AuthenticatedAppSettingsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppStockRouteImport } from './routes/_authenticated/app.stock'
 import { Route as AuthenticatedAppSuperadminRouteImport } from './routes/_authenticated/app.superadmin'
 import { Route as AuthenticatedAppTeamRouteImport } from './routes/_authenticated/app.team'
+import { Route as AuthenticatedAppTeleodontologiaRouteImport } from './routes/_authenticated/app.teleodontologia'
 import { Route as AuthenticatedAppTvRouteImport } from './routes/_authenticated/app.tv'
 import { Route as AuthenticatedAppWhatsappRouteImport } from './routes/_authenticated/app.whatsapp'
 
@@ -94,6 +96,11 @@ const ConfirmTokenRoute = ConfirmTokenRouteImport.update({
   path: '/confirm/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TeleconsultaTokenRoute = TeleconsultaTokenRouteImport.update({
+  id: '/teleconsulta/$token',
+  path: '/teleconsulta/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ValidarCodeRoute = ValidarCodeRouteImport.update({
   id: '/validar/$code',
   path: '/validar/$code',
@@ -152,6 +159,12 @@ const AuthenticatedAppTeamRoute = AuthenticatedAppTeamRouteImport.update({
   path: '/team',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppTeleodontologiaRoute =
+  AuthenticatedAppTeleodontologiaRouteImport.update({
+    id: '/teleodontologia',
+    path: '/teleodontologia',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppTvRoute = AuthenticatedAppTvRouteImport.update({
   id: '/tv',
   path: '/tv',
@@ -176,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/agendar/$slug': typeof AgendarSlugRoute
   '/assinar/$token': typeof AssinarTokenRoute
   '/confirm/$token': typeof ConfirmTokenRoute
+  '/teleconsulta/$token': typeof TeleconsultaTokenRoute
   '/validar/$code': typeof ValidarCodeRoute
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/app/finance': typeof AuthenticatedAppFinanceRoute
@@ -186,6 +200,7 @@ export interface FileRoutesByFullPath {
   '/app/stock': typeof AuthenticatedAppStockRoute
   '/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
+  '/app/teleodontologia': typeof AuthenticatedAppTeleodontologiaRoute
   '/app/tv': typeof AuthenticatedAppTvRoute
   '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/app/': typeof AuthenticatedAppIndexRoute
@@ -201,6 +216,7 @@ export interface FileRoutesByTo {
   '/agendar/$slug': typeof AgendarSlugRoute
   '/assinar/$token': typeof AssinarTokenRoute
   '/confirm/$token': typeof ConfirmTokenRoute
+  '/teleconsulta/$token': typeof TeleconsultaTokenRoute
   '/validar/$code': typeof ValidarCodeRoute
   '/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/app/finance': typeof AuthenticatedAppFinanceRoute
@@ -211,6 +227,7 @@ export interface FileRoutesByTo {
   '/app/stock': typeof AuthenticatedAppStockRoute
   '/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/app/team': typeof AuthenticatedAppTeamRoute
+  '/app/teleodontologia': typeof AuthenticatedAppTeleodontologiaRoute
   '/app/tv': typeof AuthenticatedAppTvRoute
   '/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/app': typeof AuthenticatedAppIndexRoute
@@ -229,6 +246,7 @@ export interface FileRoutesById {
   '/agendar/$slug': typeof AgendarSlugRoute
   '/assinar/$token': typeof AssinarTokenRoute
   '/confirm/$token': typeof ConfirmTokenRoute
+  '/teleconsulta/$token': typeof TeleconsultaTokenRoute
   '/validar/$code': typeof ValidarCodeRoute
   '/_authenticated/app/agenda': typeof AuthenticatedAppAgendaRoute
   '/_authenticated/app/finance': typeof AuthenticatedAppFinanceRoute
@@ -239,6 +257,7 @@ export interface FileRoutesById {
   '/_authenticated/app/stock': typeof AuthenticatedAppStockRoute
   '/_authenticated/app/superadmin': typeof AuthenticatedAppSuperadminRoute
   '/_authenticated/app/team': typeof AuthenticatedAppTeamRoute
+  '/_authenticated/app/teleodontologia': typeof AuthenticatedAppTeleodontologiaRoute
   '/_authenticated/app/tv': typeof AuthenticatedAppTvRoute
   '/_authenticated/app/whatsapp': typeof AuthenticatedAppWhatsappRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
@@ -249,6 +268,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/avaliacao'
+    | '/checkin'
     | '/portal'
     | '/reset-password'
     | '/tv'
@@ -256,6 +276,7 @@ export interface FileRouteTypes {
     | '/agendar/$slug'
     | '/assinar/$token'
     | '/confirm/$token'
+    | '/teleconsulta/$token'
     | '/validar/$code'
     | '/app/agenda'
     | '/app/finance'
@@ -266,6 +287,7 @@ export interface FileRouteTypes {
     | '/app/stock'
     | '/app/superadmin'
     | '/app/team'
+    | '/app/teleodontologia'
     | '/app/tv'
     | '/app/whatsapp'
     | '/app/'
@@ -273,12 +295,15 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/avaliacao'
+    | '/checkin'
     | '/portal'
     | '/reset-password'
     | '/tv'
     | '/agendar/$slug'
     | '/assinar/$token'
     | '/confirm/$token'
+    | '/teleconsulta/$token'
     | '/validar/$code'
     | '/app/agenda'
     | '/app/finance'
@@ -289,6 +314,7 @@ export interface FileRouteTypes {
     | '/app/stock'
     | '/app/superadmin'
     | '/app/team'
+    | '/app/teleodontologia'
     | '/app/tv'
     | '/app/whatsapp'
     | '/app'
@@ -297,6 +323,8 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/avaliacao'
+    | '/checkin'
     | '/portal'
     | '/reset-password'
     | '/tv'
@@ -304,6 +332,7 @@ export interface FileRouteTypes {
     | '/agendar/$slug'
     | '/assinar/$token'
     | '/confirm/$token'
+    | '/teleconsulta/$token'
     | '/validar/$code'
     | '/_authenticated/app/agenda'
     | '/_authenticated/app/finance'
@@ -314,6 +343,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/stock'
     | '/_authenticated/app/superadmin'
     | '/_authenticated/app/team'
+    | '/_authenticated/app/teleodontologia'
     | '/_authenticated/app/tv'
     | '/_authenticated/app/whatsapp'
     | '/_authenticated/app/'
@@ -331,6 +361,7 @@ export interface RootRouteChildren {
   AgendarSlugRoute: typeof AgendarSlugRoute
   AssinarTokenRoute: typeof AssinarTokenRoute
   ConfirmTokenRoute: typeof ConfirmTokenRoute
+  TeleconsultaTokenRoute: typeof TeleconsultaTokenRoute
   ValidarCodeRoute: typeof ValidarCodeRoute
 }
 
@@ -420,6 +451,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfirmTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/teleconsulta/$token': {
+      id: '/teleconsulta/$token'
+      path: '/teleconsulta/$token'
+      fullPath: '/teleconsulta/$token'
+      preLoaderRoute: typeof TeleconsultaTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/validar/$code': {
       id: '/validar/$code'
       path: '/validar/$code'
@@ -497,6 +535,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppTeamRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/teleodontologia': {
+      id: '/_authenticated/app/teleodontologia'
+      path: '/teleodontologia'
+      fullPath: '/app/teleodontologia'
+      preLoaderRoute: typeof AuthenticatedAppTeleodontologiaRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/tv': {
       id: '/_authenticated/app/tv'
       path: '/tv'
@@ -524,6 +569,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppStockRoute: typeof AuthenticatedAppStockRoute
   AuthenticatedAppSuperadminRoute: typeof AuthenticatedAppSuperadminRoute
   AuthenticatedAppTeamRoute: typeof AuthenticatedAppTeamRoute
+  AuthenticatedAppTeleodontologiaRoute: typeof AuthenticatedAppTeleodontologiaRoute
   AuthenticatedAppTvRoute: typeof AuthenticatedAppTvRoute
   AuthenticatedAppWhatsappRoute: typeof AuthenticatedAppWhatsappRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
@@ -539,6 +585,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppStockRoute: AuthenticatedAppStockRoute,
   AuthenticatedAppSuperadminRoute: AuthenticatedAppSuperadminRoute,
   AuthenticatedAppTeamRoute: AuthenticatedAppTeamRoute,
+  AuthenticatedAppTeleodontologiaRoute: AuthenticatedAppTeleodontologiaRoute,
   AuthenticatedAppTvRoute: AuthenticatedAppTvRoute,
   AuthenticatedAppWhatsappRoute: AuthenticatedAppWhatsappRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
@@ -570,6 +617,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgendarSlugRoute: AgendarSlugRoute,
   AssinarTokenRoute: AssinarTokenRoute,
   ConfirmTokenRoute: ConfirmTokenRoute,
+  TeleconsultaTokenRoute: TeleconsultaTokenRoute,
   ValidarCodeRoute: ValidarCodeRoute,
 }
 export const routeTree = rootRouteImport

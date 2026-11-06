@@ -36,6 +36,7 @@ import {
   BookOpen,
   HelpCircle,
   Send,
+  Video,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,6 +63,11 @@ import {
   type PatientPortalInvoice,
   type PostOpGuideItem,
 } from "@/modules/patient-portal";
+import {
+  fetchTeleodontologySessions,
+  CFO_226_MODALITY_LABELS,
+  type TeleodontologySession,
+} from "@/modules/teleodontology";
 import { formatCPF } from "@/utils/validators";
 import { formatCurrencyBRL } from "@/utils/timezone";
 import { toast } from "sonner";
@@ -92,6 +98,7 @@ export function PatientPortalPage() {
   const [documents, setDocuments] = useState<PatientPortalDocument[]>([]);
   const [alignerInfo, setAlignerInfo] = useState<PatientPortalAlignerInfo | null>(null);
   const [invoices, setInvoices] = useState<PatientPortalInvoice[]>([]);
+  const [teleSessions, setTeleSessions] = useState<TeleodontologySession[]>([]);
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
@@ -144,16 +151,18 @@ export function PatientPortalPage() {
   async function loadPortalData(clinicId: string, patientId: string) {
     setIsLoadingData(true);
     try {
-      const [appts, docs, aligner, invs] = await Promise.all([
+      const [appts, docs, aligner, invs, tele] = await Promise.all([
         fetchPatientPortalAppointments(patientId),
         fetchPatientPortalDocuments(patientId),
         fetchPatientPortalAlignerInfo(clinicId, patientId),
         fetchPatientPortalInvoices(clinicId, patientId),
+        fetchTeleodontologySessions(clinicId),
       ]);
       setAppointments(appts);
       setDocuments(docs);
       setAlignerInfo(aligner);
       setInvoices(invs);
+      setTeleSessions(tele.filter((s) => s.patientId === patientId && s.status !== "cancelled"));
     } catch (e) {
       console.error("Erro ao carregar dados do portal:", e);
     } finally {
@@ -603,6 +612,80 @@ export function PatientPortalPage() {
                 {upcomingAppointments.length} agendamento(s)
               </Badge>
             </div>
+
+            {/* Teleconsultas Odontológicas (Resolução CFO 226/2020) */}
+            {teleSessions.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-teal flex items-center gap-1.5 uppercase tracking-wider">
+                  <Video className="w-3.5 h-3.5" />
+                  Teleodontologia & Atendimento a Distância (CFO 226/2020)
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {teleSessions.map((tele) => {
+                    const isCompleted = tele.status === "completed";
+                    const isWaiting = tele.status === "waiting_room";
+                    const isInProgress = tele.status === "in_progress";
+
+                    return (
+                      <Card
+                        key={tele.id}
+                        className={`rounded-3xl border ${
+                          isWaiting || isInProgress
+                            ? "border-teal bg-teal/5 shadow-md ring-2 ring-teal/20"
+                            : "border-slate-200 bg-white"
+                        }`}
+                      >
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <Badge className="bg-teal/15 text-teal font-bold text-[10px]">
+                              {CFO_226_MODALITY_LABELS[tele.modality]}
+                            </Badge>
+                            {isWaiting && (
+                              <Badge className="bg-emerald-600 text-white text-[10px] animate-pulse">
+                                Sala de Espera Ativa
+                              </Badge>
+                            )}
+                            {isInProgress && (
+                              <Badge className="bg-blue-600 text-white text-[10px]">
+                                Chamada em Andamento
+                              </Badge>
+                            )}
+                            {isCompleted && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                Concluída
+                              </Badge>
+                            )}
+                          </div>
+                          <CardTitle className="text-sm font-extrabold text-navy mt-1">
+                            Dr(a). {tele.dentistName || "Cirurgião-Dentista"}
+                          </CardTitle>
+                          <CardDescription className="text-xs text-slate-500">
+                            {new Date(tele.scheduledFor).toLocaleString("pt-BR", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardFooter className="pt-2">
+                          <a
+                            href={`/teleconsulta/${tele.roomToken}`}
+                            className="w-full"
+                          >
+                            <Button
+                              size="sm"
+                              className="w-full bg-teal hover:bg-teal-600 text-white text-xs font-bold gap-1.5 rounded-xl h-9"
+                            >
+                              <Video className="w-3.5 h-3.5" />
+                              {isCompleted ? "Ver Detalhes da Consulta" : "Entrar na Sala Virtual"}
+                            </Button>
+                          </a>
+                        </CardFooter>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {upcomingAppointments.length === 0 ? (
               <Card className="border-dashed border-slate-300 bg-white text-center py-10 rounded-3xl">
