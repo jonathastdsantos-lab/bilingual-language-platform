@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Wallet, Receipt, Award, Lock, Clock, FileSpreadsheet } from "lucide-react";
+import { Wallet, Receipt, Award, Lock, Clock, FileSpreadsheet, CreditCard } from "lucide-react";
 import { supabase } from "@/services/supabase";
 import { useClinic } from "@/lib/clinic";
 import { useT } from "@/lib/i18n";
@@ -24,6 +24,7 @@ import {
 } from "@/components/finance/CommissionsAndClosingPanel";
 import { TissGuidesPanel } from "@/components/finance/TissGuidesPanel";
 import { AdvancedCommissionsPanel } from "@/components/finance/AdvancedCommissionsPanel";
+import { AsaasPaymentsPanel } from "@/components/finance/AsaasPaymentsPanel";
 import type { CashClosing, FinancialEntry } from "@/types";
 
 export const Route = createFileRoute("/_authenticated/app/finance")({
@@ -177,18 +178,22 @@ function FinancePage() {
         </div>
       ) : (
         <Tabs defaultValue="entries" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-4">
+          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-5 gap-1">
             <TabsTrigger value="entries" className="gap-2">
               <Receipt className="h-4 w-4" />
               {t("fin.tabEntries")} ({scopedEntries.length})
             </TabsTrigger>
-            <TabsTrigger value="tiss" className="gap-2">
-              <FileSpreadsheet className="h-4 w-4" />
-              Guias TISS / GTO ({tissGuides.length})
+            <TabsTrigger value="asaas" className="gap-2 font-bold text-emerald-700 dark:text-emerald-400">
+              <CreditCard className="h-4 w-4 text-emerald-600" />
+              Meios de Pagamento & Asaas
             </TabsTrigger>
             <TabsTrigger value="commissions" className="gap-2">
               <Award className="h-4 w-4" />
               {t("fin.tabCommissions")} ({commissions.length})
+            </TabsTrigger>
+            <TabsTrigger value="tiss" className="gap-2">
+              <FileSpreadsheet className="h-4 w-4" />
+              Guias TISS / GTO ({tissGuides.length})
             </TabsTrigger>
             <TabsTrigger value="closing" className="gap-2">
               <Lock className="h-4 w-4" />
@@ -205,6 +210,17 @@ function FinancePage() {
               patients={patients}
               professionals={professionals.map((p) => ({ id: p.id, name: p.name }))}
               onRefresh={loadFinanceData}
+            />
+          </TabsContent>
+
+          <TabsContent value="asaas">
+            <AsaasPaymentsPanel
+              clinicId={clinicId}
+              clinicName={clinicName}
+              patients={patients}
+              professionals={professionals}
+              canManage={canWrite}
+              onRefreshEntries={loadFinanceData}
             />
           </TabsContent>
 
