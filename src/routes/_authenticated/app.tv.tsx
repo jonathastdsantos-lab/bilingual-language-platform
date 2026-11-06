@@ -32,6 +32,10 @@ import {
   Link2,
   FolderOpen,
   Camera,
+  Wifi,
+  ShieldCheck,
+  Smartphone,
+  Video,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -54,6 +58,8 @@ import {
   sendRemoteTvReload,
   getTvHeartbeatStatus,
   compressImageFile,
+  maskPatientNameForTv,
+  generateWifiQrPayload,
   DENTAL_BANNER_PRESETS,
   DentalBannerPreset,
   TvSettings,
@@ -82,6 +88,7 @@ function AppTvManagementPage() {
   const [isCallingTest, setIsCallingTest] = useState(false);
   const [hasCopied, setHasCopied] = useState(false);
   const [hasCopiedKiosk, setHasCopiedKiosk] = useState(false);
+  const [hasCopiedCheckin, setHasCopiedCheckin] = useState(false);
 
   // Configurações de Mídia, Letreiro e Previsão do Tempo
   const [tvSettings, setTvSettingsState] = useState<TvSettings>(() => getTvSettings(clinicId));
@@ -89,6 +96,8 @@ function AppTvManagementPage() {
   const [newSlideTitle, setNewSlideTitle] = useState("");
   const [newSlideSubtitle, setNewSlideSubtitle] = useState("");
   const [newSlideImageUrl, setNewSlideImageUrl] = useState("");
+  const [newSlideMediaType, setNewSlideMediaType] = useState<"image" | "video">("image");
+  const [newSlideVideoUrl, setNewSlideVideoUrl] = useState("");
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
   // Estados de Upload e Inserção de Imagem para Banners da TV
@@ -312,6 +321,8 @@ function AppTvManagementPage() {
   const canWrite = hasPermission("appointments.write");
   const tvUrl = `/tv?clinicId=${clinicId}${activeUnitId && activeUnitId !== "all" ? `&unitId=${activeUnitId}` : ""}`;
   const fullTvUrl = typeof window !== "undefined" ? `${window.location.origin}${tvUrl}` : tvUrl;
+  const checkinUrl = `/checkin?clinicId=${clinicId}`;
+  const fullCheckinUrl = typeof window !== "undefined" ? `${window.location.origin}${checkinUrl}` : checkinUrl;
   const raspberryKioskCommand = `chromium-browser --kiosk --noerrdialogs --disable-infobars --check-for-update-interval=31536000 "${fullTvUrl}"`;
 
   // Função para chamada de teste rápido (1 clique)
@@ -438,6 +449,8 @@ function AppTvManagementPage() {
       title: newSlideTitle.trim(),
       subtitle: newSlideSubtitle.trim() || undefined,
       imageUrl: newSlideImageUrl.trim() || undefined,
+      videoUrl: newSlideVideoUrl.trim() || undefined,
+      mediaType: newSlideMediaType,
       active: true,
     };
     const updated = {
@@ -449,6 +462,8 @@ function AppTvManagementPage() {
     setNewSlideTitle("");
     setNewSlideSubtitle("");
     setNewSlideImageUrl("");
+    setNewSlideVideoUrl("");
+    setNewSlideMediaType("image");
     toast.success("Banner adicionado aos slides da TV!");
   };
 
@@ -608,22 +623,26 @@ function AppTvManagementPage() {
 
       {/* TABS DE CONFIGURAÇÃO DO MÓDULO TV */}
       <Tabs defaultValue="transmission" className="w-full">
-        <TabsList className="grid grid-cols-4 w-full h-11 bg-white border border-slate-200 p-1 rounded-xl shadow-xs">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-5 w-full h-auto sm:h-11 bg-white border border-slate-200 p-1 rounded-xl shadow-xs gap-1">
           <TabsTrigger value="transmission" className="text-xs gap-1.5 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700">
             <Tv className="w-3.5 h-3.5" />
-            <span>Chamadas & Transmissão</span>
+            <span>Chamadas & TV</span>
+          </TabsTrigger>
+          <TabsTrigger value="smart_lounge" className="text-xs gap-1.5 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700 font-bold text-sky-950">
+            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+            <span>Recepção Inteligente</span>
           </TabsTrigger>
           <TabsTrigger value="timers" className="text-xs gap-1.5 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700">
             <Sliders className="w-3.5 h-3.5" />
-            <span>Temporizadores & Duração</span>
+            <span>Temporizadores</span>
           </TabsTrigger>
           <TabsTrigger value="media" className="text-xs gap-1.5 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700">
             <ImageIcon className="w-3.5 h-3.5" />
-            <span>Anúncios & Banners</span>
+            <span>Anúncios & Vídeos</span>
           </TabsTrigger>
           <TabsTrigger value="weather_device" className="text-xs gap-1.5 data-[state=active]:bg-sky-50 data-[state=active]:text-sky-700">
             <Laptop className="w-3.5 h-3.5" />
-            <span>Previsão do Tempo & Totem</span>
+            <span>Clima & Totem</span>
           </TabsTrigger>
         </TabsList>
 
@@ -872,7 +891,321 @@ function AppTvManagementPage() {
           </section>
         </TabsContent>
 
-        {/* ABA 2: TEMPORIZADORES & DURAÇÃO (NOVA ÁREA DE EDIÇÃO SOLICITADA) */}
+        {/* ABA 2: RECEPÇÃO INTELIGENTE (O QUE AS MELHORES CLÍNICAS USAM - COM ON/OFF) */}
+        <TabsContent value="smart_lounge" className="mt-5 space-y-6">
+          <Card className="border-slate-200 shadow-xs">
+            <CardHeader className="pb-3 border-b border-slate-100">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <CardTitle className="text-base font-extrabold text-navy flex items-center gap-2">
+                    <Sparkles className="w-5 h-5 text-amber-500" />
+                    <span>Recursos Avançados da Sala de Espera (Padrão Melhores Clínicas)</span>
+                  </CardTitle>
+                  <CardDescription className="text-xs text-slate-500 mt-1">
+                    Ative ou desative cada recurso com facilidade. As mudanças entram em vigor instantaneamente no painel da TV e na experiência do paciente.
+                  </CardDescription>
+                </div>
+                <Badge className="bg-sky-50 text-sky-800 border-sky-200 text-xs font-semibold">
+                  SondaPro Smart Lounge
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="space-y-6 text-xs pt-6">
+              {/* RECURSO 1: WI-FI GRATUITO COM QR CODE NA TV */}
+              <div className="rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50/60 via-white to-teal-50/40 p-5 space-y-4 shadow-xs">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-sm shrink-0">
+                      <Wifi className="w-5 h-5" />
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-extrabold text-slate-900 text-sm">
+                          1. Wi-Fi da Clínica via QR Code na TV
+                        </h4>
+                        <Badge variant="outline" className={tvSettings.showWifiQr ? "bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px]" : "bg-slate-100 text-slate-600 text-[10px]"}>
+                          {tvSettings.showWifiQr ? "Ativado na TV" : "Desativado"}
+                        </Badge>
+                      </div>
+                      <p className="text-slate-600 text-[11px] mt-0.5 max-w-xl">
+                        Exibe um card elegante na barra lateral da TV com QR Code nativo. O paciente só aponta a câmera do celular e se conecta automaticamente sem precisar digitar senha.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={tvSettings.showWifiQr}
+                      onCheckedChange={(checked) => {
+                        const updated = { ...tvSettings, showWifiQr: checked };
+                        setTvSettingsState(updated);
+                        saveTvSettings(clinicId, updated);
+                        toast.success(checked ? "QR Code de Wi-Fi ativado na TV!" : "QR Code de Wi-Fi ocultado da TV.");
+                      }}
+                    />
+                    <span className="text-xs font-bold text-slate-800">
+                      {tvSettings.showWifiQr ? "Exibindo na TV" : "Oculto"}
+                    </span>
+                  </div>
+                </div>
+
+                {tvSettings.showWifiQr && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-emerald-100">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">Nome da Rede Wi-Fi (SSID)</label>
+                      <Input
+                        type="text"
+                        placeholder="Ex: Clinica_Visitantes"
+                        value={tvSettings.wifiNetworkName}
+                        onChange={(e) => setTvSettingsState({ ...tvSettings, wifiNetworkName: e.target.value })}
+                        className="h-9 text-xs bg-white border-emerald-200"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">Senha do Wi-Fi</label>
+                      <Input
+                        type="text"
+                        placeholder="Ex: sorriso123"
+                        value={tvSettings.wifiPassword}
+                        onChange={(e) => setTvSettingsState({ ...tvSettings, wifiPassword: e.target.value })}
+                        className="h-9 text-xs bg-white border-emerald-200"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      <Button
+                        type="button"
+                        onClick={handleSaveTvSettings}
+                        disabled={isSavingSettings}
+                        className="h-9 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold gap-1.5 w-full shadow-xs"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>Salvar Dados do Wi-Fi</span>
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* RECURSO 2: PRIVACIDADE MÉDICA & LGPD NA TV */}
+              <div className="rounded-2xl border border-sky-200 bg-gradient-to-r from-sky-50/60 via-white to-blue-50/40 p-5 space-y-4 shadow-xs">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-600 text-white shadow-sm shrink-0">
+                      <ShieldCheck className="w-5 h-5" />
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-extrabold text-slate-900 text-sm">
+                          2. Modo Privacidade LGPD (Chamada Sigilosa)
+                        </h4>
+                        <Badge variant="outline" className={tvSettings.enableLgpdPrivacyMode ? "bg-sky-100 text-sky-800 border-sky-300 text-[10px]" : "bg-slate-100 text-slate-600 text-[10px]"}>
+                          {tvSettings.enableLgpdPrivacyMode ? "Sigilo Ativo" : "Nome Completo"}
+                        </Badge>
+                      </div>
+                      <p className="text-slate-600 text-[11px] mt-0.5 max-w-xl">
+                        Protege os dados do paciente ocultando o sobrenome completo na tela da TV e na voz sintetizada (recomendado pelo CFO e órgãos de proteção de dados).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={tvSettings.enableLgpdPrivacyMode}
+                      onCheckedChange={(checked) => {
+                        const updated = { ...tvSettings, enableLgpdPrivacyMode: checked };
+                        setTvSettingsState(updated);
+                        saveTvSettings(clinicId, updated);
+                        toast.success(checked ? "Modo Privacidade LGPD ativado!" : "Exibindo nome completo.");
+                      }}
+                    />
+                    <span className="text-xs font-bold text-slate-800">
+                      {tvSettings.enableLgpdPrivacyMode ? "Privacidade Ativa" : "Desativado"}
+                    </span>
+                  </div>
+                </div>
+
+                {tvSettings.enableLgpdPrivacyMode && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-sky-100">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-700">Formato de Exibição na TV e Fala</label>
+                      <select
+                        value={tvSettings.privacyDisplayFormat}
+                        onChange={(e) => {
+                          const val = e.target.value as "first_and_last_initial" | "first_name_only" | "full_name";
+                          const updated = { ...tvSettings, privacyDisplayFormat: val };
+                          setTvSettingsState(updated);
+                          saveTvSettings(clinicId, updated);
+                          toast.success("Formato de privacidade atualizado!");
+                        }}
+                        className="w-full h-9 rounded-lg border border-sky-200 bg-white px-2.5 text-xs font-semibold text-slate-800 shadow-xs"
+                      >
+                        <option value="first_and_last_initial">Primeiro Nome + Inicial do Sobrenome (ex: Carlos E.) - Recomendado</option>
+                        <option value="first_name_only">Apenas Primeiro Nome (ex: Carlos)</option>
+                        <option value="full_name">Nome Completo (ex: Carlos Eduardo da Silva)</option>
+                      </select>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-white border border-sky-200 flex flex-col justify-center">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-sky-700">
+                        Preview em Tempo Real
+                      </span>
+                      <p className="text-xs font-extrabold text-slate-900 mt-0.5">
+                        {maskPatientNameForTv("Carlos Eduardo da Silva", tvSettings.privacyDisplayFormat)}
+                      </p>
+                      <span className="text-[10px] text-slate-500">
+                        Voz dirá: <em>"Atenção: Paciente {maskPatientNameForTv("Carlos Eduardo da Silva", tvSettings.privacyDisplayFormat)}, favor dirigir-se ao Consultório 01"</em>
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* RECURSO 3: AUTO CHECK-IN DA SALA DE ESPERA (TOTEM & CELULAR) */}
+              <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50/60 via-white to-orange-50/40 p-5 space-y-4 shadow-xs">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-amber-500 text-white shadow-sm shrink-0">
+                      <Smartphone className="w-5 h-5" />
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-extrabold text-slate-900 text-sm">
+                          3. Auto Check-in da Sala de Espera (Totem & Celular)
+                        </h4>
+                        <Badge variant="outline" className={tvSettings.enableSelfCheckin ? "bg-amber-100 text-amber-800 border-amber-300 text-[10px]" : "bg-slate-100 text-slate-600 text-[10px]"}>
+                          {tvSettings.enableSelfCheckin ? "Check-in Liberado" : "Desativado"}
+                        </Badge>
+                      </div>
+                      <p className="text-slate-600 text-[11px] mt-0.5 max-w-xl">
+                        O paciente chega à clínica e confirma presença pelo celular (escaneando a TV) ou em um tablet na entrada. A agenda atualiza automaticamente para <strong>Presente</strong> sem filas no balcão.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={tvSettings.enableSelfCheckin}
+                      onCheckedChange={(checked) => {
+                        const updated = { ...tvSettings, enableSelfCheckin: checked };
+                        setTvSettingsState(updated);
+                        saveTvSettings(clinicId, updated);
+                        toast.success(checked ? "Auto Check-in ativado!" : "Auto Check-in desativado.");
+                      }}
+                    />
+                    <span className="text-xs font-bold text-slate-800">
+                      {tvSettings.enableSelfCheckin ? "Ativado" : "Desativado"}
+                    </span>
+                  </div>
+                </div>
+
+                {tvSettings.enableSelfCheckin && (
+                  <div className="space-y-3 pt-3 border-t border-amber-100">
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-white border border-amber-200">
+                      <div>
+                        <p className="font-bold text-slate-800">Exibir QR Code de Check-in na TV da Recepção</p>
+                        <p className="text-[11px] text-slate-500">Mostra o card para o paciente apontar o celular e fazer check-in sozinho enquanto aguarda.</p>
+                      </div>
+                      <Switch
+                        checked={tvSettings.showCheckinQr}
+                        onCheckedChange={(checked) => {
+                          const updated = { ...tvSettings, showCheckinQr: checked };
+                          setTvSettingsState(updated);
+                          saveTvSettings(clinicId, updated);
+                          toast.success(checked ? "QR Code de Check-in visível na TV!" : "QR Code de Check-in ocultado da TV.");
+                        }}
+                      />
+                    </div>
+
+                    <div className="p-3.5 rounded-xl bg-amber-50/80 border border-amber-200 space-y-2">
+                      <p className="font-bold text-amber-950 text-xs">Link Direto da Tela de Check-in (para Tablet / Totem / Celular):</p>
+                      <div className="flex items-center gap-2">
+                        <code className="flex-1 rounded-lg bg-white border border-amber-300 px-3 py-1.5 font-mono font-bold text-amber-950 text-xs break-all select-all">
+                          {fullCheckinUrl}
+                        </code>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs gap-1.5 shrink-0 bg-amber-600 text-white hover:bg-amber-700 hover:text-white"
+                          onClick={() => {
+                            navigator.clipboard.writeText(fullCheckinUrl);
+                            setHasCopiedCheckin(true);
+                            toast.success("Link do Auto Check-in copiado!");
+                            setTimeout(() => setHasCopiedCheckin(false), 2000);
+                          }}
+                        >
+                          {hasCopiedCheckin ? <Check className="h-4 w-4 text-white" /> : <Copy className="h-4 w-4" />}
+                          <span>{hasCopiedCheckin ? "Copiado!" : "Copiar Link"}</span>
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 px-3 text-xs gap-1.5 shrink-0 bg-slate-900 text-white hover:bg-slate-800"
+                          onClick={() => window.open(checkinUrl, "_blank")}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                          <span>Abrir Totem</span>
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* RECURSO 4: FILA VIRTUAL NO WHATSAPP ("VOCÊ É O PRÓXIMO!") */}
+              <div className="rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50/60 via-white to-purple-50/40 p-5 space-y-4 shadow-xs">
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-sm shrink-0">
+                      <MessageSquare className="w-5 h-5" />
+                    </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-extrabold text-slate-900 text-sm">
+                          4. Fila Virtual no WhatsApp ("Você é o Próximo!")
+                        </h4>
+                        <Badge variant="outline" className={tvSettings.notifyNextPatientOnCall ? "bg-indigo-100 text-indigo-800 border-indigo-300 text-[10px]" : "bg-slate-100 text-slate-600 text-[10px]"}>
+                          {tvSettings.notifyNextPatientOnCall ? "Disparo Ativo" : "Desativado"}
+                        </Badge>
+                      </div>
+                      <p className="text-slate-600 text-[11px] mt-0.5 max-w-xl">
+                        Quando um paciente for chamado para o consultório na TV, o sistema avisa automaticamente o <strong>próximo paciente da agenda</strong> no WhatsApp para permanecer atento na sala de espera.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Switch
+                      checked={tvSettings.notifyNextPatientOnCall}
+                      onCheckedChange={(checked) => {
+                        const updated = { ...tvSettings, notifyNextPatientOnCall: checked };
+                        setTvSettingsState(updated);
+                        saveTvSettings(clinicId, updated);
+                        toast.success(checked ? "Fila Virtual no WhatsApp ativada!" : "Fila Virtual desativada.");
+                      }}
+                    />
+                    <span className="text-xs font-bold text-slate-800">
+                      {tvSettings.notifyNextPatientOnCall ? "Ativado" : "Desativado"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2 border-t border-slate-100">
+                <Button
+                  type="button"
+                  onClick={handleSaveTvSettings}
+                  disabled={isSavingSettings}
+                  className="bg-sky-600 hover:bg-sky-700 text-white font-semibold text-xs h-9 gap-1.5 px-4 shadow-xs"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Salvar Todas as Configurações da Recepção Inteligente</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
         <TabsContent value="timers" className="mt-5 space-y-6">
           <Card className="border-slate-200 shadow-xs">
             <CardHeader className="pb-3">
@@ -1140,52 +1473,99 @@ function AppTvManagementPage() {
                   )}
                 </div>
 
-                {/* Seleção do Modo de Inserção de Imagem */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <Camera className="w-3.5 h-3.5 text-sky-600" />
-                      Inserir Imagem do Banner
-                    </label>
-                    <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
-                      <button
-                        type="button"
-                        onClick={() => setImageInputMode("upload")}
-                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
-                          imageInputMode === "upload"
-                            ? "bg-white text-sky-700 shadow-xs"
-                            : "text-slate-600 hover:text-slate-900"
-                        }`}
-                      >
-                        <UploadCloud className="w-3 h-3 inline mr-1" />
-                        Upload (Arquivo)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setImageInputMode("presets")}
-                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
-                          imageInputMode === "presets"
-                            ? "bg-white text-sky-700 shadow-xs"
-                            : "text-slate-600 hover:text-slate-900"
-                        }`}
-                      >
-                        <Sparkles className="w-3 h-3 inline mr-1 text-amber-500" />
-                        Banco Odontológico
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setImageInputMode("url")}
-                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
-                          imageInputMode === "url"
-                            ? "bg-white text-sky-700 shadow-xs"
-                            : "text-slate-600 hover:text-slate-900"
-                        }`}
-                      >
-                        <Link2 className="w-3 h-3 inline mr-1" />
-                        Link (URL)
-                      </button>
+                {/* Seleção do Tipo de Mídia (Imagem ou Vídeo) e Modo de Inserção */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-bold text-slate-700">Tipo de Mídia:</label>
+                      <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setNewSlideMediaType("image")}
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
+                            newSlideMediaType === "image"
+                              ? "bg-white text-sky-700 shadow-xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          <ImageIcon className="w-3 h-3 inline mr-1" />
+                          Imagem
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setNewSlideMediaType("video")}
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
+                            newSlideMediaType === "video"
+                              ? "bg-white text-sky-700 shadow-xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          <Video className="w-3 h-3 inline mr-1 text-rose-500" />
+                          Vídeo / YouTube
+                        </button>
+                      </div>
                     </div>
+
+                    {newSlideMediaType === "image" && (
+                      <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setImageInputMode("upload")}
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
+                            imageInputMode === "upload"
+                              ? "bg-white text-sky-700 shadow-xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          <UploadCloud className="w-3 h-3 inline mr-1" />
+                          Upload
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setImageInputMode("presets")}
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
+                            imageInputMode === "presets"
+                              ? "bg-white text-sky-700 shadow-xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          <Sparkles className="w-3 h-3 inline mr-1 text-amber-500" />
+                          Banco Odontológico
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setImageInputMode("url")}
+                          className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
+                            imageInputMode === "url"
+                              ? "bg-white text-sky-700 shadow-xs"
+                              : "text-slate-600 hover:text-slate-900"
+                          }`}
+                        >
+                          <Link2 className="w-3 h-3 inline mr-1" />
+                          Link (URL)
+                        </button>
+                      </div>
+                    )}
                   </div>
+
+                  {newSlideMediaType === "video" && (
+                    <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/50 space-y-1.5">
+                      <label className="text-[11px] font-bold text-slate-800 flex items-center gap-1">
+                        <Video className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Link do Vídeo no YouTube ou Arquivo MP4</span>
+                      </label>
+                      <Input
+                        type="url"
+                        placeholder="Ex: https://www.youtube.com/watch?v=dQw4w9WgXcQ ou https://meusite.com/animacao.mp4"
+                        value={newSlideVideoUrl}
+                        onChange={(e) => setNewSlideVideoUrl(e.target.value)}
+                        className="h-9 text-xs bg-white border-rose-200"
+                      />
+                      <p className="text-[10px] text-slate-500">
+                        💡 O vídeo roda automaticamente com áudio mudo no carrossel da TV entre as chamadas de pacientes.
+                      </p>
+                    </div>
+                  )}
 
                   {/* 1. MODO UPLOAD DE ARQUIVO */}
                   {imageInputMode === "upload" && (
@@ -1378,7 +1758,12 @@ function AppTvManagementPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
                 {tvSettings.mediaItems.map((slide) => (
                   <div key={slide.id} className="border border-slate-200 rounded-xl p-3 bg-white flex gap-3 items-start justify-between shadow-xs">
-                    {slide.imageUrl ? (
+                    {slide.mediaType === "video" ? (
+                      <div className="w-20 h-20 rounded-lg bg-rose-950/80 border border-rose-500/30 flex flex-col items-center justify-center text-rose-400 shrink-0 shadow-xs">
+                        <Video className="w-6 h-6 animate-pulse" />
+                        <span className="text-[9px] font-bold uppercase mt-1 text-rose-300">Vídeo</span>
+                      </div>
+                    ) : slide.imageUrl ? (
                       <img src={slide.imageUrl} alt={slide.title} className="w-20 h-20 rounded-lg object-cover border border-slate-100 shrink-0" />
                     ) : (
                       <div className="w-20 h-20 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-600 shrink-0">

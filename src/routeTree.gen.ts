@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as CheckinRouteImport } from './routes/checkin'
 import { Route as PortalRouteImport } from './routes/portal'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as TvRouteImport } from './routes/tv'
@@ -45,6 +46,11 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckinRoute = CheckinRouteImport.update({
+  id: '/checkin',
+  path: '/checkin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortalRoute = PortalRouteImport.update({
@@ -155,6 +161,7 @@ const AuthenticatedAppWhatsappRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/checkin': typeof CheckinRoute
   '/portal': typeof PortalRoute
   '/reset-password': typeof ResetPasswordRoute
   '/tv': typeof TvRoute
@@ -179,6 +186,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/checkin': typeof CheckinRoute
   '/portal': typeof PortalRoute
   '/reset-password': typeof ResetPasswordRoute
   '/tv': typeof TvRoute
@@ -204,6 +212,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/checkin': typeof CheckinRoute
   '/portal': typeof PortalRoute
   '/reset-password': typeof ResetPasswordRoute
   '/tv': typeof TvRoute
@@ -304,6 +313,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  CheckinRoute: typeof CheckinRoute
   PortalRoute: typeof PortalRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   TvRoute: typeof TvRoute
@@ -334,6 +344,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkin': {
+      id: '/checkin'
+      path: '/checkin'
+      fullPath: '/checkin'
+      preLoaderRoute: typeof CheckinRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portal': {
@@ -527,6 +544,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  CheckinRoute: CheckinRoute,
   PortalRoute: PortalRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   TvRoute: TvRoute,

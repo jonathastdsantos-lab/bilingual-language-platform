@@ -245,5 +245,81 @@ describe("Painel de Chamada em Sala de Espera (TV / Totem)", () => {
       expect(updated?.status).toBe("in_attendance");
     });
   });
+
+  describe("Pilar 1: Recursos Avançados de Sala de Espera & TV (O que as Melhores Clínicas Usam)", () => {
+    it("deve mascarar nomes de pacientes conforme modo de privacidade LGPD configurável", async () => {
+      const { maskPatientNameForTv } = await import("../modules/waiting-room");
+
+      // Primeiro nome e inicial do último sobrenome (ex: Carlos S.)
+      expect(maskPatientNameForTv("Carlos Eduardo Silva", "first_and_last_initial")).toBe("Carlos S.");
+      expect(maskPatientNameForTv("Ana Paula", "first_and_last_initial")).toBe("Ana P.");
+      expect(maskPatientNameForTv("Beatriz", "first_and_last_initial")).toBe("Beatriz");
+      expect(maskPatientNameForTv("", "first_and_last_initial")).toBe("Paciente");
+
+      // Apenas primeiro nome
+      expect(maskPatientNameForTv("Carlos Eduardo Silva", "first_name_only")).toBe("Carlos");
+      expect(maskPatientNameForTv("Maria Souza", "first_name_only")).toBe("Maria");
+
+      // Nome completo mantido
+      expect(maskPatientNameForTv("Carlos Eduardo Silva", "full_name")).toBe("Carlos Eduardo Silva");
+    });
+
+    it("deve gerar string padrão de QR Code de Wi-Fi reconhecido por câmeras de iOS e Android", async () => {
+      const { generateWifiQrPayload } = await import("../modules/waiting-room");
+
+      const payload = generateWifiQrPayload("Clinica_Visitantes", "Sorriso2026!");
+      expect(payload).toBe("WIFI:T:WPA;S:Clinica_Visitantes;P:Sorriso2026!;;");
+
+      // Rede sem senha
+      const openPayload = generateWifiQrPayload("Clinica_Aberta", "");
+      expect(openPayload).toBe("WIFI:T:nopass;S:Clinica_Aberta;;");
+    });
+
+    it("deve persistir e carregar todas as opções de ativar/desativar dos novos recursos na TV", async () => {
+      const { saveTvSettings, getTvSettings, DEFAULT_TV_SETTINGS } = await import("../modules/waiting-room");
+
+      // Padrão possui valores padrão consistentes
+      expect(DEFAULT_TV_SETTINGS.showWifiQr).toBe(true);
+      expect(DEFAULT_TV_SETTINGS.enableLgpdPrivacyMode).toBe(false);
+      expect(DEFAULT_TV_SETTINGS.enableSelfCheckin).toBe(true);
+      expect(DEFAULT_TV_SETTINGS.notifyNextPatientOnCall).toBe(true);
+
+      // Salva customizações com switches desativados e ativados
+      saveTvSettings(validClinicId, {
+        ...DEFAULT_TV_SETTINGS,
+        showWifiQr: false,
+        wifiNetworkName: "Odonto_VIP",
+        wifiPassword: "SegredoOdonto#",
+        enableLgpdPrivacyMode: true,
+        privacyDisplayFormat: "first_and_last_initial",
+        showCheckinQr: true,
+        enableSelfCheckin: true,
+        notifyNextPatientOnCall: false,
+      });
+
+      const loaded = getTvSettings(validClinicId);
+      expect(loaded.showWifiQr).toBe(false);
+      expect(loaded.wifiNetworkName).toBe("Odonto_VIP");
+      expect(loaded.wifiPassword).toBe("SegredoOdonto#");
+      expect(loaded.enableLgpdPrivacyMode).toBe(true);
+      expect(loaded.privacyDisplayFormat).toBe("first_and_last_initial");
+      expect(loaded.showCheckinQr).toBe(true);
+      expect(loaded.notifyNextPatientOnCall).toBe(false);
+    });
+
+    it("deve simular auto check-in e notificação da fila virtual do próximo paciente", async () => {
+      const { performPatientCheckin, notifyNextPatientInLine } = await import("../modules/waiting-room");
+
+      // Auto check-in
+      const checkinResult = await performPatientCheckin(validClinicId, "11988887777");
+      expect(checkinResult).toBeDefined();
+      expect(typeof checkinResult.success).toBe("boolean");
+
+      // Fila virtual: notificar o próximo paciente quando anterior for chamado
+      const result = await notifyNextPatientInLine(validClinicId, "Consultório 01");
+      expect(result).toBeDefined();
+      expect(typeof result.notified).toBe("boolean");
+    });
+  });
 });
 

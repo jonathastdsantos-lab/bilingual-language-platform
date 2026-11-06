@@ -28,6 +28,9 @@ import {
   Info,
   CheckCircle2,
   LogIn,
+  Wifi,
+  Video,
+  Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -49,6 +52,8 @@ import {
   getTvSettings,
   fetchWeatherForecast,
   recordTvHeartbeat,
+  maskPatientNameForTv,
+  generateWifiQrPayload,
   TvSettings,
   TvMediaItem,
   WeatherInfo,
@@ -571,12 +576,16 @@ export function WaitingRoomTvPage() {
   useEffect(() => {
     if (!activeFreshCall) return;
 
+    const spokenName = tvSettings.enableLgpdPrivacyMode
+      ? maskPatientNameForTv(activeFreshCall.patient_name, tvSettings.privacyDisplayFormat)
+      : activeFreshCall.patient_name;
+
     if (isFirstRenderRef.current) {
       isFirstRenderRef.current = false;
       const ageMs = Date.now() - new Date(activeFreshCall.called_at).getTime();
       if (ageMs < maxCallAgeMs) {
         if (soundEnabled) playWaitingRoomChime();
-        if (speechEnabled) speakPatientCall(activeFreshCall.patient_name, activeFreshCall.room_name);
+        if (speechEnabled) speakPatientCall(spokenName, activeFreshCall.room_name);
       }
       lastCallIdRef.current = activeFreshCall.id;
       return;
@@ -584,10 +593,10 @@ export function WaitingRoomTvPage() {
 
     if (lastCallIdRef.current !== activeFreshCall.id) {
       if (soundEnabled) playWaitingRoomChime();
-      if (speechEnabled) speakPatientCall(activeFreshCall.patient_name, activeFreshCall.room_name);
+      if (speechEnabled) speakPatientCall(spokenName, activeFreshCall.room_name);
       lastCallIdRef.current = activeFreshCall.id;
     }
-  }, [activeFreshCall, maxCallAgeMs, soundEnabled, speechEnabled]);
+  }, [activeFreshCall, maxCallAgeMs, soundEnabled, speechEnabled, tvSettings.enableLgpdPrivacyMode, tvSettings.privacyDisplayFormat]);
 
   const activeMediaList = (tvSettings.mediaItems || []).filter((m) => m.active);
   const currentSlide: TvMediaItem | undefined = activeMediaList[currentSlideIndex % Math.max(1, activeMediaList.length)];
@@ -832,8 +841,15 @@ export function WaitingRoomTvPage() {
                   Paciente
                 </span>
                 <h2 className="text-5xl lg:text-7xl font-black text-white tracking-tight drop-shadow-md capitalize">
-                  {activeCall.patient_name}
+                  {tvSettings.enableLgpdPrivacyMode
+                    ? maskPatientNameForTv(activeCall.patient_name, tvSettings.privacyDisplayFormat)
+                    : activeCall.patient_name}
                 </h2>
+                {tvSettings.enableLgpdPrivacyMode && (
+                  <Badge variant="outline" className="border-sky-500/40 text-sky-300 text-[10px] gap-1 py-0.5">
+                    <span>Modo Privacidade LGPD Ativo</span>
+                  </Badge>
+                )}
               </div>
 
               {/* Box de Consultório e Dentista */}
@@ -900,14 +916,38 @@ export function WaitingRoomTvPage() {
                 {activeCall && (
                   <Badge variant="outline" className="border-slate-700 bg-slate-900/80 text-slate-300 text-[11px] gap-1.5">
                     <Clock className="w-3 h-3 text-sky-400" />
-                    Último chamado: <strong className="text-white">{activeCall.patient_name}</strong> ({activeCall.room_name})
+                    Último chamado: <strong className="text-white">
+                      {tvSettings.enableLgpdPrivacyMode
+                        ? maskPatientNameForTv(activeCall.patient_name, tvSettings.privacyDisplayFormat)
+                        : activeCall.patient_name}
+                    </strong> ({activeCall.room_name})
                   </Badge>
                 )}
               </div>
 
-              {/* Slide Atual com Imagem e Textos */}
+              {/* Slide Atual com Vídeo OU Imagem e Textos */}
               <div className="my-auto py-4 flex flex-col md:flex-row items-center gap-8">
-                {currentSlide?.imageUrl ? (
+                {currentSlide?.mediaType === "video" && currentSlide?.videoUrl ? (
+                  <div className="w-full md:w-1/2 h-64 md:h-80 rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80 relative shrink-0 bg-black">
+                    {currentSlide.videoUrl.includes("youtube.com") || currentSlide.videoUrl.includes("youtu.be") ? (
+                      <iframe
+                        src={`${currentSlide.videoUrl.replace("watch?v=", "embed/")}?autoplay=1&mute=1&controls=0&loop=1`}
+                        title={currentSlide.title}
+                        className="w-full h-full object-cover"
+                        allow="autoplay; encrypted-media"
+                      />
+                    ) : (
+                      <video
+                        src={currentSlide.videoUrl}
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
+                    )}
+                  </div>
+                ) : currentSlide?.imageUrl ? (
                   <div className="w-full md:w-1/2 h-64 md:h-80 rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80 relative shrink-0">
                     <img
                       src={currentSlide.imageUrl}
@@ -1035,29 +1075,90 @@ export function WaitingRoomTvPage() {
             )}
           </div>
 
-          {/* Card QR Code Portal do Paciente (Inspirado no DigitalSignageOS) */}
-          <div className="mt-3 rounded-2xl border border-sky-500/20 bg-sky-950/40 p-3.5 flex items-center gap-3 backdrop-blur-sm">
-            <div className="bg-white p-1 rounded-xl shrink-0 shadow-md">
-              <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=0&data=${encodeURIComponent(
-                  typeof window !== "undefined" ? `${window.location.origin}/portal` : "https://sondapro.com.br/portal"
-                )}`}
-                alt="QR Code Portal do Paciente"
-                className="w-14 h-14 object-contain"
-                loading="lazy"
-              />
-            </div>
-            <div className="flex-1 text-left min-w-0">
-              <div className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-sky-400">
-                <QrCode className="w-3.5 h-3.5 shrink-0" />
-                <span>Portal do Paciente</span>
+          {/* Cards de Serviços ao Paciente na Recepção (Wi-Fi, Auto Check-in e Portal) */}
+          <div className="mt-3 space-y-2">
+            {/* Card 1: Conexão Wi-Fi Direta via QR Code (quando ativado) */}
+            {tvSettings.showWifiQr && (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/40 p-2.5 flex items-center gap-2.5 backdrop-blur-sm shadow-sm">
+                <div className="bg-white p-1 rounded-xl shrink-0 shadow-md">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=0&data=${encodeURIComponent(
+                      generateWifiQrPayload(tvSettings.wifiNetworkName, tvSettings.wifiPassword),
+                    )}`}
+                    alt="QR Code Conexão Wi-Fi"
+                    className="w-11 h-11 object-contain"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="flex-1 text-left min-w-0">
+                  <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                    <Wifi className="w-3 h-3 shrink-0" />
+                    <span>Wi-Fi Gratuito</span>
+                  </div>
+                  <p className="text-[11px] font-semibold text-slate-200 mt-0.5 truncate">
+                    Rede: <span className="text-white font-mono">{tvSettings.wifiNetworkName}</span>
+                  </p>
+                  <span className="text-[9px] text-emerald-300/80 font-medium block truncate">
+                    Aponte para conectar sem digitar senha
+                  </span>
+                </div>
               </div>
-              <p className="text-xs font-semibold text-slate-200 mt-0.5 leading-snug">
-                Aponte o celular para agendar ou ver receitas
-              </p>
-              <span className="text-[10px] text-slate-400 font-mono mt-0.5 block truncate">
-                {typeof window !== "undefined" ? `${window.location.host}/portal` : "sondapro.com/portal"}
-              </span>
+            )}
+
+            {/* Card 2: Auto Check-in do Paciente na Recepção (quando ativado) */}
+            {tvSettings.showCheckinQr && (
+              <div className="rounded-2xl border border-amber-500/30 bg-amber-950/40 p-2.5 flex items-center gap-2.5 backdrop-blur-sm shadow-sm">
+                <div className="bg-white p-1 rounded-xl shrink-0 shadow-md">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=0&data=${encodeURIComponent(
+                      typeof window !== "undefined"
+                        ? `${window.location.origin}/checkin?clinicId=${effectiveClinicId}`
+                        : `https://sondapro.com.br/checkin?clinicId=${effectiveClinicId}`,
+                    )}`}
+                    alt="QR Code Auto Check-in"
+                    className="w-11 h-11 object-contain"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="flex-1 text-left min-w-0">
+                  <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                    <Smartphone className="w-3 h-3 shrink-0" />
+                    <span>Auto Check-in</span>
+                  </div>
+                  <p className="text-[11px] font-semibold text-slate-200 mt-0.5 leading-snug">
+                    Chegou? Confirme sua presença
+                  </p>
+                  <span className="text-[9px] text-amber-300/80 font-medium block truncate">
+                    Aponte o celular e evite filas
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Card 3: Portal do Paciente */}
+            <div className="rounded-2xl border border-sky-500/20 bg-sky-950/40 p-2.5 flex items-center gap-2.5 backdrop-blur-sm">
+              <div className="bg-white p-1 rounded-xl shrink-0 shadow-md">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=0&data=${encodeURIComponent(
+                    typeof window !== "undefined" ? `${window.location.origin}/portal` : "https://sondapro.com.br/portal",
+                  )}`}
+                  alt="QR Code Portal do Paciente"
+                  className="w-11 h-11 object-contain"
+                  loading="lazy"
+                />
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-sky-400">
+                  <QrCode className="w-3 h-3 shrink-0" />
+                  <span>Portal do Paciente</span>
+                </div>
+                <p className="text-[11px] font-semibold text-slate-200 mt-0.5 leading-snug">
+                  Agende ou veja receitas
+                </p>
+                <span className="text-[9px] text-slate-400 font-mono mt-0.5 block truncate">
+                  {typeof window !== "undefined" ? `${window.location.host}/portal` : "sondapro.com/portal"}
+                </span>
+              </div>
             </div>
           </div>
 

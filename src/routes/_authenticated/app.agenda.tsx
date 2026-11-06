@@ -100,17 +100,17 @@ function Agenda() {
   const catalogOptions =
     (catalogQuery.data ?? []).length > 0
       ? (catalogQuery.data ?? []).map((c) => ({
-          key: c.id,
-          label: `${c.tuss_code ? `[${c.tuss_code}] ` : ""}${c.name}`,
-          price: Number(c.base_price) || 0,
-          duration: Number(c.default_duration_minutes) || 60,
-        }))
+        key: c.id,
+        label: `${c.tuss_code ? `[${c.tuss_code}] ` : ""}${c.name}`,
+        price: Number(c.base_price) || 0,
+        duration: Number(c.default_duration_minutes) || 60,
+      }))
       : STANDARD_TUSS_PROCEDURES.map((c) => ({
-          key: c.tuss_code,
-          label: `[${c.tuss_code}] ${c.name}`,
-          price: c.base_price,
-          duration: c.default_duration_minutes,
-        }));
+        key: c.tuss_code,
+        label: `[${c.tuss_code}] ${c.name}`,
+        price: c.base_price,
+        duration: c.default_duration_minutes,
+      }));
 
   const consumeStockMut = useMutation({
     mutationFn: async () => {
@@ -227,10 +227,10 @@ function Agenda() {
       const eventType = isNew
         ? "booked"
         : f.status === "cancelled"
-        ? "cancelled"
-        : f.status === "confirmed"
-        ? "confirmed"
-        : "booked";
+          ? "cancelled"
+          : f.status === "confirmed"
+            ? "confirmed"
+            : "booked";
 
       // Dispara em background
       void dispatchAppointmentNotification(

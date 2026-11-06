@@ -316,11 +316,18 @@ export async function createWaitingRoomCall(
       const realCall = res.data as WaitingRoomCall;
       const synced = [realCall, ...updatedLocal.filter((c) => c.id !== payload.id && c.id !== realCall.id)];
       saveLocalWaitingRoomCalls(params.clinicId, synced);
+
+      // Fila Virtual: Dispara notificação no WhatsApp para o próximo paciente da fila se ativado
+      void notifyNextPatientInLine(params.clinicId, cleanPatientName);
+
       return realCall;
     }
   } catch (err) {
     console.warn("createWaitingRoomCall: Supabase sync warning, kept local call:", err);
   }
+
+  // Fila Virtual no fallback local
+  void notifyNextPatientInLine(params.clinicId, cleanPatientName);
 
   return payload;
 }
@@ -471,6 +478,202 @@ export async function dismissWaitingRoomCallForPatient(
   return true;
 }
 
+export interface PatientCheckinResult {
+  success: boolean;
+  message: string;
+  patientName?: string;
+  professionalName?: string;
+  roomName?: string;
+  startsAt?: string;
+  appointmentId?: string;
+}
+
+/**
+ * Realiza o Auto Check-in do paciente na sala de espera
+ * (Disponível via Totem ou escaneando o QR Code na TV da recepção)
+ */
+export async function performPatientCheckin(
+  clinicId: string,
+  rawIdentifier: string, // CPF ou Celular
+): Promise<PatientCheckinResult> {
+  assertClinicScope(clinicId);
+
+  const clean = rawIdentifier.replace(/\D/g, "");
+  if (!clean || clean.length < 8) {
+    return {
+      success: false,
+      message: "Informe um CPF ou número de celular válido para realizar o check-in.",
+    };
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = supabase as any;
+
+    // 1. Busca paciente por CPF ou Telefone
+    let patientQuery = client
+      .from("patients")
+      .select("id, full_name, phone")
+      .eq("clinic_id", clinicId);
+
+    if (clean.length === 11) {
+      patientQuery = patientQuery.or(`cpf.eq.${clean},phone.ilike.%${clean}%,whatsapp.ilike.%${clean}%`);
+    } else {
+      patientQuery = patientQuery.or(`phone.ilike.%${clean}%,whatsapp.ilike.%${clean}%`);
+    }
+
+    const { data: patients, error: patErr } = await patientQuery.limit(1);
+    const patient = patients?.[0];
+
+    if (patErr || !patient) {
+      return {
+        success: false,
+        message: "Cadastro não localizado. Por favor, apresente-se na recepção para confirmar seus dados.",
+      };
+    }
+
+    // 2. Busca consulta agendada para hoje
+    const today = new Date();
+    const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0).toISOString();
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString();
+
+    const { data: appointments, error: apptErr } = await client
+      .from("appointments")
+      .select("id, starts_at, status, room_id, professional_id, procedure, professionals(name), rooms(name)")
+      .eq("clinic_id", clinicId)
+      .eq("patient_id", patient.id)
+      .gte("starts_at", startOfDay)
+      .lte("starts_at", endOfDay)
+      .order("starts_at", { ascending: true })
+      .limit(1);
+
+    const appt = appointments?.[0];
+    if (apptErr || !appt) {
+      return {
+        success: false,
+        message: `Olá, ${patient.full_name}! Não encontramos consulta agendada para hoje em seu nome. Por favor, consulte a recepção.`,
+        patientName: patient.full_name,
+      };
+    }
+
+    // 3. Atualiza status na agenda para 'confirmed' (Presença Confirmada) e salva horário de chegada
+    const nowTime = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    await client
+      .from("appointments")
+      .update({
+        status: "confirmed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("clinic_id", clinicId)
+      .eq("id", appt.id);
+
+    // 4. Dispara evento e broadcast de check-in para que a recepção e o dentista vejam imediatamente
+    if (typeof window !== "undefined") {
+      try {
+        if ("BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("sondapro_waiting_room");
+          bc.postMessage({
+            type: "PATIENT_CHECKIN",
+            clinicId,
+            patientName: patient.full_name,
+            appointmentId: appt.id,
+            time: nowTime,
+          });
+          bc.close();
+        }
+      } catch {
+        // ignore
+      }
+
+      window.dispatchEvent(
+        new CustomEvent("sondapro:patient_checkin", {
+          detail: { clinicId, patientName: patient.full_name, appointmentId: appt.id, time: nowTime },
+        }),
+      );
+    }
+
+    return {
+      success: true,
+      message: `Presença confirmada às ${nowTime}! Por favor, tome assento na sala de espera. O profissional anunciará seu nome no painel da TV.`,
+      patientName: patient.full_name,
+      professionalName: appt.professionals?.name || "Dentista Responsável",
+      roomName: appt.rooms?.name || "Consultório",
+      startsAt: appt.starts_at,
+      appointmentId: appt.id,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Erro ao processar check-in";
+    return {
+      success: false,
+      message: `Falha ao processar check-in: ${msg}. Por favor, avise a recepcionista.`,
+    };
+  }
+}
+
+/**
+ * Fila Virtual Inteligente: Notifica o próximo paciente da fila por WhatsApp quando a consulta anterior é chamada na TV
+ */
+export async function notifyNextPatientInLine(
+  clinicId: string,
+  calledPatientName: string,
+): Promise<{ notified: boolean; patientName?: string }> {
+  if (!clinicId) return { notified: false };
+
+  const settings = getTvSettings(clinicId);
+  if (!settings.notifyNextPatientOnCall) {
+    return { notified: false };
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const client = supabase as any;
+    const nowIso = new Date().toISOString();
+    const today = new Date();
+    const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59).toISOString();
+
+    const { data: upcoming } = await client
+      .from("appointments")
+      .select("id, starts_at, patients(id, full_name, phone, whatsapp), professionals(name)")
+      .eq("clinic_id", clinicId)
+      .gte("starts_at", nowIso)
+      .lte("starts_at", endOfDay)
+      .in("status", ["scheduled", "confirmed"])
+      .order("starts_at", { ascending: true })
+      .limit(4);
+
+    if (Array.isArray(upcoming)) {
+      const nextOne = upcoming.find(
+        (a) =>
+          a.patients?.full_name &&
+          !a.patients.full_name.toLowerCase().includes(calledPatientName.toLowerCase().trim()),
+      );
+
+      if (nextOne && nextOne.patients?.full_name) {
+        const phone = nextOne.patients.whatsapp || nextOne.patients.phone;
+        if (phone) {
+          const { dispatchAppointmentNotification } = await import("@/modules/whatsapp/connection");
+          await dispatchAppointmentNotification(
+            clinicId,
+            {
+              patientName: nextOne.patients.full_name,
+              patientPhone: phone,
+              startsAt: nextOne.starts_at,
+              professionalName: nextOne.professionals?.name || "Dentista",
+              procedure: "Sua vez está chegando na Sala de Espera",
+            },
+            "booked",
+          );
+          return { notified: true, patientName: nextOne.patients.full_name };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("notifyNextPatientInLine warning:", e);
+  }
+
+  return { notified: false };
+}
+
 /**
  * Sintetiza o som de chamada (Ding-Dong) via Web Audio API nativa
  */
@@ -575,8 +778,12 @@ export interface TvMediaItem {
   title: string;
   subtitle?: string | undefined;
   imageUrl?: string | undefined;
+  videoUrl?: string | undefined;
+  mediaType?: "image" | "video";
   active: boolean;
 }
+
+export type TvPrivacyFormat = "first_and_last_initial" | "first_name_only" | "full_name";
 
 export interface TvSettings {
   cityName: string;
@@ -587,6 +794,19 @@ export interface TvSettings {
   callDisplaySeconds: number; // Tempo em que a chamada do paciente fica em destaque central na TV (segundos)
   tickerIntervalSeconds: number; // Intervalo de rotação dos textos no letreiro animado de rodapé (segundos)
   autoDismissOnAttendance: boolean; // Dispensar imediatamente da tela principal da TV ao iniciar atendimento na agenda
+
+  // Recursos Avançados das Melhores Clínicas (com opção de ativar/desativar):
+  showWifiQr: boolean; // 1. Exibir QR Code de Wi-Fi gratuito para pacientes na TV
+  wifiNetworkName: string; // Nome da rede Wi-Fi (SSID)
+  wifiPassword: string; // Senha da rede Wi-Fi
+
+  enableLgpdPrivacyMode: boolean; // 2. Modo Privacidade LGPD: oculta sobrenome completo na TV e na voz
+  privacyDisplayFormat: TvPrivacyFormat; // Formato de exibição: "first_and_last_initial" (Carlos E.) ou "first_name_only" (Carlos)
+
+  showCheckinQr: boolean; // 3. Exibir QR Code de Auto Check-in na TV para o paciente confirmar chegada no celular
+  enableSelfCheckin: boolean; // Permitir auto check-in pelo celular ou totem independente
+
+  notifyNextPatientOnCall: boolean; // 4. Fila Virtual: notificar próximo paciente via WhatsApp quando o anterior for chamado
 }
 
 export interface WeatherInfo {
@@ -601,7 +821,7 @@ export const DEFAULT_TV_SETTINGS: TvSettings = {
   showWeather: true,
   tickerTexts: [
     "Bem-vindo ao SondaPro Odontologia • Cuidando do seu sorriso com tecnologia e dedicação.",
-    "Wi-Fi gratuito na sala de espera: conecte-se à rede 'Clinica_Visitantes'. Solicite a senha na recepção.",
+    "Wi-Fi gratuito na sala de espera: aponte a câmera para o QR Code na tela e conecte-se sem senha.",
     "Prevenção é saúde: mantenha sua escovação diária, use fio dental e consulte seu dentista periodicamente.",
     "Conheça nossos tratamentos: Alinhadores Invisíveis, Implantes Odontológicos, Próteses e Clareamento a Laser.",
   ],
@@ -611,6 +831,7 @@ export const DEFAULT_TV_SETTINGS: TvSettings = {
       title: "Clareamento Dental Profissional",
       subtitle: "Renove a estética do seu sorriso com segurança, tecnologia e acompanhamento odontológico.",
       imageUrl: "https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=1200&q=80",
+      mediaType: "image",
       active: true,
     },
     {
@@ -618,6 +839,7 @@ export const DEFAULT_TV_SETTINGS: TvSettings = {
       title: "Alinhadores Ortodônticos Transparentes",
       subtitle: "Alinhamento estético, confortável e removível para o seu dia a dia.",
       imageUrl: "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?auto=format&fit=crop&w=1200&q=80",
+      mediaType: "image",
       active: true,
     },
     {
@@ -625,6 +847,7 @@ export const DEFAULT_TV_SETTINGS: TvSettings = {
       title: "Implantes & Próteses Dentárias",
       subtitle: "Recupere o poder da sua mastigação e o prazer de sorrir livremente com planejamento 3D.",
       imageUrl: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1200&q=80",
+      mediaType: "image",
       active: true,
     },
   ],
@@ -632,9 +855,63 @@ export const DEFAULT_TV_SETTINGS: TvSettings = {
   callDisplaySeconds: 35,
   tickerIntervalSeconds: 7,
   autoDismissOnAttendance: true,
+
+  // Padrões dos recursos avançados
+  showWifiQr: true,
+  wifiNetworkName: "Clinica_Visitantes",
+  wifiPassword: "sorriso123",
+
+  enableLgpdPrivacyMode: false,
+  privacyDisplayFormat: "first_and_last_initial",
+
+  showCheckinQr: true,
+  enableSelfCheckin: true,
+
+  notifyNextPatientOnCall: true,
 };
 
 const LOCAL_STORAGE_TV_SETTINGS_PREFIX = "sondapro:tv_settings:";
+
+/**
+ * Mascara o nome do paciente para conformidade com a LGPD no painel da TV e na voz sintetizada
+ */
+export function maskPatientNameForTv(
+  fullName: string,
+  format: TvPrivacyFormat = "first_and_last_initial",
+): string {
+  if (!fullName) return "Paciente";
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return parts[0] || "Paciente";
+
+  if (format === "first_name_only") {
+    return parts[0]!;
+  }
+
+  if (format === "first_and_last_initial") {
+    const first = parts[0]!;
+    const last = parts[parts.length - 1]!;
+    return `${first} ${last.charAt(0).toUpperCase()}.`;
+  }
+
+  return fullName;
+}
+
+/**
+ * Gera string padrão internacional para QR Code de conexão Wi-Fi automática
+ * (Reconhecido nativamente por iOS e Android pela câmera)
+ */
+export function generateWifiQrPayload(
+  ssid: string,
+  password = "",
+  encryption: "WPA" | "WEP" | "nopass" = "WPA",
+): string {
+  const cleanSsid = (ssid || "").trim();
+  if (!cleanSsid) return "";
+  if (!password || encryption === "nopass") {
+    return `WIFI:T:nopass;S:${cleanSsid};;`;
+  }
+  return `WIFI:T:${encryption};S:${cleanSsid};P:${password};;`;
+}
 
 /**
  * Obtém as configurações de mídia, letreiro, clima e temporizadores da TV
@@ -653,6 +930,14 @@ export function getTvSettings(clinicId?: string | null): TvSettings {
         callDisplaySeconds: Number(parsed.callDisplaySeconds) || DEFAULT_TV_SETTINGS.callDisplaySeconds,
         tickerIntervalSeconds: Number(parsed.tickerIntervalSeconds) || DEFAULT_TV_SETTINGS.tickerIntervalSeconds,
         autoDismissOnAttendance: parsed.autoDismissOnAttendance !== undefined ? Boolean(parsed.autoDismissOnAttendance) : DEFAULT_TV_SETTINGS.autoDismissOnAttendance,
+        showWifiQr: parsed.showWifiQr !== undefined ? Boolean(parsed.showWifiQr) : DEFAULT_TV_SETTINGS.showWifiQr,
+        wifiNetworkName: parsed.wifiNetworkName !== undefined ? String(parsed.wifiNetworkName) : DEFAULT_TV_SETTINGS.wifiNetworkName,
+        wifiPassword: parsed.wifiPassword !== undefined ? String(parsed.wifiPassword) : DEFAULT_TV_SETTINGS.wifiPassword,
+        enableLgpdPrivacyMode: parsed.enableLgpdPrivacyMode !== undefined ? Boolean(parsed.enableLgpdPrivacyMode) : DEFAULT_TV_SETTINGS.enableLgpdPrivacyMode,
+        privacyDisplayFormat: parsed.privacyDisplayFormat || DEFAULT_TV_SETTINGS.privacyDisplayFormat,
+        showCheckinQr: parsed.showCheckinQr !== undefined ? Boolean(parsed.showCheckinQr) : DEFAULT_TV_SETTINGS.showCheckinQr,
+        enableSelfCheckin: parsed.enableSelfCheckin !== undefined ? Boolean(parsed.enableSelfCheckin) : DEFAULT_TV_SETTINGS.enableSelfCheckin,
+        notifyNextPatientOnCall: parsed.notifyNextPatientOnCall !== undefined ? Boolean(parsed.notifyNextPatientOnCall) : DEFAULT_TV_SETTINGS.notifyNextPatientOnCall,
         mediaItems: Array.isArray(parsed.mediaItems) && parsed.mediaItems.length > 0 ? parsed.mediaItems : DEFAULT_TV_SETTINGS.mediaItems,
         tickerTexts: Array.isArray(parsed.tickerTexts) && parsed.tickerTexts.length > 0 ? parsed.tickerTexts : DEFAULT_TV_SETTINGS.tickerTexts,
       };
