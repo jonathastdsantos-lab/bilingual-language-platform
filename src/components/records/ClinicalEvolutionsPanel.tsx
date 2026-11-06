@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileText, ShieldCheck } from "lucide-react";
+import { FileText, ShieldCheck, Sparkles, CheckCircle2 } from "lucide-react";
 import {
   ALL_VALID_FDI_TEETH,
   CLINICAL_RECORD_TYPES,
@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { VoiceEvolutionRecorder } from "@/components/records/VoiceEvolutionRecorder";
+import type { FormattedEvolutionResult } from "@/modules/records/voice-evolution";
 
 export function ClinicalEvolutionsPanel({
   clinicId,
@@ -40,6 +42,16 @@ export function ClinicalEvolutionsPanel({
   const [tooth, setTooth] = useState<string>(selectedTooth ? String(selectedTooth) : "none");
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+
+  const handleApplyVoiceEvolution = (res: FormattedEvolutionResult) => {
+    setTitle(res.title);
+    setContent(res.formattedContent);
+    if (res.toothNumber) {
+      setTooth(String(res.toothNumber));
+    }
+    setRecordType("evolution");
+    toast.success("Evolução estruturada e preenchida no formulário! Clique em 'Salvar Evolução' para registrar.");
+  };
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -67,6 +79,14 @@ export function ClinicalEvolutionsPanel({
         <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
         <span>{t("rec.immutableNotice")}</span>
       </div>
+
+      {/* Assistente de Evolução por Áudio/Voz com IA Odontológica */}
+      {canWrite && (
+        <VoiceEvolutionRecorder
+          professionalName={professionals.find((p) => p.id === professionalId)?.name}
+          onApplyFormattedEvolution={handleApplyVoiceEvolution}
+        />
+      )}
 
       {canWrite && (
         <form

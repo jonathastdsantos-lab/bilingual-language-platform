@@ -27,6 +27,7 @@ import { StructuredAnamnesisPanel } from "@/components/records/StructuredAnamnes
 import { ProstheticLabOrdersPanel } from "@/components/records/ProstheticLabOrdersPanel";
 import { PediatricDentalPanel } from "@/components/records/PediatricDentalPanel";
 import { OrthodonticsRecordPanel } from "@/components/orthodontics/OrthodonticsRecordPanel";
+import { InteractiveBeforeAfterComparator } from "@/components/records/InteractiveBeforeAfterComparator";
 
 export const Route = createFileRoute("/_authenticated/app/records")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -227,7 +228,7 @@ function ClinicalRecordsPage() {
             </div>
 
             <Tabs defaultValue="odontogram" className="space-y-5">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:w-full lg:grid-cols-9">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 lg:w-full lg:grid-cols-10">
                 <TabsTrigger value="odontogram">{t("rec.tabOdontogram")}</TabsTrigger>
                 <TabsTrigger value="orthodontics">Ortodontia</TabsTrigger>
                 <TabsTrigger value="pediatric">Odontopediatria (51-85)</TabsTrigger>
@@ -235,6 +236,7 @@ function ClinicalRecordsPage() {
                 <TabsTrigger value="evolutions">{t("rec.tabEvolutions")}</TabsTrigger>
                 <TabsTrigger value="plans">{t("rec.tabPlans")}</TabsTrigger>
                 <TabsTrigger value="prosthesis">Laboratório Prótese</TabsTrigger>
+                <TabsTrigger value="comparator">Antes & Depois (Slider)</TabsTrigger>
                 <TabsTrigger value="exams">Exames & Radiografias</TabsTrigger>
                 <TabsTrigger value="documents">Receitas, TCLE & Assinatura Digital</TabsTrigger>
               </TabsList>
@@ -319,6 +321,12 @@ function ClinicalRecordsPage() {
                   professionals={professionals}
                   canWrite={canWrite}
                   selectedTooth={selectedTooth}
+                />
+              </TabsContent>
+
+              <TabsContent value="comparator">
+                <InteractiveBeforeAfterComparator
+                  patientName={activePatient.full_name}
                 />
               </TabsContent>
 

@@ -10,7 +10,9 @@ import {
   ScanLine,
   Trash2,
   Upload,
+  SplitSquareVertical,
 } from "lucide-react";
+import { InteractiveBeforeAfterComparator } from "@/components/records/InteractiveBeforeAfterComparator";
 import {
   ALL_VALID_FDI_TEETH,
   ALLOWED_EXAM_MIME_TYPES,
@@ -338,25 +340,25 @@ export function PatientExamsGalleryPanel({
         </form>
       )}
 
-      {/* Comparador Clínico Antes × Depois (exibido automaticamente quando há fotos Antes e Depois) */}
-      {beforePhotos.length > 0 && afterPhotos.length > 0 && (
-        <div className="space-y-4 rounded-2xl border border-primary/25 bg-primary/5 p-5 shadow-card">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Columns2 className="h-5 w-5 text-primary" />
-              <div>
-                <h4 className="text-sm font-extrabold text-navy">
-                  Comparador Clínico Intraoral (Antes × Depois)
-                </h4>
-                <p className="text-xs text-muted-foreground">
-                  Compare a evolução estética e funcional diretamente no prontuário.
-                </p>
-              </div>
+      {/* Comparador Clínico Antes × Depois com Slider Interativo */}
+      <div className="space-y-4 rounded-2xl border border-primary/25 bg-primary/5 p-5 shadow-card">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <SplitSquareVertical className="h-5 w-5 text-primary" />
+            <div>
+              <h4 className="text-sm font-extrabold text-navy">
+                Comparador Clínico Intraoral (Antes × Depois com Slider)
+              </h4>
+              <p className="text-xs text-muted-foreground">
+                Arraste a linha central para demonstrar clareamento, lentes de contato e facetas.
+              </p>
             </div>
+          </div>
 
+          {beforePhotos.length > 0 && afterPhotos.length > 0 && (
             <div className="flex flex-wrap items-center gap-2">
               <Select value={compareBeforeId} onValueChange={setCompareBeforeId}>
-                <SelectTrigger className="h-8 w-48 bg-card text-xs">
+                <SelectTrigger className="h-8 w-44 bg-card text-xs">
                   <SelectValue placeholder="Foto Antes" />
                 </SelectTrigger>
                 <SelectContent>
@@ -369,7 +371,7 @@ export function PatientExamsGalleryPanel({
               </Select>
 
               <Select value={compareAfterId} onValueChange={setCompareAfterId}>
-                <SelectTrigger className="h-8 w-48 bg-card text-xs">
+                <SelectTrigger className="h-8 w-44 bg-card text-xs">
                   <SelectValue placeholder="Foto Depois" />
                 </SelectTrigger>
                 <SelectContent>
@@ -381,55 +383,16 @@ export function PatientExamsGalleryPanel({
                 </SelectContent>
               </Select>
             </div>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {activeBefore && (
-              <div className="overflow-hidden rounded-xl border bg-card p-3 shadow-sm">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="rounded-full bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-bold text-amber-800">
-                    ANTES — {activeBefore.title}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">{activeBefore.exam_date}</span>
-                </div>
-                {signedUrls[activeBefore.id] ? (
-                  <img
-                    src={signedUrls[activeBefore.id]}
-                    alt={activeBefore.title}
-                    className="h-56 w-full rounded-lg bg-slate-950 object-contain"
-                  />
-                ) : (
-                  <div className="flex h-56 items-center justify-center rounded-lg bg-muted text-xs text-muted-foreground">
-                    Carregando imagem protegida...
-                  </div>
-                )}
-              </div>
-            )}
-
-            {activeAfter && (
-              <div className="overflow-hidden rounded-xl border bg-card p-3 shadow-sm">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
-                    DEPOIS — {activeAfter.title}
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">{activeAfter.exam_date}</span>
-                </div>
-                {signedUrls[activeAfter.id] ? (
-                  <img
-                    src={signedUrls[activeAfter.id]}
-                    alt={activeAfter.title}
-                    className="h-56 w-full rounded-lg bg-slate-950 object-contain"
-                  />
-                ) : (
-                  <div className="flex h-56 items-center justify-center rounded-lg bg-muted text-xs text-muted-foreground">
-                    Carregando imagem protegida...
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
-      )}
+
+        <InteractiveBeforeAfterComparator
+          beforeUrl={activeBefore ? signedUrls[activeBefore.id] : undefined}
+          afterUrl={activeAfter ? signedUrls[activeAfter.id] : undefined}
+          beforeTitle={activeBefore?.title || "Antes do Tratamento"}
+          afterTitle={activeAfter?.title || "Resultado Final (Depois)"}
+        />
+      </div>
 
       {/* Barra de Filtros da Galeria */}
       <div className="flex flex-wrap items-center justify-between gap-3">
