@@ -2,6 +2,10 @@ import { z } from "zod";
 import { assertClinicScope, normalizeSupabaseError, supabase } from "@/services/supabase";
 import type { TissGuide, TissGuideItem, TissGuideStatus, TissGuideType } from "@/types";
 
+export * from "./catalogs";
+export * from "./settings";
+export * from "./xml-exporter";
+
 type TissDbClient = {
   from: (table: string) => {
     select: (cols: string) => {
@@ -229,7 +233,7 @@ export async function updateTissGuideStatus(
   clinicId: string,
   guideId: string,
   status: TissGuideStatus,
-  options?: { glosedAmount?: number },
+  options?: { glosedAmount?: number | undefined },
 ): Promise<void> {
   assertClinicScope(clinicId);
   const payload: Record<string, unknown> = {
