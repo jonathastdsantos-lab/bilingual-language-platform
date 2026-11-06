@@ -70,8 +70,8 @@ BEGIN
   );
 END $$;
 
-GRANT EXECUTE ON FUNCTION public.user_has_permission TO authenticated, anon, service_role;
-GRANT EXECUTE ON FUNCTION public.is_platform_superadmin TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.user_has_permission(UUID, TEXT) TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.is_platform_superadmin(UUID) TO authenticated, anon, service_role;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
@@ -2099,18 +2099,6 @@ CREATE INDEX IF NOT EXISTS idx_waiting_room_calls_status
   ON public.waiting_room_calls (clinic_id, status);
 
 ALTER TABLE public.waiting_room_calls ENABLE ROW LEVEL SECURITY;
-
--- Função auxiliar de permissão para compatibilidade com RLS
-CREATE OR REPLACE FUNCTION public.user_has_permission(_clinic_id UUID, _permission TEXT)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  RETURN TRUE;
-END $$;
 
 -- Permite leitura de chamadas para a tela da TV na recepção e usuários autorizados
 DROP POLICY IF EXISTS "waiting_room_calls_select" ON public.waiting_room_calls;

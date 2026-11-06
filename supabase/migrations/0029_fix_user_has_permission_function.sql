@@ -52,6 +52,6 @@ BEGIN
   );
 END $$;
 
-GRANT EXECUTE ON FUNCTION public.user_has_permission TO authenticated, anon, service_role;
-GRANT EXECUTE ON FUNCTION public.is_platform_superadmin TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.user_has_permission(UUID, TEXT) TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.is_platform_superadmin(UUID) TO authenticated, anon, service_role;
 
