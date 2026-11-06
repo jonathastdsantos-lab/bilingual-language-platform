@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Package, ArrowLeftRight, Clock } from "lucide-react";
+import { Package, ArrowLeftRight, Clock, ShieldCheck } from "lucide-react";
 import { supabase } from "@/services/supabase";
 import { useClinic } from "@/lib/clinic";
 import { useT } from "@/lib/i18n";
@@ -15,6 +15,7 @@ import {
 import { StockKpiCards } from "@/components/stock/StockKpiCards";
 import { StockCatalogPanel } from "@/components/stock/StockCatalogPanel";
 import { StockMovementsPanel } from "@/components/stock/StockMovementsPanel";
+import { AnvisaLotsTraceabilityPanel } from "@/components/stock/AnvisaLotsTraceabilityPanel";
 import type { StockItem, StockMovement } from "@/types";
 
 export const Route = createFileRoute("/_authenticated/app/stock")({
@@ -43,7 +44,7 @@ interface ProfessionalOption {
 
 function StockPage() {
   const { t } = useT();
-  const { clinicId, activeUnitId, hasPermission } = useClinic();
+  const { clinicId, clinicName, activeUnitId, hasPermission } = useClinic();
 
   const canRead = hasPermission("stock.read");
   const canWrite = hasPermission("stock.write");
@@ -155,10 +156,14 @@ function StockPage() {
         </div>
       ) : (
         <Tabs defaultValue="catalog" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-1 sm:w-auto sm:grid-cols-2">
+          <TabsList className="grid w-full grid-cols-1 sm:w-auto sm:grid-cols-3">
             <TabsTrigger value="catalog" className="gap-2">
               <Package className="h-4 w-4" />
               {t("stk.tabCatalog")} ({scopedItems.length})
+            </TabsTrigger>
+            <TabsTrigger value="anvisa-lots" className="gap-2 font-bold text-teal">
+              <ShieldCheck className="h-4 w-4" />
+              Lotes & ANVISA ({scopedItems.filter((i) => Boolean(i.batch_number)).length})
             </TabsTrigger>
             <TabsTrigger value="movements" className="gap-2">
               <ArrowLeftRight className="h-4 w-4" />
@@ -173,6 +178,17 @@ function StockPage() {
               canWrite={canWrite}
               items={scopedItems}
               onRefresh={loadStockData}
+            />
+          </TabsContent>
+
+          <TabsContent value="anvisa-lots">
+            <AnvisaLotsTraceabilityPanel
+              clinicId={clinicId}
+              clinicName={clinicName}
+              items={scopedItems}
+              movements={scopedMovements}
+              patients={patients}
+              professionals={professionals}
             />
           </TabsContent>
 
