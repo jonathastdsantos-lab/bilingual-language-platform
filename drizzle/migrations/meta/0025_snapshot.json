@@ -1,0 +1,18 @@
+{
+  "id": "b1bf316c-fde4-4853-8baa-e0ecd2902e58",
+  "prevId": "0005-reports-and-whatsapp",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {},
+  "enums": {},
+  "schemas": {},
+  "views": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
