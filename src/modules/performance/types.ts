@@ -107,3 +107,4 @@ export interface PerformanceAiInsight {
   metricLabel: string;
   actionableRecommendation: string;
 }
+

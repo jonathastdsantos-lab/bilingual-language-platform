@@ -125,11 +125,12 @@ export function calculateExecutivePerformanceKpis({
     paid_at?: string | null;
   }>;
   treatmentPlans?: Array<{
-    id: string;
+    id?: string | undefined;
     status: string;
-    price?: number | string | null;
-    totalAmount?: number | null;
-    discount_amount?: number | string | null;
+    price?: number | string | null | undefined;
+    totalAmount?: number | null | undefined;
+    discount_amount?: number | string | null | undefined;
+    professional_id?: string | null | undefined;
   }>;
   totalRooms?: number;
   goals?: ClinicPerformanceGoals;
@@ -310,10 +311,11 @@ export function calculateDoctorPerformanceRanking({
     price?: number | string | null;
   }>;
   treatmentPlans?: Array<{
-    professional_id?: string | null;
+    id?: string | undefined;
+    professional_id?: string | null | undefined;
     status: string;
-    price?: number | string | null;
-    totalAmount?: number | null;
+    price?: number | string | null | undefined;
+    totalAmount?: number | null | undefined;
   }>;
 }): DoctorPerformanceMetric[] {
   return professionals.map((prof) => {
@@ -517,3 +519,4 @@ export function generatePerformanceAiInsights(
 
   return insights;
 }
+

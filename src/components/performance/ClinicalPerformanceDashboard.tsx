@@ -170,7 +170,7 @@ export function ClinicalPerformanceDashboard({
         status: planStatus,
         price,
         totalAmount: price,
-        professional_id: a.professional_id,
+        professional_id: a.professional_id || null,
       };
     });
   }, [appointments]);
@@ -593,7 +593,7 @@ export function ClinicalPerformanceDashboard({
                       tickFormatter={(v) => `R$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`}
                     />
                     <Tooltip
-                      formatter={(val: number | string | undefined) => [
+                      formatter={(val: any) => [
                         fmtMoney(Number(val ?? 0)),
                         "Faturamento",
                       ]}
@@ -650,7 +650,7 @@ export function ClinicalPerformanceDashboard({
                         <Cell fill="#0d9488" />
                         <Cell fill="#38bdf8" />
                       </Pie>
-                      <Tooltip formatter={(v: number | string | undefined) => [`${v ?? 0} pacientes`, ""]} />
+                      <Tooltip formatter={(v: any) => [`${v ?? 0} pacientes`, ""]} />
                     </PieChart>
                   </ResponsiveContainer>
                 </div>
@@ -696,7 +696,7 @@ export function ClinicalPerformanceDashboard({
                     <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.3} />
                     <XAxis dataKey="dayLabel" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} unit="h" />
-                    <Tooltip formatter={(v: number | string | undefined) => [`${v ?? 0} horas`, ""]} />
+                    <Tooltip formatter={(v: any) => [`${v ?? 0} horas`, ""]} />
                     <Legend wrapperStyle={{ fontSize: 11 }} />
                     <Bar
                       dataKey="occupiedHours"
@@ -1160,3 +1160,4 @@ export function ClinicalPerformanceDashboard({
     </div>
   );
 }
+
