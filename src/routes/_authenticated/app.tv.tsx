@@ -26,6 +26,7 @@ import {
   MessageSquare,
   KeyRound,
   Laptop,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,8 @@ import {
   checkWaitingRoomTableExists,
   getTvSettings,
   saveTvSettings,
+  sendRemoteTvReload,
+  getTvHeartbeatStatus,
   TvSettings,
   TvMediaItem,
 } from "@/modules/waiting-room";
@@ -78,9 +81,31 @@ function AppTvManagementPage() {
   const [newSlideImageUrl, setNewSlideImageUrl] = useState("");
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
+  // Monitoramento e Controle Remoto do Player de TV (Inspirado no DigitalSignageOS)
+  const [tvStatus, setTvStatus] = useState(() => getTvHeartbeatStatus(clinicId));
+  const [isReloadingTv, setIsReloadingTv] = useState(false);
+
   useEffect(() => {
     setTvSettingsState(getTvSettings(clinicId));
   }, [clinicId]);
+
+  useEffect(() => {
+    const check = () => setTvStatus(getTvHeartbeatStatus(clinicId));
+    check();
+    const interval = setInterval(check, 4000);
+    return () => clearInterval(interval);
+  }, [clinicId]);
+
+  const handleRemoteTvReload = () => {
+    setIsReloadingTv(true);
+    sendRemoteTvReload(clinicId);
+    toast.success(
+      isEn
+        ? "Remote reload signal sent to Reception TV screen!"
+        : "Comando de recarregamento remoto enviado para a TV da Recepção!"
+    );
+    setTimeout(() => setIsReloadingTv(false), 2000);
+  };
 
   // Queries de profissionais e consultórios para a chamada
   const { data: refs } = useQuery({
@@ -305,15 +330,44 @@ function AppTvManagementPage() {
             <h1 className="text-2xl font-extrabold text-navy">
               {isEn ? "Waiting Room TV & Display" : "Painel de Chamada em Sala de Espera (TV / Totem)"}
             </h1>
-            <p className="text-xs text-muted-foreground">
-              {isEn
-                ? "Broadcast patient calls, news tickers, weather forecast and clinic promotional banners on reception screen."
-                : "Exiba chamadas de pacientes, previsão do tempo, letreiro rotativo e anúncios da clínica na recepção."}
-            </p>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <p className="text-xs text-muted-foreground">
+                {isEn
+                  ? "Broadcast patient calls, news tickers, weather forecast and clinic promotional banners on reception screen."
+                  : "Exiba chamadas de pacientes, previsão do tempo, letreiro rotativo e anúncios da clínica na recepção."}
+              </p>
+              {tvStatus.isOnline ? (
+                <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[11px] gap-1.5 py-0.5">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  </span>
+                  TV Online {tvStatus.lastSeenSecondsAgo !== null ? `(visto há ${tvStatus.lastSeenSecondsAgo}s)` : ""}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-slate-500 border-slate-200 text-[11px] gap-1.5 py-0.5">
+                  <span className="h-2 w-2 rounded-full bg-slate-300" />
+                  TV Desconectada
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-2 text-xs border-slate-200 text-slate-700 hover:bg-slate-50"
+            disabled={isReloadingTv}
+            onClick={handleRemoteTvReload}
+            title="Recarrega a tela da TV remotamente (sem precisar de controle remoto ou teclado na recepção)"
+          >
+            <RefreshCw className={`h-4 w-4 text-sky-600 ${isReloadingTv ? "animate-spin" : ""}`} />
+            <span>{isReloadingTv ? (isEn ? "Reloading..." : "Recarregando...") : (isEn ? "Reload TV" : "Recarregar TV")}</span>
+          </Button>
+
           <Button
             type="button"
             variant="outline"

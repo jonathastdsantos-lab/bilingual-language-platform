@@ -563,4 +563,79 @@ export async function fetchWeatherForecast(cityName: string): Promise<WeatherInf
   }
 }
 
+// ============================================================================
+// COMANDOS REMOTOS & MONITORAMENTO (INSPIRED BY DIGITALSIGNAGEOS)
+// ============================================================================
+
+const LOCAL_STORAGE_HEARTBEAT_PREFIX = "sondapro:tv_heartbeat:";
+
+/**
+ * Envia comando para a TV recarregar a tela remotamente via BroadcastChannel e Realtime
+ */
+export function sendRemoteTvReload(clinicId: string): void {
+  if (typeof window === "undefined") return;
+
+  try {
+    if ("BroadcastChannel" in window) {
+      const bc = new BroadcastChannel("sondapro_tv_remote");
+      bc.postMessage({ type: "RELOAD_TV", clinicId, timestamp: Date.now() });
+      bc.close();
+    }
+    window.dispatchEvent(new CustomEvent("sondapro:tv_reload", { detail: { clinicId } }));
+  } catch {
+    // ignore
+  }
+
+  try {
+    // Dispara também via canal de Realtime do Supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const channel = (supabase as any).channel(`tv_remote_${clinicId}`);
+    channel.subscribe((status: string) => {
+      if (status === "SUBSCRIBED") {
+        channel.send({
+          type: "broadcast",
+          event: "RELOAD_TV",
+          payload: { clinicId, timestamp: Date.now() },
+        });
+      }
+    });
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Registra o ping de que a TV está online e transmitindo
+ */
+export function recordTvHeartbeat(clinicId: string): void {
+  if (typeof window === "undefined" || !clinicId) return;
+  try {
+    const key = `${LOCAL_STORAGE_HEARTBEAT_PREFIX}${clinicId}`;
+    localStorage.setItem(key, Date.now().toString());
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Consulta se a TV está online com base no último sinal emitido
+ */
+export function getTvHeartbeatStatus(clinicId: string): { isOnline: boolean; lastSeenSecondsAgo: number | null } {
+  if (typeof window === "undefined" || !clinicId) return { isOnline: false, lastSeenSecondsAgo: null };
+  try {
+    const key = `${LOCAL_STORAGE_HEARTBEAT_PREFIX}${clinicId}`;
+    const raw = localStorage.getItem(key);
+    if (!raw) return { isOnline: false, lastSeenSecondsAgo: null };
+    const diffMs = Date.now() - Number(raw);
+    const diffSec = Math.floor(diffMs / 1000);
+    return {
+      isOnline: diffSec <= 75, // Considera online se enviou sinal nos últimos 75 segundos
+      lastSeenSecondsAgo: diffSec,
+    };
+  } catch {
+    return { isOnline: false, lastSeenSecondsAgo: null };
+  }
+}
+
+
 

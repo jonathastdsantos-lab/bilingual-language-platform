@@ -48,11 +48,13 @@ import {
   isValidUuid,
   getTvSettings,
   fetchWeatherForecast,
+  recordTvHeartbeat,
   TvSettings,
   TvMediaItem,
   WeatherInfo,
   DEFAULT_TV_SETTINGS,
 } from "@/modules/waiting-room";
+import { QrCode } from "lucide-react";
 import type { WaitingRoomCall } from "@/types";
 import { toast } from "sonner";
 
@@ -237,6 +239,66 @@ export function WaitingRoomTvPage() {
     }, 7000);
     return () => clearInterval(timer);
   }, [tvSettings.tickerTexts]);
+
+  // Heartbeat do Player da TV (inspirado no DigitalSignageOS - registra presença a cada 25s)
+  useEffect(() => {
+    if (!effectiveClinicId) return;
+    recordTvHeartbeat(effectiveClinicId);
+    const interval = setInterval(() => {
+      recordTvHeartbeat(effectiveClinicId);
+    }, 25000);
+    return () => clearInterval(interval);
+  }, [effectiveClinicId]);
+
+  // Listener de comando de recarregamento remoto da tela (inspirado no DigitalSignageOS)
+  useEffect(() => {
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("sondapro_tv_remote");
+        bc.onmessage = (event) => {
+          if (event.data?.type === "RELOAD_TV") {
+            if (!event.data.clinicId || event.data.clinicId === effectiveClinicId) {
+              window.location.reload();
+            }
+          }
+        };
+      }
+    } catch {
+      // ignore
+    }
+
+    const handleReload = (e: Event) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const targetId = (e as any)?.detail?.clinicId;
+      if (!targetId || targetId === effectiveClinicId) {
+        window.location.reload();
+      }
+    };
+    window.addEventListener("sondapro:tv_reload", handleReload);
+
+    // Escuta também via Supabase Realtime Broadcast se houver effectiveClinicId
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let channel: any = null;
+    if (effectiveClinicId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      channel = (supabase as any)
+        .channel(`tv_remote_${effectiveClinicId}`)
+        .on("broadcast", { event: "RELOAD_TV" }, () => {
+          window.location.reload();
+        })
+        .subscribe();
+    }
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener("sondapro:tv_reload", handleReload);
+      if (channel) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).removeChannel(channel);
+      }
+    };
+  }, [effectiveClinicId]);
 
   useEffect(() => {
     const activeId = clinicId || searchClinicId;
@@ -817,7 +879,33 @@ export function WaitingRoomTvPage() {
             )}
           </div>
 
-          <div className="mt-auto border-t border-slate-800/80 pt-4 text-center">
+          {/* Card QR Code Portal do Paciente (Inspirado no DigitalSignageOS) */}
+          <div className="mt-3 rounded-2xl border border-sky-500/20 bg-sky-950/40 p-3.5 flex items-center gap-3 backdrop-blur-sm">
+            <div className="bg-white p-1 rounded-xl shrink-0 shadow-md">
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&margin=0&data=${encodeURIComponent(
+                  typeof window !== "undefined" ? `${window.location.origin}/portal` : "https://sondapro.com.br/portal"
+                )}`}
+                alt="QR Code Portal do Paciente"
+                className="w-14 h-14 object-contain"
+                loading="lazy"
+              />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <div className="flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-sky-400">
+                <QrCode className="w-3.5 h-3.5 shrink-0" />
+                <span>Portal do Paciente</span>
+              </div>
+              <p className="text-xs font-semibold text-slate-200 mt-0.5 leading-snug">
+                Aponte o celular para agendar ou ver receitas
+              </p>
+              <span className="text-[10px] text-slate-400 font-mono mt-0.5 block truncate">
+                {typeof window !== "undefined" ? `${window.location.host}/portal` : "sondapro.com/portal"}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-3 border-t border-slate-800/80 pt-3 text-center">
             <p className="text-[11px] text-slate-500">
               SondaPro Dental Display · Sistema Inteligente de Recepção
             </p>
