@@ -168,6 +168,24 @@ export async function fetchWaitingRoomCalls(
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const client = supabase as any;
+
+    // 1. Tenta via RPC segura get_waiting_room_calls_for_tv (blindada contra vazamento multi-tenant)
+    if (isValidUuid(clinicId)) {
+      try {
+        const { data: rpcData, error: rpcErr } = await client.rpc("get_waiting_room_calls_for_tv", {
+          _clinic_id: clinicId,
+          _unit_id: unitId && unitId !== "all" && isValidUuid(unitId) ? unitId : null,
+        });
+
+        if (!rpcErr && Array.isArray(rpcData) && rpcData.length > 0) {
+          return rpcData as WaitingRoomCall[];
+        }
+      } catch {
+        // segue para query padrão se RPC ainda não estiver criada
+      }
+    }
+
+    // 2. Query padrão filtrada estritamente por clinic_id
     let query = client
       .from("waiting_room_calls")
       .select("*")
