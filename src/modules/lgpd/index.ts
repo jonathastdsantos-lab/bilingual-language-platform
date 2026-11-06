@@ -165,3 +165,4 @@ export function maskEmail(email?: string | null): string {
   if (!user || user.length <= 2) return `*@${domain}`;
   return `${user.charAt(0)}***${user.charAt(user.length - 1)}@${domain}`;
 }
+

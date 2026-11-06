@@ -360,3 +360,4 @@ END $$;
 GRANT EXECUTE ON FUNCTION public.lgpd_mask_cpf(TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.lgpd_mask_phone(TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.lgpd_anonymize_patient(UUID, UUID) TO authenticated;
+
