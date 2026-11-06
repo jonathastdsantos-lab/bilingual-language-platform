@@ -172,19 +172,16 @@ export type Database = {
           created_at: string
           id: string
           name: string
-          slug: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
-          slug?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
-          slug?: string | null
         }
         Relationships: []
       }
