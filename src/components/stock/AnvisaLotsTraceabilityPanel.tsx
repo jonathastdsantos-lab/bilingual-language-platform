@@ -857,3 +857,4 @@ export function AnvisaLotsTraceabilityPanel({
     </div>
   );
 }
+

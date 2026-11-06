@@ -10,6 +10,52 @@ import {
 } from "@/modules/stock/anvisa-lots";
 import type { StockItem, StockMovement } from "@/types";
 
+function createMockStockItem(overrides: Partial<StockItem>): StockItem {
+  return {
+    id: "item-default",
+    clinic_id: "clinic-default",
+    unit_id: null,
+    name: "Insumo Mock",
+    category: "Geral",
+    sku: null,
+    unit_measure: "un",
+    current_quantity: 10,
+    min_quantity: 5,
+    unit_cost: 50,
+    supplier: null,
+    batch_number: null,
+    expiration_date: null,
+    storage_location: null,
+    active: true,
+    created_by: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function createMockStockMovement(overrides: Partial<StockMovement>): StockMovement {
+  return {
+    id: "mov-default",
+    clinic_id: "clinic-default",
+    item_id: "item-default",
+    unit_id: null,
+    movement_type: "in",
+    quantity: 1,
+    previous_quantity: 10,
+    resulting_quantity: 11,
+    unit_cost: 50,
+    batch_number: null,
+    expiration_date: null,
+    reason: "Entrada Padrão",
+    professional_id: null,
+    patient_id: null,
+    created_by: null,
+    created_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
 describe("Gestão de Estoque Avançado & Lotes ANVISA", () => {
   const testClinicId = "clinic-anvisa-test-555";
   const mockNow = new Date("2026-11-06T12:00:00Z");
@@ -57,7 +103,7 @@ describe("Gestão de Estoque Avançado & Lotes ANVISA", () => {
   describe("Extração e Auditoria de Lotes (extractAnvisaLots)", () => {
     it("deve extrair lotes com saldo, custo e status de quarentena", () => {
       const items: StockItem[] = [
-        {
+        createMockStockItem({
           id: "item-1",
           clinic_id: testClinicId,
           name: "Anestésico Articaína 4% com Epinefrina",
@@ -69,11 +115,8 @@ describe("Gestão de Estoque Avançado & Lotes ANVISA", () => {
           batch_number: "LOT-ART-2026",
           expiration_date: "2026-11-25", // Crítico
           supplier: "DFL Indústria",
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        {
+        }),
+        createMockStockItem({
           id: "item-2",
           clinic_id: testClinicId,
           name: "Resina Composta Filtek Z350 XT A2",
@@ -85,10 +128,7 @@ describe("Gestão de Estoque Avançado & Lotes ANVISA", () => {
           batch_number: "LOT-RES-999",
           expiration_date: "2026-10-01", // Vencido
           supplier: "3M Dental",
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+        }),
       ];
 
       const lots = extractAnvisaLots(items, [], mockNow);
@@ -111,7 +151,7 @@ describe("Gestão de Estoque Avançado & Lotes ANVISA", () => {
   describe("Rastreabilidade Reversa ANVISA (tracePatientsByBatchNumber)", () => {
     it("deve mapear todos os pacientes e dentistas que utilizaram o lote", () => {
       const movements: StockMovement[] = [
-        {
+        createMockStockMovement({
           id: "mov-1",
           clinic_id: testClinicId,
           item_id: "item-1",
@@ -125,8 +165,8 @@ describe("Gestão de Estoque Avançado & Lotes ANVISA", () => {
           patient_id: "pat-100",
           professional_id: "prof-10",
           created_at: "2026-11-01T14:30:00Z",
-        },
-        {
+        }),
+        createMockStockMovement({
           id: "mov-2",
           clinic_id: testClinicId,
           item_id: "item-1",
@@ -140,8 +180,8 @@ describe("Gestão de Estoque Avançado & Lotes ANVISA", () => {
           patient_id: "pat-200",
           professional_id: "prof-10",
           created_at: "2026-11-02T10:15:00Z",
-        },
-        {
+        }),
+        createMockStockMovement({
           id: "mov-3",
           clinic_id: testClinicId,
           item_id: "item-2",
@@ -154,7 +194,7 @@ describe("Gestão de Estoque Avançado & Lotes ANVISA", () => {
           reason: "Restauração",
           patient_id: "pat-300",
           created_at: "2026-11-03T11:00:00Z",
-        },
+        }),
       ];
 
       const patientsMap = new Map([
@@ -217,7 +257,7 @@ describe("Gestão de Estoque Avançado & Lotes ANVISA", () => {
   describe("Mensagem de Alerta para WhatsApp (buildAnvisaWhatsAppAlertMessage)", () => {
     it("deve gerar texto formatado contendo lotes críticos e recomendação PEPS", () => {
       const items: StockItem[] = [
-        {
+        createMockStockItem({
           id: "item-1",
           clinic_id: testClinicId,
           name: "Lidocaína 2% com Epinefrina",
@@ -228,10 +268,7 @@ describe("Gestão de Estoque Avançado & Lotes ANVISA", () => {
           unit_measure: "cx",
           batch_number: "LOTE-LIDO-33",
           expiration_date: "2026-11-20",
-          active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
+        }),
       ];
 
       const lots = extractAnvisaLots(items, [], mockNow);
@@ -246,3 +283,4 @@ describe("Gestão de Estoque Avançado & Lotes ANVISA", () => {
     });
   });
 });
+

@@ -322,3 +322,4 @@ export function buildAnvisaWhatsAppAlertMessage(
 
   return text;
 }
+
