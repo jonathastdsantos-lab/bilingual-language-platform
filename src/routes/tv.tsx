@@ -16,17 +16,45 @@ import {
   UserCheck,
   Megaphone,
   BellRing,
+  Sun,
+  CloudSun,
+  Cloud,
+  CloudRain,
+  CloudLightning,
+  KeyRound,
+  Tv,
+  Image as ImageIcon,
+  ChevronRight,
+  Info,
+  CheckCircle2,
+  LogIn,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { supabase } from "@/services/supabase";
 import {
   fetchWaitingRoomCalls,
   playWaitingRoomChime,
   speakPatientCall,
   isValidUuid,
+  getTvSettings,
+  fetchWeatherForecast,
+  TvSettings,
+  TvMediaItem,
+  WeatherInfo,
+  DEFAULT_TV_SETTINGS,
 } from "@/modules/waiting-room";
 import type { WaitingRoomCall } from "@/types";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/tv")({
   validateSearch: (search: Record<string, unknown>) => {
@@ -61,13 +89,13 @@ export const Route = createFileRoute("/tv")({
   head: () => ({
     meta: [
       { title: "Painel de Chamada TV — SondaPro" },
-      { name: "description", content: "Painel em tela cheia para recepção e salas de espera odontológicas." },
+      { name: "description", content: "Painel em tela cheia para recepção e salas de espera odontológicas com previsão do tempo e anúncios." },
     ],
   }),
   component: WaitingRoomTvPage,
 });
 
-function WaitingRoomTvPage() {
+export function WaitingRoomTvPage() {
   const { clinicId, unitId } = Route.useSearch();
   const qc = useQueryClient();
 
@@ -132,6 +160,83 @@ function WaitingRoomTvPage() {
   // Se clinicId não vier na URL, tenta buscar da chamada mais recente ou do usuário logado
   const [effectiveClinicId, setEffectiveClinicId] = useState<string | null>(searchClinicId ?? null);
   const [clinicName, setClinicName] = useState<string>("SondaPro Odontologia");
+
+  // Configurações de Mídia, Letreiro e Clima da TV
+  const [tvSettings, setTvSettings] = useState<TvSettings>(() => getTvSettings(effectiveClinicId));
+  const [weather, setWeather] = useState<WeatherInfo | null>(null);
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [tickerIndex, setTickerIndex] = useState(0);
+
+  // Modal de Conexão de Dispositivo / Totem / Raspberry Pi
+  const [loginModalOpen, setLoginModalOpen] = useState(false);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginPin, setLoginPin] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Sincroniza configurações locais e via BroadcastChannel
+  useEffect(() => {
+    const fresh = getTvSettings(effectiveClinicId);
+    setTvSettings(fresh);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("sondapro_tv_settings");
+        bc.onmessage = (e) => {
+          if (e.data?.settings) {
+            setTvSettings(e.data.settings);
+          }
+        };
+      }
+    } catch {
+      // ignore
+    }
+
+    const handleCustom = (e: Event) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const s = (e as any)?.detail?.settings;
+      if (s) setTvSettings(s);
+    };
+
+    window.addEventListener("sondapro:tv_settings_updated", handleCustom);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener("sondapro:tv_settings_updated", handleCustom);
+    };
+  }, [effectiveClinicId]);
+
+  // Carrega e atualiza a previsão do tempo
+  useEffect(() => {
+    if (!tvSettings.showWeather || !tvSettings.cityName) return;
+    fetchWeatherForecast(tvSettings.cityName).then(setWeather);
+    const timer = setInterval(() => {
+      fetchWeatherForecast(tvSettings.cityName).then(setWeather);
+    }, 20 * 60 * 1000); // 20 minutos
+    return () => clearInterval(timer);
+  }, [tvSettings.showWeather, tvSettings.cityName]);
+
+  // Rotação dos slides de mídia institucional
+  useEffect(() => {
+    const activeMedia = (tvSettings.mediaItems || []).filter((m) => m.active);
+    if (activeMedia.length <= 1) return;
+    const intervalMs = Math.max(5, tvSettings.slideIntervalSeconds || 12) * 1000;
+    const timer = setInterval(() => {
+      setCurrentSlideIndex((prev) => (prev + 1) % activeMedia.length);
+    }, intervalMs);
+    return () => clearInterval(timer);
+  }, [tvSettings.mediaItems, tvSettings.slideIntervalSeconds]);
+
+  // Rotação do letreiro de avisos do rodapé
+  useEffect(() => {
+    const tickers = tvSettings.tickerTexts || [];
+    if (tickers.length <= 1) return;
+    const timer = setInterval(() => {
+      setTickerIndex((prev) => (prev + 1) % tickers.length);
+    }, 7000);
+    return () => clearInterval(timer);
+  }, [tvSettings.tickerTexts]);
 
   useEffect(() => {
     const activeId = clinicId || searchClinicId;
@@ -216,7 +321,6 @@ function WaitingRoomTvPage() {
             if (soundEnabled) playWaitingRoomChime();
             if (speechEnabled) speakPatientCall(newCall.patient_name, newCall.room_name);
 
-            // Injeta imediatamente no estado para latência zero
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             qc.setQueriesData({ queryKey: ["waiting_room_calls"] }, (old: any) => {
               if (Array.isArray(old)) {
@@ -299,34 +403,103 @@ function WaitingRoomTvPage() {
   useEffect(() => {
     if (!activeCall) return;
 
-    // Na primeira carga, se a chamada tiver menos de 90 segundos, reproduz
     if (isFirstRenderRef.current) {
       isFirstRenderRef.current = false;
       const callAgeMs = Date.now() - new Date(activeCall.called_at).getTime();
       if (callAgeMs < 90000) {
-        if (soundEnabled) {
-          playWaitingRoomChime();
-        }
-        if (speechEnabled) {
-          speakPatientCall(activeCall.patient_name, activeCall.room_name);
-        }
+        if (soundEnabled) playWaitingRoomChime();
+        if (speechEnabled) speakPatientCall(activeCall.patient_name, activeCall.room_name);
       }
       lastCallIdRef.current = activeCall.id;
       return;
     }
 
     if (lastCallIdRef.current !== activeCall.id) {
-      if (soundEnabled) {
-        playWaitingRoomChime();
-      }
-      if (speechEnabled) {
-        speakPatientCall(activeCall.patient_name, activeCall.room_name);
-      }
+      if (soundEnabled) playWaitingRoomChime();
+      if (speechEnabled) speakPatientCall(activeCall.patient_name, activeCall.room_name);
       lastCallIdRef.current = activeCall.id;
     }
   }, [activeCall, soundEnabled, speechEnabled]);
 
-  const recentCalls = calls.slice(1, 6);
+  // Decisão visual: se a chamada foi feita nos últimos 50 segundos, destaque total na chamada!
+  // Caso contrário, roda o carrossel institucional de imagens/anúncios para valorizar a clínica na sala de espera
+  const callAgeMs = activeCall ? Date.now() - new Date(activeCall.called_at).getTime() : Infinity;
+  const isCallFresh = !!activeCall && callAgeMs < 50000;
+
+  const activeMediaList = (tvSettings.mediaItems || []).filter((m) => m.active);
+  const currentSlide: TvMediaItem | undefined = activeMediaList[currentSlideIndex % Math.max(1, activeMediaList.length)];
+
+  const recentCalls = calls.slice(isCallFresh ? 1 : 0, isCallFresh ? 6 : 5);
+
+  const activeTicker = (tvSettings.tickerTexts || [])[tickerIndex % Math.max(1, tvSettings.tickerTexts.length)] ||
+    "Bem-vindo ao SondaPro Odontologia • Mantenha sua escovação diária e consulte seu dentista regularmente.";
+
+  // Função para login no dispositivo (Tablet / Raspberry Pi)
+  async function handleDeviceLogin(e: React.FormEvent) {
+    e.preventDefault();
+    setIsLoggingIn(true);
+    try {
+      if (loginEmail && loginPassword) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error } = await (supabase as any).auth.signInWithPassword({
+          email: loginEmail.trim(),
+          password: loginPassword,
+        });
+        if (error) throw error;
+
+        if (data.user) {
+          // Busca a clínica do usuário
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: member } = await (supabase as any)
+            .from("clinic_members")
+            .select("clinic_id")
+            .eq("user_id", data.user.id)
+            .limit(1)
+            .single();
+
+          if (member?.clinic_id) {
+            setEffectiveClinicId(member.clinic_id);
+            localStorage.setItem("sondapro.clinic", member.clinic_id);
+            toast.success("Dispositivo conectado com sucesso!");
+            setLoginModalOpen(false);
+            return;
+          }
+        }
+      } else if (loginPin.trim()) {
+        const cleanPin = loginPin.trim();
+        setEffectiveClinicId(cleanPin);
+        localStorage.setItem("sondapro.clinic", cleanPin);
+        toast.success("Clínica vinculada via código!");
+        setLoginModalOpen(false);
+        return;
+      }
+      toast.error("Informe e-mail e senha ou o código da clínica.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erro ao autenticar dispositivo";
+      toast.error(msg);
+    } finally {
+      setIsLoggingIn(false);
+    }
+  }
+
+  // Render do ícone do clima
+  const renderWeatherIcon = () => {
+    if (!weather) return <Sun className="w-4 h-4 text-amber-400" />;
+    switch (weather.icon) {
+      case "sun":
+        return <Sun className="w-5 h-5 text-amber-400 animate-spin-slow" />;
+      case "cloud-sun":
+        return <CloudSun className="w-5 h-5 text-amber-300" />;
+      case "cloud":
+        return <Cloud className="w-5 h-5 text-slate-300" />;
+      case "rain":
+        return <CloudRain className="w-5 h-5 text-sky-400" />;
+      case "thunder":
+        return <CloudLightning className="w-5 h-5 text-purple-400" />;
+      default:
+        return <CloudSun className="w-5 h-5 text-amber-300" />;
+    }
+  };
 
   return (
     <div
@@ -346,14 +519,15 @@ function WaitingRoomTvPage() {
           <span>Clique aqui para ativar o áudio e voz do painel da TV</span>
         </div>
       )}
-      {/* 1. Header do Painel TV */}
+
+      {/* 1. Header do Painel TV com Relógio e Previsão do Tempo */}
       <header className="flex h-20 shrink-0 items-center justify-between border-b border-slate-800/80 bg-slate-900/90 px-8 backdrop-blur-md">
         <div className="flex items-center gap-4">
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-tr from-sky-600 to-cyan-500 text-white shadow-lg shadow-sky-500/20">
             <Sparkles className="h-6 w-6" />
           </span>
           <div>
-            <h1 className="text-2xl font-black tracking-tight text-white uppercase">
+            <h1 className="text-2xl font-black tracking-tight text-white uppercase truncate max-w-md">
               {clinicName}
             </h1>
             <p className="text-xs font-semibold uppercase tracking-widest text-sky-400">
@@ -362,8 +536,29 @@ function WaitingRoomTvPage() {
           </div>
         </div>
 
-        {/* Relógio Digital e Controles */}
+        {/* Centro/Direita: Previsão do Tempo + Relógio Digital + Controles */}
         <div className="flex items-center gap-6">
+          {/* Widget de Previsão do Tempo */}
+          {tvSettings.showWeather && (
+            <div className="hidden md:flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-slate-800/80 border border-slate-700/60 shadow-xs">
+              {renderWeatherIcon()}
+              <div className="text-left">
+                <div className="flex items-center gap-1.5 leading-none">
+                  <span className="font-bold text-white text-base">
+                    {weather ? `${weather.temperature}°C` : "24°C"}
+                  </span>
+                  <span className="text-[11px] text-slate-300 font-medium">
+                    {weather?.condition || "Ensolarado"}
+                  </span>
+                </div>
+                <p className="text-[10px] text-slate-400 truncate max-w-[120px]">
+                  {weather?.cityName || tvSettings.cityName || "São Paulo, SP"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Relógio Digital */}
           <div className="text-right">
             <div className="font-mono text-3xl font-extrabold tracking-wider text-white">
               {currentTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
@@ -373,7 +568,8 @@ function WaitingRoomTvPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 border-l border-slate-800 pl-6">
+          {/* Controles de Som, Tela Cheia e Dispositivo */}
+          <div className="flex items-center gap-1.5 border-l border-slate-800 pl-4">
             <Button
               variant="ghost"
               size="icon"
@@ -401,6 +597,18 @@ function WaitingRoomTvPage() {
             >
               {isFullscreen ? <Minimize className="h-5 w-5" /> : <Maximize className="h-5 w-5" />}
             </Button>
+
+            {/* Botão de Login / Pareamento de Dispositivo (Raspberry / Tablet) */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-slate-400 hover:bg-slate-800 hover:text-sky-300"
+              onClick={() => setLoginModalOpen(true)}
+              title="Conectar Dispositivo (Login / PIN)"
+            >
+              <KeyRound className="h-5 w-5" />
+            </Button>
+
             <Button variant="ghost" size="icon" asChild className="text-slate-400 hover:bg-slate-800 hover:text-white">
               <Link to="/app" title="Voltar ao Sistema">
                 <ArrowLeft className="h-5 w-5" />
@@ -410,15 +618,16 @@ function WaitingRoomTvPage() {
         </div>
       </header>
 
-      {/* 2. Conteúdo Central Dividido (Chamada Atual + Histórico Lateral) */}
+      {/* 2. Conteúdo Central Dividido (Chamada Ativa OU Carrossel de Anúncios + Histórico Lateral) */}
       <main className="flex flex-1 overflow-hidden p-8 gap-8">
-        {/* Chamada Ativa em Destaque Gigante */}
+        {/* Painel Central: Exibe Chamada Ativa quando houver OU Carrossel de Mídia/Anúncios */}
         <div className="flex flex-1 flex-col justify-between rounded-3xl border border-sky-500/30 bg-gradient-to-b from-slate-900/90 via-slate-900/60 to-slate-950 p-10 shadow-2xl shadow-sky-950/50 backdrop-blur-xl relative overflow-hidden">
           {/* Efeito luminoso de fundo */}
           <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-sky-600/15 blur-3xl pointer-events-none" />
           <div className="absolute -bottom-32 -right-32 h-96 w-96 rounded-full bg-cyan-600/10 blur-3xl pointer-events-none" />
 
-          {activeCall ? (
+          {isCallFresh && activeCall ? (
+            /* --- MODO CHAMADA ATIVA (DESTQUE TOTAL) --- */
             <>
               <div className="flex items-center justify-between border-b border-slate-800/80 pb-6">
                 <div className="flex items-center gap-3">
@@ -493,16 +702,75 @@ function WaitingRoomTvPage() {
               </div>
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
-              <span className="flex h-20 w-20 items-center justify-center rounded-3xl bg-slate-900 border border-slate-800 text-slate-600">
-                <Megaphone className="h-10 w-10 text-sky-500/60" />
-              </span>
-              <h3 className="text-3xl font-bold text-slate-300">
-                Aguardando Próxima Chamada
-              </h3>
-              <p className="text-slate-500 max-w-md text-sm">
-                Por favor, aguarde seu nome ser anunciado no painel. O profissional chamará em instantes.
-              </p>
+            /* --- MODO CARROSSEL DE ANÚNCIOS INSTITUCIONAIS / PROMOÇÕES --- */
+            <div className="flex flex-col justify-between h-full relative">
+              {/* Header do Banner */}
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800/80">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-sky-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-sky-300">
+                    SondaPro Informa · Saúde Bucal & Tratamentos
+                  </span>
+                </div>
+                {activeCall && (
+                  <Badge variant="outline" className="border-slate-700 bg-slate-900/80 text-slate-300 text-[11px] gap-1.5">
+                    <Clock className="w-3 h-3 text-sky-400" />
+                    Último chamado: <strong className="text-white">{activeCall.patient_name}</strong> ({activeCall.room_name})
+                  </Badge>
+                )}
+              </div>
+
+              {/* Slide Atual com Imagem e Textos */}
+              <div className="my-auto py-4 flex flex-col md:flex-row items-center gap-8">
+                {currentSlide?.imageUrl ? (
+                  <div className="w-full md:w-1/2 h-64 md:h-80 rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80 relative shrink-0">
+                    <img
+                      src={currentSlide.imageUrl}
+                      alt={currentSlide.title}
+                      className="w-full h-full object-cover transition-transform duration-700 hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent" />
+                  </div>
+                ) : (
+                  <div className="w-full md:w-1/2 h-64 md:h-80 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-center text-slate-600 shrink-0">
+                    <ImageIcon className="w-16 h-16 opacity-40 text-sky-500" />
+                  </div>
+                )}
+
+                <div className="flex-1 space-y-4 text-left">
+                  <Badge className="bg-sky-600/80 text-white font-semibold text-xs uppercase tracking-wide">
+                    Destaque da Clínica
+                  </Badge>
+                  <h2 className="text-3xl md:text-5xl font-black text-white tracking-tight leading-tight">
+                    {currentSlide?.title || "Cuidando do Seu Sorriso com Tecnologia"}
+                  </h2>
+                  <p className="text-slate-300 text-base md:text-lg leading-relaxed max-w-xl">
+                    {currentSlide?.subtitle || "Consulte nossa equipe na recepção para tirar dúvidas sobre procedimentos preventivos, estéticos e restauradores."}
+                  </p>
+                  <div className="pt-2 flex items-center gap-2 text-xs text-sky-300 font-medium">
+                    <span>Consulte seu cirurgião-dentista</span>
+                    <ChevronRight className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+
+              {/* Indicadores de Slide */}
+              {activeMediaList.length > 1 && (
+                <div className="flex items-center justify-center gap-2 pt-4 border-t border-slate-800/80">
+                  {activeMediaList.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setCurrentSlideIndex(idx)}
+                      className={`h-2 rounded-full transition-all ${
+                        idx === (currentSlideIndex % activeMediaList.length)
+                          ? "w-8 bg-sky-400"
+                          : "w-2 bg-slate-700 hover:bg-slate-600"
+                      }`}
+                      title={`Slide ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -557,16 +825,98 @@ function WaitingRoomTvPage() {
         </aside>
       </main>
 
-      {/* 4. Rodapé Informativo da Recepção */}
-      <footer className="h-10 shrink-0 border-t border-slate-900 bg-black/40 px-8 flex items-center justify-between text-xs text-slate-500">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          <span>Painel Conectado em Tempo Real</span>
+      {/* 4. Rodapé Informativo: Letreiro Animado de Notícias / Avisos */}
+      <footer className="h-11 shrink-0 border-t border-slate-900 bg-black/60 px-8 flex items-center justify-between text-xs text-slate-400">
+        <div className="flex items-center gap-2.5 shrink-0">
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="font-bold text-slate-300">TV Conectada</span>
         </div>
-        <div>
-          <span>Dica de Saúde: Mantenha sua escovação diária e consulte seu dentista regularmente.</span>
+
+        {/* Letreiro Rotativo */}
+        <div className="flex-1 mx-6 overflow-hidden text-center">
+          <p className="font-medium text-slate-200 animate-in fade-in transition duration-500 truncate">
+            {activeTicker}
+          </p>
+        </div>
+
+        <div className="shrink-0 text-[11px] text-slate-500">
+          SondaPro Dental Suite
         </div>
       </footer>
+
+      {/* Modal de Conexão de Dispositivo / Totem / Raspberry Pi */}
+      <Dialog open={loginModalOpen} onOpenChange={setLoginModalOpen}>
+        <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-slate-100">
+          <DialogHeader>
+            <DialogTitle className="text-lg font-bold flex items-center gap-2 text-white">
+              <KeyRound className="w-5 h-5 text-sky-400" />
+              Conectar Dispositivo / Totem / Raspberry Pi
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-400">
+              Faça login para vincular este tablet, TV ou mini-computador diretamente à sua clínica sem acesso a prontuários ou dados confidenciais.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleDeviceLogin} className="space-y-4 py-2">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-300">E-mail da Clínica / Recepção</label>
+              <Input
+                type="email"
+                placeholder="recepcao@clinicax.com.br"
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+                className="bg-slate-950 border-slate-800 text-white"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-300">Senha</label>
+              <Input
+                type="password"
+                placeholder="••••••••"
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                className="bg-slate-950 border-slate-800 text-white"
+              />
+            </div>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-slate-800" />
+              <span className="flex-shrink mx-3 text-[10px] text-slate-500 uppercase">ou conecte via ID / PIN</span>
+              <div className="flex-grow border-t border-slate-800" />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-300">Código / UUID da Clínica</label>
+              <Input
+                type="text"
+                placeholder="Ex: 9095e213-26af-441b-bc68-29c655c95590"
+                value={loginPin}
+                onChange={(e) => setLoginPin(e.target.value)}
+                className="bg-slate-950 border-slate-800 font-mono text-xs text-white"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setLoginModalOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={isLoggingIn}
+                className="bg-sky-600 hover:bg-sky-700 text-white font-medium"
+              >
+                {isLoggingIn ? "Conectando..." : "Conectar à TV"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

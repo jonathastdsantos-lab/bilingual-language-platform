@@ -127,5 +127,37 @@ describe("Painel de Chamada em Sala de Espera (TV / Totem)", () => {
       expect(() => speakPatientCall("Carlos Teste", "Consultório 01")).not.toThrow();
     });
   });
+
+  describe("Personalização da TV: Anúncios, Banners e Previsão do Tempo", () => {
+    it("deve carregar configurações padrão e permitir salvar novidades de mídia", async () => {
+      const { getTvSettings, saveTvSettings, DEFAULT_TV_SETTINGS } = await import("../modules/waiting-room");
+      const initial = getTvSettings("test-clinic");
+      expect(initial).toBeDefined();
+      expect(initial.cityName).toBe(DEFAULT_TV_SETTINGS.cityName);
+      expect(initial.tickerTexts.length).toBeGreaterThan(0);
+      expect(initial.mediaItems.length).toBeGreaterThan(0);
+
+      const modified = {
+        ...initial,
+        cityName: "Curitiba, PR",
+        tickerTexts: ["Promoção Implantes", ...initial.tickerTexts],
+      };
+      saveTvSettings("test-clinic", modified);
+
+      const loaded = getTvSettings("test-clinic");
+      expect(loaded.cityName).toBe("Curitiba, PR");
+      expect(loaded.tickerTexts).toContain("Promoção Implantes");
+    });
+
+    it("deve consultar previsão do tempo com fallback seguro", async () => {
+      const { fetchWeatherForecast } = await import("../modules/waiting-room");
+      const weather = await fetchWeatherForecast("São Paulo, SP");
+      expect(weather).toBeDefined();
+      expect(weather).toHaveProperty("temperature");
+      expect(weather).toHaveProperty("condition");
+      expect(weather).toHaveProperty("icon");
+      expect(typeof weather.temperature).toBe("number");
+    });
+  });
 });
 

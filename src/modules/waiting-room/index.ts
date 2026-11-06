@@ -387,3 +387,180 @@ export function speakPatientCall(
   }
 }
 
+// ============================================================================
+// TV MEDIA, ANÚNCIOS INSTITUCIONAIS & PREVISÃO DO TEMPO
+// ============================================================================
+
+export interface TvMediaItem {
+  id: string;
+  title: string;
+  subtitle?: string | undefined;
+  imageUrl?: string | undefined;
+  active: boolean;
+}
+
+export interface TvSettings {
+  cityName: string;
+  showWeather: boolean;
+  tickerTexts: string[];
+  mediaItems: TvMediaItem[];
+  slideIntervalSeconds: number;
+}
+
+export interface WeatherInfo {
+  temperature: number;
+  condition: string;
+  icon: "sun" | "cloud-sun" | "cloud" | "rain" | "thunder";
+  cityName: string;
+}
+
+export const DEFAULT_TV_SETTINGS: TvSettings = {
+  cityName: "São Paulo, SP",
+  showWeather: true,
+  tickerTexts: [
+    "Bem-vindo ao SondaPro Odontologia • Cuidando do seu sorriso com tecnologia e dedicação.",
+    "Wi-Fi gratuito na sala de espera: conecte-se à rede 'Clinica_Visitantes'. Solicite a senha na recepção.",
+    "Prevenção é saúde: mantenha sua escovação diária, use fio dental e consulte seu dentista periodicamente.",
+    "Conheça nossos tratamentos: Alinhadores Invisíveis, Implantes Odontológicos, Próteses e Clareamento a Laser.",
+  ],
+  mediaItems: [
+    {
+      id: "slide-1",
+      title: "Clareamento Dental Profissional",
+      subtitle: "Renove a estética do seu sorriso com segurança, tecnologia e acompanhamento odontológico.",
+      imageUrl: "https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=1200&q=80",
+      active: true,
+    },
+    {
+      id: "slide-2",
+      title: "Alinhadores Ortodônticos Transparentes",
+      subtitle: "Alinhamento estético, confortável e removível para o seu dia a dia.",
+      imageUrl: "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?auto=format&fit=crop&w=1200&q=80",
+      active: true,
+    },
+    {
+      id: "slide-3",
+      title: "Implantes & Próteses Dentárias",
+      subtitle: "Recupere o poder da sua mastigação e o prazer de sorrir livremente com planejamento 3D.",
+      imageUrl: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1200&q=80",
+      active: true,
+    },
+  ],
+  slideIntervalSeconds: 12,
+};
+
+const LOCAL_STORAGE_TV_SETTINGS_PREFIX = "sondapro:tv_settings:";
+
+/**
+ * Obtém as configurações de mídia, letreiro e clima da TV
+ */
+export function getTvSettings(clinicId?: string | null): TvSettings {
+  if (typeof window === "undefined") return DEFAULT_TV_SETTINGS;
+  try {
+    const key = clinicId ? `${LOCAL_STORAGE_TV_SETTINGS_PREFIX}${clinicId}` : `${LOCAL_STORAGE_TV_SETTINGS_PREFIX}default`;
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        ...DEFAULT_TV_SETTINGS,
+        ...parsed,
+        mediaItems: Array.isArray(parsed.mediaItems) && parsed.mediaItems.length > 0 ? parsed.mediaItems : DEFAULT_TV_SETTINGS.mediaItems,
+        tickerTexts: Array.isArray(parsed.tickerTexts) && parsed.tickerTexts.length > 0 ? parsed.tickerTexts : DEFAULT_TV_SETTINGS.tickerTexts,
+      };
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_TV_SETTINGS;
+}
+
+/**
+ * Salva as configurações de mídia, letreiro e clima da TV
+ */
+export function saveTvSettings(clinicId: string, settings: TvSettings): void {
+  if (typeof window === "undefined") return;
+  try {
+    const key = `${LOCAL_STORAGE_TV_SETTINGS_PREFIX}${clinicId}`;
+    const serialized = JSON.stringify(settings);
+    localStorage.setItem(key, serialized);
+    localStorage.setItem(`${LOCAL_STORAGE_TV_SETTINGS_PREFIX}default`, serialized);
+
+    if ("BroadcastChannel" in window) {
+      const bc = new BroadcastChannel("sondapro_tv_settings");
+      bc.postMessage({ type: "TV_SETTINGS_UPDATED", clinicId, settings });
+      bc.close();
+    }
+    window.dispatchEvent(new CustomEvent("sondapro:tv_settings_updated", { detail: { clinicId, settings } }));
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Consulta a previsão do tempo para a cidade informada (usando Open-Meteo público gratuito)
+ */
+export async function fetchWeatherForecast(cityName: string): Promise<WeatherInfo> {
+  const fallback: WeatherInfo = {
+    temperature: 24,
+    condition: "Parcialmente Nublado",
+    icon: "cloud-sun",
+    cityName: cityName || "São Paulo, SP",
+  };
+
+  if (!cityName || typeof window === "undefined") return fallback;
+
+  try {
+    // 1. Geocoding da cidade
+    const cityPart = cityName.split(",")[0];
+    const cleanCity = (cityPart ?? "").trim() || "São Paulo";
+    const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cleanCity)}&count=1&language=pt&format=json`;
+    const geoRes = await fetch(geoUrl);
+    if (!geoRes.ok) return fallback;
+    const geoData = await geoRes.json();
+    const firstResult = geoData.results?.[0];
+    if (!firstResult) return fallback;
+
+    const { latitude, longitude } = firstResult;
+
+    // 2. Previsão meteorológica
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code`;
+    const weatherRes = await fetch(weatherUrl);
+    if (!weatherRes.ok) return fallback;
+    const weatherData = await weatherRes.json();
+
+    const temp = Math.round(weatherData.current?.temperature_2m ?? 24);
+    const code = Number(weatherData.current?.weather_code ?? 1);
+
+    let condition = "Parcialmente Nublado";
+    let icon: WeatherInfo["icon"] = "cloud-sun";
+
+    if (code === 0) {
+      condition = "Céu Limpo / Ensolarado";
+      icon = "sun";
+    } else if (code <= 3) {
+      condition = "Parcialmente Nublado";
+      icon = "cloud-sun";
+    } else if (code >= 45 && code <= 48) {
+      condition = "Nevoeiro";
+      icon = "cloud";
+    } else if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
+      condition = "Chuvoso";
+      icon = "rain";
+    } else if (code >= 95) {
+      condition = "Tempestade";
+      icon = "thunder";
+    }
+
+    return {
+      temperature: temp,
+      condition,
+      icon,
+      cityName,
+    };
+  } catch (e) {
+    console.warn("fetchWeatherForecast warning:", e);
+    return fallback;
+  }
+}
+
+
