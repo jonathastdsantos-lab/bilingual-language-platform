@@ -158,6 +158,22 @@ describe("Painel de Chamada em Sala de Espera (TV / Totem)", () => {
       expect(weather).toHaveProperty("icon");
       expect(typeof weather.temperature).toBe("number");
     });
+    it("deve disponibilizar presets profissionais de imagens odontológicas para banners", async () => {
+      const { DENTAL_BANNER_PRESETS } = await import("../modules/waiting-room");
+      expect(Array.isArray(DENTAL_BANNER_PRESETS)).toBe(true);
+      expect(DENTAL_BANNER_PRESETS.length).toBeGreaterThanOrEqual(5);
+      const clareamento = DENTAL_BANNER_PRESETS.find((p) => p.category === "Estética");
+      expect(clareamento).toBeDefined();
+      expect(clareamento?.imageUrl).toMatch(/^https:\/\//);
+      expect(clareamento?.title.length).toBeGreaterThan(0);
+    });
+
+    it("compressImageFile não deve lançar erro mesmo em ambiente sem Canvas no Node.js", async () => {
+      const { compressImageFile } = await import("../modules/waiting-room");
+      const fakeBlob = new Blob(["test"], { type: "image/jpeg" });
+      const result = await compressImageFile(fakeBlob);
+      expect(typeof result).toBe("string");
+    });
   });
 });
 

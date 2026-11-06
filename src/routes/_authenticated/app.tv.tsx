@@ -27,6 +27,11 @@ import {
   KeyRound,
   Laptop,
   RefreshCw,
+  UploadCloud,
+  X,
+  Link2,
+  FolderOpen,
+  Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -47,6 +52,9 @@ import {
   saveTvSettings,
   sendRemoteTvReload,
   getTvHeartbeatStatus,
+  compressImageFile,
+  DENTAL_BANNER_PRESETS,
+  DentalBannerPreset,
   TvSettings,
   TvMediaItem,
 } from "@/modules/waiting-room";
@@ -80,6 +88,70 @@ function AppTvManagementPage() {
   const [newSlideSubtitle, setNewSlideSubtitle] = useState("");
   const [newSlideImageUrl, setNewSlideImageUrl] = useState("");
   const [isSavingSettings, setIsSavingSettings] = useState(false);
+
+  // Estados de Upload e Inserção de Imagem para Banners da TV
+  const [imageInputMode, setImageInputMode] = useState<"upload" | "presets" | "url">("upload");
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleImageFileUpload = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      toast.error("Por favor, selecione um arquivo de imagem válido (PNG, JPG, WEBP, GIF).");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("O arquivo deve ter no máximo 15MB.");
+      return;
+    }
+
+    try {
+      setIsProcessingImage(true);
+      let uploadedUrl: string | null = null;
+      try {
+        const fileExt = file.name.split(".").pop() || "jpg";
+        const fileName = `banner-${Date.now()}-${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+        const filePath = `${clinicId}/${fileName}`;
+        const { data, error } = await supabase.storage.from("tv-banners").upload(filePath, file, {
+          cacheControl: "3600",
+          upsert: true,
+        });
+        if (!error && data?.path) {
+          const { data: pubUrlData } = supabase.storage.from("tv-banners").getPublicUrl(data.path);
+          if (pubUrlData?.publicUrl) {
+            uploadedUrl = pubUrlData.publicUrl;
+          }
+        }
+      } catch {
+        // ignora e usa a dataURL otimizada
+      }
+
+      if (!uploadedUrl) {
+        uploadedUrl = await compressImageFile(file);
+      }
+
+      setNewSlideImageUrl(uploadedUrl);
+      if (!newSlideTitle) {
+        const nameWithoutExt = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        setNewSlideTitle(nameWithoutExt.charAt(0).toUpperCase() + nameWithoutExt.slice(1));
+      }
+      toast.success("Imagem carregada e pronta para o banner!");
+    } catch {
+      toast.error("Erro ao processar imagem.");
+    } finally {
+      setIsProcessingImage(false);
+    }
+  };
+
+  const handleSelectPreset = (preset: DentalBannerPreset) => {
+    setNewSlideImageUrl(preset.imageUrl);
+    if (!newSlideTitle) {
+      setNewSlideTitle(preset.title);
+    }
+    if (!newSlideSubtitle) {
+      setNewSlideSubtitle(preset.subtitle);
+    }
+    toast.success(`Banner selecionado: ${preset.title}`);
+  };
 
   // Monitoramento e Controle Remoto do Player de TV (Inspirado no DigitalSignageOS)
   const [tvStatus, setTvStatus] = useState(() => getTvHeartbeatStatus(clinicId));
@@ -683,45 +755,253 @@ function AppTvManagementPage() {
             </CardHeader>
 
             <CardContent className="space-y-4 text-xs">
-              {/* Formulário para novo slide */}
-              <form onSubmit={handleAddSlide} className="p-4 rounded-xl border border-sky-100 bg-sky-50/50 space-y-3">
-                <p className="font-bold text-slate-800 text-xs">Adicionar Novo Banner / Promoção</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Formulário para novo slide com inserção de imagem por upload, presets ou URL */}
+              <form onSubmit={handleAddSlide} className="p-5 rounded-2xl border border-sky-100 bg-gradient-to-b from-sky-50/60 via-white to-sky-50/30 space-y-4 shadow-xs">
+                <div className="flex items-center justify-between border-b border-sky-100 pb-3">
                   <div>
-                    <label className="text-[11px] font-semibold text-slate-600">Título do Anúncio</label>
+                    <p className="font-extrabold text-slate-800 text-sm">Adicionar Novo Banner / Promoção</p>
+                    <p className="text-[11px] text-slate-500">Configure a imagem e os textos que serão transmitidos na tela da TV da sala de espera.</p>
+                  </div>
+                  {newSlideImageUrl && (
+                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300 text-[10px] gap-1">
+                      <Check className="w-3 h-3 text-emerald-600" />
+                      Imagem pronta
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Seleção do Modo de Inserção de Imagem */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-sky-600" />
+                      Inserir Imagem do Banner
+                    </label>
+                    <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                      <button
+                        type="button"
+                        onClick={() => setImageInputMode("upload")}
+                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
+                          imageInputMode === "upload"
+                            ? "bg-white text-sky-700 shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        <UploadCloud className="w-3 h-3 inline mr-1" />
+                        Upload (Arquivo)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setImageInputMode("presets")}
+                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
+                          imageInputMode === "presets"
+                            ? "bg-white text-sky-700 shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        <Sparkles className="w-3 h-3 inline mr-1 text-amber-500" />
+                        Banco Odontológico
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setImageInputMode("url")}
+                        className={`px-2.5 py-1 text-[11px] font-semibold rounded-md transition ${
+                          imageInputMode === "url"
+                            ? "bg-white text-sky-700 shadow-xs"
+                            : "text-slate-600 hover:text-slate-900"
+                        }`}
+                      >
+                        <Link2 className="w-3 h-3 inline mr-1" />
+                        Link (URL)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 1. MODO UPLOAD DE ARQUIVO */}
+                  {imageInputMode === "upload" && (
+                    <div
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsDragOver(true);
+                      }}
+                      onDragLeave={() => setIsDragOver(false)}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsDragOver(false);
+                        const file = e.dataTransfer.files?.[0];
+                        if (file) handleImageFileUpload(file);
+                      }}
+                      className={`relative rounded-xl border-2 border-dashed p-4 text-center transition ${
+                        isDragOver
+                          ? "border-sky-500 bg-sky-100/50"
+                          : newSlideImageUrl
+                          ? "border-emerald-300 bg-emerald-50/30"
+                          : "border-slate-200 bg-white hover:border-sky-300"
+                      }`}
+                    >
+                      <input
+                        type="file"
+                        id="banner-file-input"
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageFileUpload(file);
+                        }}
+                      />
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+                          <UploadCloud className="h-5 w-5" />
+                        </span>
+                        <div>
+                          <p className="text-xs font-bold text-slate-800">
+                            {isProcessingImage
+                              ? "Otimizando e preparando imagem..."
+                              : "Arraste uma foto aqui ou clique para buscar no computador ou celular"}
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Suporta PNG, JPG, WEBP e GIF (recomendado proporção 16:9, até 15MB)
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={isProcessingImage}
+                          onClick={() => document.getElementById("banner-file-input")?.click()}
+                          className="h-8 text-xs font-semibold border-sky-300 text-sky-700 hover:bg-sky-50 mt-1"
+                        >
+                          <FolderOpen className="w-3.5 h-3.5 mr-1.5" />
+                          {isProcessingImage ? "Processando..." : "Selecionar Imagem do Computador"}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2. MODO BANCO DE FOTOS ODONTOLÓGICAS (1-CLIQUE) */}
+                  {imageInputMode === "presets" && (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-slate-500">
+                        Clique em qualquer modelo abaixo para carregar uma foto profissional em alta definição e preencher os textos automaticamente:
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                        {DENTAL_BANNER_PRESETS.map((preset) => {
+                          const isSelected = newSlideImageUrl === preset.imageUrl;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => handleSelectPreset(preset)}
+                              className={`group relative rounded-xl overflow-hidden border text-left p-1.5 transition ${
+                                isSelected
+                                  ? "border-sky-500 ring-2 ring-sky-400 bg-sky-50"
+                                  : "border-slate-200 bg-white hover:border-sky-300 hover:shadow-xs"
+                              }`}
+                            >
+                              <div className="relative h-20 w-full rounded-lg overflow-hidden bg-slate-100">
+                                <img
+                                  src={preset.imageUrl}
+                                  alt={preset.title}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                                />
+                                <Badge className="absolute bottom-1 left-1 bg-black/70 text-white text-[9px] px-1.5 py-0 border-0">
+                                  {preset.category}
+                                </Badge>
+                                {isSelected && (
+                                  <div className="absolute top-1 right-1 bg-sky-600 text-white rounded-full p-0.5">
+                                    <Check className="w-3 h-3" />
+                                  </div>
+                                )}
+                              </div>
+                              <p className="text-[11px] font-bold text-slate-800 truncate mt-1.5">{preset.title}</p>
+                              <p className="text-[10px] text-slate-500 line-clamp-1">{preset.subtitle}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 3. MODO URL DIRETA */}
+                  {imageInputMode === "url" && (
+                    <div>
+                      <Input
+                        type="url"
+                        placeholder="https://exemplo.com/fotos/banner-clinica.jpg"
+                        value={newSlideImageUrl}
+                        onChange={(e) => setNewSlideImageUrl(e.target.value)}
+                        className="h-9 text-xs bg-white"
+                      />
+                      <p className="text-[10px] text-slate-400 mt-1">Cole o link público de uma imagem hospedada no seu site, Canva, Cloudinary ou Instagram.</p>
+                    </div>
+                  )}
+
+                  {/* PREVIEW DA IMAGEM SELECIONADA */}
+                  {newSlideImageUrl && (
+                    <div className="relative rounded-xl border border-sky-200 bg-slate-950 p-2 overflow-hidden shadow-xs mt-2">
+                      <div className="relative h-36 w-full rounded-lg overflow-hidden flex items-center justify-center bg-black/40">
+                        <img
+                          src={newSlideImageUrl}
+                          alt="Pré-visualização do Banner"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-3">
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400">Prévia na TV</span>
+                            <p className="text-xs font-bold text-white truncate max-w-md">{newSlideTitle || "Título do Banner"}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setNewSlideImageUrl("")}
+                        className="absolute top-3 right-3 h-7 w-7 rounded-full bg-slate-900/80 text-white hover:bg-rose-600"
+                        title="Remover imagem"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Campos de Título e Descrição */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-700">Título do Anúncio *</label>
                     <Input
                       type="text"
                       placeholder="Ex: Clareamento Dental a Laser"
                       value={newSlideTitle}
                       onChange={(e) => setNewSlideTitle(e.target.value)}
                       className="h-9 text-xs bg-white mt-1"
+                      required
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] font-semibold text-slate-600">URL da Imagem (Opcional)</label>
+                    <label className="text-[11px] font-bold text-slate-700">Descrição / Legenda</label>
                     <Input
-                      type="url"
-                      placeholder="https://exemplo.com/foto.jpg"
-                      value={newSlideImageUrl}
-                      onChange={(e) => setNewSlideImageUrl(e.target.value)}
+                      type="text"
+                      placeholder="Ex: Agende sua avaliação estética com condições especiais este mês."
+                      value={newSlideSubtitle}
+                      onChange={(e) => setNewSlideSubtitle(e.target.value)}
                       className="h-9 text-xs bg-white mt-1"
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-600">Descrição / Legenda</label>
-                  <Input
-                    type="text"
-                    placeholder="Ex: Agende sua avaliação estética com condições especiais este mês."
-                    value={newSlideSubtitle}
-                    onChange={(e) => setNewSlideSubtitle(e.target.value)}
-                    className="h-9 text-xs bg-white mt-1"
-                  />
+
+                <div className="flex items-center justify-end gap-2 pt-1 border-t border-sky-100">
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={isProcessingImage || !newSlideTitle.trim()}
+                    className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold gap-1.5 h-9 px-4 shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Adicionar Banner à TV
+                  </Button>
                 </div>
-                <Button type="submit" size="sm" className="bg-sky-600 hover:bg-sky-700 text-white text-xs gap-1.5 h-8">
-                  <Plus className="w-3.5 h-3.5" />
-                  Salvar Banner
-                </Button>
               </form>
 
               {/* Lista de Slides Atuais */}

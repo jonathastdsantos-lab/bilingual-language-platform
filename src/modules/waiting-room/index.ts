@@ -637,5 +637,139 @@ export function getTvHeartbeatStatus(clinicId: string): { isOnline: boolean; las
   }
 }
 
+// ============================================================================
+// BIBLIOTECA DE PRESETS E OTIMIZAÇÃO DE IMAGENS PARA BANNERS DA TV
+// ============================================================================
+
+export interface DentalBannerPreset {
+  id: string;
+  title: string;
+  subtitle: string;
+  imageUrl: string;
+  category: string;
+}
+
+export const DENTAL_BANNER_PRESETS: DentalBannerPreset[] = [
+  {
+    id: "preset-clareamento",
+    title: "Clareamento Dental Profissional",
+    subtitle: "Conquiste um sorriso mais branco e radiante com procedimento seguro, moderno e indolor.",
+    imageUrl: "https://images.unsplash.com/photo-1606811841689-23dfddce3e95?auto=format&fit=crop&w=1200&q=80",
+    category: "Estética",
+  },
+  {
+    id: "preset-alinhadores",
+    title: "Alinhadores Ortodônticos Invisíveis",
+    subtitle: "Corrija o alinhamento dos seus dentes sem fios metálicos. Discreto, prático e removível.",
+    imageUrl: "https://images.unsplash.com/photo-1588776814546-1ffcf47267a5?auto=format&fit=crop&w=1200&q=80",
+    category: "Ortodontia",
+  },
+  {
+    id: "preset-implantes",
+    title: "Implantes & Reabilitação Oral",
+    subtitle: "Volte a sorrir e mastigar com segurança e estabilidade com planejamento digital 3D.",
+    imageUrl: "https://images.unsplash.com/photo-1629909613654-28e377c37b09?auto=format&fit=crop&w=1200&q=80",
+    category: "Cirurgia",
+  },
+  {
+    id: "preset-prevencao",
+    title: "Check-up Preventivo & Limpeza",
+    subtitle: "A prevenção é o melhor cuidado. Agende sua profilaxia semestral e preserve seu sorriso.",
+    imageUrl: "https://images.unsplash.com/photo-1579684385127-1ef15d508118?auto=format&fit=crop&w=1200&q=80",
+    category: "Prevenção",
+  },
+  {
+    id: "preset-pediatria",
+    title: "Odontopediatria Especializada",
+    subtitle: "Atendimento acolhedor e sem traumas para cuidar da saúde bucal das crianças com muito carinho.",
+    imageUrl: "https://images.unsplash.com/photo-1598256989800-fe5f95da9787?auto=format&fit=crop&w=1200&q=80",
+    category: "Infantil",
+  },
+  {
+    id: "preset-harmonizacao",
+    title: "Harmonização Orofacial & Estética",
+    subtitle: "Equilíbrio, bem-estar e harmonia do sorriso com protocolos estéticos personalizados.",
+    imageUrl: "https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=1200&q=80",
+    category: "Estética",
+  },
+];
+
+/**
+ * Otimiza e converte um arquivo de imagem para Base64 JPEG com limite de dimensão para a TV
+ */
+export function compressImageFile(
+  file: File | Blob,
+  maxWidth = 1280,
+  maxHeight = 800,
+  quality = 0.82
+): Promise<string> {
+  return new Promise((resolve) => {
+    if (typeof window === "undefined" || typeof FileReader === "undefined") {
+      resolve("");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onerror = () => resolve("");
+    reader.onload = (e) => {
+      const resultStr = e.target?.result as string;
+      if (!resultStr) {
+        resolve("");
+        return;
+      }
+
+      if (typeof Image === "undefined" || typeof document === "undefined") {
+        resolve(resultStr);
+        return;
+      }
+
+      const img = new Image();
+      const timer = setTimeout(() => {
+        resolve(resultStr);
+      }, 300);
+
+      img.onerror = () => {
+        clearTimeout(timer);
+        resolve(resultStr);
+      };
+
+      img.onload = () => {
+        clearTimeout(timer);
+        let width = img.width || maxWidth;
+        let height = img.height || maxHeight;
+
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+
+        try {
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            resolve(resultStr);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL("image/jpeg", quality);
+          resolve(compressed);
+        } catch {
+          resolve(resultStr);
+        }
+      };
+
+      img.src = resultStr;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+
 
 
