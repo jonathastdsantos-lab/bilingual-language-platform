@@ -28,8 +28,12 @@ export interface NpsFeedbackRecord {
   redirectedToGoogle: boolean;
   status: "new" | "resolved" | "contacted";
   managerAlertSent: boolean;
+  resolutionNotes?: string | undefined;
+  resolvedAt?: string | undefined;
   createdAt: string;
 }
+
+export type NpsFeedback = NpsFeedbackRecord;
 
 export interface NpsReputationSettings {
   clinicId: string;
@@ -330,17 +334,56 @@ export async function submitNpsFeedback(
 export function updateFeedbackStatus(
   clinicId: string,
   feedbackId: string,
-  status: "new" | "resolved" | "contacted"
-): boolean {
+  status: "new" | "resolved" | "contacted",
+  resolutionNotes?: string | undefined
+): NpsFeedbackRecord | null {
   if (typeof window !== "undefined") {
     try {
       const existing = fetchClinicNpsFeedbacks(clinicId);
-      const next = existing.map((f) => (f.id === feedbackId ? { ...f, status } : f));
+      let updatedRecord: NpsFeedbackRecord | null = null;
+      const next = existing.map((f) => {
+        if (f.id === feedbackId) {
+          updatedRecord = {
+            ...f,
+            status,
+            resolutionNotes: resolutionNotes || f.resolutionNotes,
+            resolvedAt: status === "resolved" ? new Date().toISOString() : f.resolvedAt,
+          };
+          return updatedRecord;
+        }
+        return f;
+      });
       localStorage.setItem(`${STORAGE_NPS_FEEDBACKS_KEY}${clinicId}`, JSON.stringify(next));
-      return true;
+      return updatedRecord;
     } catch {
-      return false;
+      return null;
     }
   }
-  return false;
+  return null;
 }
+
+export function buildGoogleReviewUrl(googleReviewUrl: string): string {
+  if (googleReviewUrl && googleReviewUrl.trim().length > 5) {
+    return googleReviewUrl.trim();
+  }
+  return "https://www.google.com/search?q=avaliar+clinica+odontologica";
+}
+
+export function buildDetractorAlertWhatsAppUrl(
+  managerPhone: string,
+  feedback: NpsFeedbackRecord,
+  clinicName?: string
+): string {
+  const cleanPhone = managerPhone.replace(/\D/g, "");
+  const formattedPhone = cleanPhone.startsWith("55") ? cleanPhone : `55${cleanPhone}`;
+  const msg = `⚠️ *ALERTA IMEDIATO NPS - DETRATOR DETECTADO*\n\n` +
+    `*Clínica:* ${clinicName || "SondaPro Odonto"}\n` +
+    `*Paciente:* ${feedback.patientName}\n` +
+    `*Telefone:* ${feedback.patientPhone || "Não informado"}\n` +
+    `*Nota:* ${feedback.score}/10\n` +
+    `*Comentário:* "${feedback.comment || "Sem comentário adicional"}"\n\n` +
+    `Recomenda-se contato telefônico rápido pelo gestor para acolhimento e reversão da insatisfação antes de postagem pública.`;
+
+  return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(msg)}`;
+}
+

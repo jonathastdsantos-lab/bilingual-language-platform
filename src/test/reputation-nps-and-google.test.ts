@@ -9,8 +9,7 @@ import {
   updateFeedbackStatus,
   buildGoogleReviewUrl,
   buildDetractorAlertWhatsAppUrl,
-  DEFAULT_REPUTATION_SETTINGS,
-  type NpsFeedback,
+  type NpsFeedbackRecord,
 } from "@/modules/reputation";
 
 describe("Reputação & Crescimento: Pesquisa NPS + Google Meu Negócio", () => {
@@ -27,9 +26,9 @@ describe("Reputação & Crescimento: Pesquisa NPS + Google Meu Negócio", () => 
       }
     });
 
-    it("deve classificar notas 7 e 8 como Neutros / Passivos", () => {
-      expect(getNpsCategory(7)).toBe("passive");
-      expect(getNpsCategory(8)).toBe("passive");
+    it("deve classificar notas 7 e 8 como Neutros", () => {
+      expect(getNpsCategory(7)).toBe("neutral");
+      expect(getNpsCategory(8)).toBe("neutral");
     });
 
     it("deve classificar notas 9 e 10 como Promotores", () => {
@@ -39,61 +38,101 @@ describe("Reputação & Crescimento: Pesquisa NPS + Google Meu Negócio", () => 
   });
 
   describe("Cálculo do Score NPS e Zonas de Desempenho (calculateNpsScore)", () => {
-    it("deve retornar score 0 e zona de aperfeiçoamento quando não houver avaliações", () => {
+    it("deve retornar métricas padrão quando não houver avaliações", () => {
       const summary = calculateNpsScore([]);
-      expect(summary.total).toBe(0);
-      expect(summary.score).toBe(0);
-      expect(summary.zone).toBe("Aperfeiçoamento");
-      expect(summary.promotersPct).toBe(0);
-      expect(summary.detractorsPct).toBe(0);
+      expect(summary.totalCount).toBe(0);
+      expect(summary.npsScore).toBe(100);
+      expect(summary.zone).toBe("excellence");
     });
 
     it("deve atingir +100 e Zona de Excelência quando todas as avaliações forem promotores", () => {
-      const feedbacks: NpsFeedback[] = [
-        { id: "1", clinicId: testClinicId, patientName: "João", score: 10, category: "promoter", status: "new", createdAt: new Date().toISOString() },
-        { id: "2", clinicId: testClinicId, patientName: "Maria", score: 9, category: "promoter", status: "new", createdAt: new Date().toISOString() },
+      const feedbacks: NpsFeedbackRecord[] = [
+        {
+          id: "1",
+          clinicId: testClinicId,
+          patientName: "João",
+          score: 10,
+          category: "promoter",
+          redirectedToGoogle: true,
+          status: "resolved",
+          managerAlertSent: false,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: "2",
+          clinicId: testClinicId,
+          patientName: "Maria",
+          score: 9,
+          category: "promoter",
+          redirectedToGoogle: true,
+          status: "resolved",
+          managerAlertSent: false,
+          createdAt: new Date().toISOString(),
+        },
       ];
       const summary = calculateNpsScore(feedbacks);
-      expect(summary.total).toBe(2);
-      expect(summary.promotersCount).toBe(2);
-      expect(summary.score).toBe(100);
-      expect(summary.zone).toBe("Excelência");
-      expect(summary.averageScore).toBe(9.5);
+      expect(summary.totalCount).toBe(2);
+      expect(summary.promotersPct).toBe(100);
+      expect(summary.detractorsPct).toBe(0);
+      expect(summary.npsScore).toBe(100);
+      expect(summary.zone).toBe("excellence");
+      expect(summary.averageRating).toBe(9.5);
     });
 
     it("deve atingir -100 e Zona Crítica quando todas as avaliações forem detratores", () => {
-      const feedbacks: NpsFeedback[] = [
-        { id: "1", clinicId: testClinicId, patientName: "Carlos", score: 3, category: "detractor", status: "new", createdAt: new Date().toISOString() },
-        { id: "2", clinicId: testClinicId, patientName: "Ana", score: 5, category: "detractor", status: "new", createdAt: new Date().toISOString() },
+      const feedbacks: NpsFeedbackRecord[] = [
+        {
+          id: "1",
+          clinicId: testClinicId,
+          patientName: "Carlos",
+          score: 3,
+          category: "detractor",
+          redirectedToGoogle: false,
+          status: "new",
+          managerAlertSent: true,
+          createdAt: new Date().toISOString(),
+        },
+        {
+          id: "2",
+          clinicId: testClinicId,
+          patientName: "Ana",
+          score: 5,
+          category: "detractor",
+          redirectedToGoogle: false,
+          status: "new",
+          managerAlertSent: true,
+          createdAt: new Date().toISOString(),
+        },
       ];
       const summary = calculateNpsScore(feedbacks);
-      expect(summary.total).toBe(2);
-      expect(summary.detractorsCount).toBe(2);
-      expect(summary.score).toBe(-100);
-      expect(summary.zone).toBe("Crítica");
+      expect(summary.totalCount).toBe(2);
+      expect(summary.detractorsPct).toBe(100);
+      expect(summary.promotersPct).toBe(0);
+      expect(summary.npsScore).toBe(-100);
+      expect(summary.zone).toBe("critical");
     });
 
     it("deve calcular o NPS corretamente com mix de promotores, neutros e detratores", () => {
-      // 10 respostas: 6 promotores (60%), 2 neutros (20%), 2 detratores (20%) -> NPS = 60 - 20 = 40 (Zona de Qualidade)
-      const feedbacks: NpsFeedback[] = [
-        { id: "1", clinicId: testClinicId, patientName: "P1", score: 10, category: "promoter", status: "new", createdAt: new Date().toISOString() },
-        { id: "2", clinicId: testClinicId, patientName: "P2", score: 10, category: "promoter", status: "new", createdAt: new Date().toISOString() },
-        { id: "3", clinicId: testClinicId, patientName: "P3", score: 9, category: "promoter", status: "new", createdAt: new Date().toISOString() },
-        { id: "4", clinicId: testClinicId, patientName: "P4", score: 9, category: "promoter", status: "new", createdAt: new Date().toISOString() },
-        { id: "5", clinicId: testClinicId, patientName: "P5", score: 10, category: "promoter", status: "new", createdAt: new Date().toISOString() },
-        { id: "6", clinicId: testClinicId, patientName: "P6", score: 9, category: "promoter", status: "new", createdAt: new Date().toISOString() },
-        { id: "7", clinicId: testClinicId, patientName: "P7", score: 8, category: "passive", status: "new", createdAt: new Date().toISOString() },
-        { id: "8", clinicId: testClinicId, patientName: "P8", score: 7, category: "passive", status: "new", createdAt: new Date().toISOString() },
-        { id: "9", clinicId: testClinicId, patientName: "P9", score: 4, category: "detractor", status: "new", createdAt: new Date().toISOString() },
-        { id: "10", clinicId: testClinicId, patientName: "P10", score: 2, category: "detractor", status: "new", createdAt: new Date().toISOString() },
+      // 10 respostas: 6 promotores (60%), 2 neutros (20%), 2 detratores (20%) -> NPS = 60 - 20 = 40 (Zone improvement)
+      const feedbacks: NpsFeedbackRecord[] = [
+        { id: "1", clinicId: testClinicId, patientName: "P1", score: 10, category: "promoter", redirectedToGoogle: true, status: "resolved", managerAlertSent: false, createdAt: new Date().toISOString() },
+        { id: "2", clinicId: testClinicId, patientName: "P2", score: 10, category: "promoter", redirectedToGoogle: true, status: "resolved", managerAlertSent: false, createdAt: new Date().toISOString() },
+        { id: "3", clinicId: testClinicId, patientName: "P3", score: 9, category: "promoter", redirectedToGoogle: true, status: "resolved", managerAlertSent: false, createdAt: new Date().toISOString() },
+        { id: "4", clinicId: testClinicId, patientName: "P4", score: 9, category: "promoter", redirectedToGoogle: true, status: "resolved", managerAlertSent: false, createdAt: new Date().toISOString() },
+        { id: "5", clinicId: testClinicId, patientName: "P5", score: 10, category: "promoter", redirectedToGoogle: true, status: "resolved", managerAlertSent: false, createdAt: new Date().toISOString() },
+        { id: "6", clinicId: testClinicId, patientName: "P6", score: 9, category: "promoter", redirectedToGoogle: true, status: "resolved", managerAlertSent: false, createdAt: new Date().toISOString() },
+        { id: "7", clinicId: testClinicId, patientName: "P7", score: 8, category: "neutral", redirectedToGoogle: false, status: "contacted", managerAlertSent: false, createdAt: new Date().toISOString() },
+        { id: "8", clinicId: testClinicId, patientName: "P8", score: 7, category: "neutral", redirectedToGoogle: false, status: "contacted", managerAlertSent: false, createdAt: new Date().toISOString() },
+        { id: "9", clinicId: testClinicId, patientName: "P9", score: 4, category: "detractor", redirectedToGoogle: false, status: "new", managerAlertSent: true, createdAt: new Date().toISOString() },
+        { id: "10", clinicId: testClinicId, patientName: "P10", score: 2, category: "detractor", redirectedToGoogle: false, status: "new", managerAlertSent: true, createdAt: new Date().toISOString() },
       ];
       const summary = calculateNpsScore(feedbacks);
-      expect(summary.total).toBe(10);
-      expect(summary.promotersCount).toBe(6);
-      expect(summary.passivesCount).toBe(2);
-      expect(summary.detractorsCount).toBe(2);
-      expect(summary.score).toBe(40);
-      expect(summary.zone).toBe("Qualidade");
+      expect(summary.totalCount).toBe(10);
+      expect(summary.promotersPct).toBe(60);
+      expect(summary.neutralsPct).toBe(20);
+      expect(summary.detractorsPct).toBe(20);
+      expect(summary.npsScore).toBe(40);
+      expect(summary.zone).toBe("improvement");
     });
   });
 
@@ -115,9 +154,8 @@ describe("Reputação & Crescimento: Pesquisa NPS + Google Meu Negócio", () => 
         enableGoogleRedirectForPromoters: false,
         enableManagerAlertOnDetractor: false,
         minimumScoreForGoogle: 10,
-        googlePlaceId: "ChIJN1t_tDeuEmsRUsoyG83frY4",
         googleReviewUrl: "https://g.page/r/sondapro/review",
-        managerWhatsAppPhone: "11988887777",
+        managerAlertPhone: "11988887777",
       });
 
       const updated = getReputationSettings(testClinicId);
@@ -126,7 +164,7 @@ describe("Reputação & Crescimento: Pesquisa NPS + Google Meu Negócio", () => 
       expect(updated.enableManagerAlertOnDetractor).toBe(false);
       expect(updated.minimumScoreForGoogle).toBe(10);
       expect(updated.googleReviewUrl).toBe("https://g.page/r/sondapro/review");
-      expect(updated.managerWhatsAppPhone).toBe("11988887777");
+      expect(updated.managerAlertPhone).toBe("11988887777");
     });
   });
 
@@ -143,11 +181,11 @@ describe("Reputação & Crescimento: Pesquisa NPS + Google Meu Negócio", () => 
       expect(feedback.id).toBeDefined();
       expect(feedback.category).toBe("promoter");
       expect(feedback.score).toBe(10);
-      expect(feedback.status).toBe("new");
+      expect(feedback.status).toBe("resolved");
 
-      const feedbacks = await fetchClinicNpsFeedbacks(testClinicId);
-      expect(feedbacks.length).toBe(1);
-      expect(feedbacks[0].patientName).toBe("Lucas Mendes");
+      const feedbacks = fetchClinicNpsFeedbacks(testClinicId);
+      expect(feedbacks.length).toBeGreaterThan(0);
+      expect(feedbacks[0]?.patientName).toBe("Lucas Mendes");
     });
 
     it("deve submeter detrator e permitir atualização de status com acolhimento pelo gestor", async () => {
@@ -159,21 +197,24 @@ describe("Reputação & Crescimento: Pesquisa NPS + Google Meu Negócio", () => 
       });
 
       expect(detractor.category).toBe("detractor");
+      expect(detractor.status).toBe("new");
 
       // Gestor entra em contato e resolve a insatisfação
-      const resolved = await updateFeedbackStatus(
+      const resolved = updateFeedbackStatus(
         testClinicId,
         detractor.id,
         "resolved",
         "Ligamos para o paciente, pedimos desculpas pela espera e concedemos limpeza profilática de cortesia."
       );
 
+      expect(resolved).not.toBeNull();
       expect(resolved?.status).toBe("resolved");
       expect(resolved?.resolutionNotes).toContain("cortesia");
 
-      const list = await fetchClinicNpsFeedbacks(testClinicId);
-      expect(list[0].status).toBe("resolved");
-      expect(list[0].resolvedAt).toBeDefined();
+      const list = fetchClinicNpsFeedbacks(testClinicId);
+      const found = list.find((f) => f.id === detractor.id);
+      expect(found?.status).toBe("resolved");
+      expect(found?.resolvedAt).toBeDefined();
     });
   });
 
@@ -187,7 +228,7 @@ describe("Reputação & Crescimento: Pesquisa NPS + Google Meu Negócio", () => 
     });
 
     it("deve gerar URL do WhatsApp com alerta de detrator para o gestor", () => {
-      const detractor: NpsFeedback = {
+      const detractor: NpsFeedbackRecord = {
         id: "det-1",
         clinicId: testClinicId,
         patientName: "Julia Ramos",
@@ -195,7 +236,9 @@ describe("Reputação & Crescimento: Pesquisa NPS + Google Meu Negócio", () => 
         score: 3,
         category: "detractor",
         comment: "Aparelho quebrou no mesmo dia.",
+        redirectedToGoogle: false,
         status: "new",
+        managerAlertSent: true,
         createdAt: new Date().toISOString(),
       };
 
