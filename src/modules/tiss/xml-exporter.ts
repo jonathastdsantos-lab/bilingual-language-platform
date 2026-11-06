@@ -232,3 +232,4 @@ export function triggerTissXmlDownload(xmlContent: string, fileName?: string): v
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
+

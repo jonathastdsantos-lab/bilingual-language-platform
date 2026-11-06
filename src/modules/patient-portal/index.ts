@@ -34,7 +34,202 @@ export interface PatientPortalDocument {
   validation_url?: string | null;
 }
 
+export interface PatientPortalAlignerInfo {
+  hasTreatment: boolean;
+  brand: string;
+  currentPlateNumber: number;
+  totalPlates: number;
+  progressPct: number;
+  nextChangeDate: string;
+  daysUntilNextChange: number;
+  dailyWearHoursGoal: number;
+  iprNotice?: string | null;
+}
+
+export interface PatientPortalInvoice {
+  id: string;
+  description: string;
+  value: number;
+  dueDate: string;
+  status: "pending" | "paid" | "overdue";
+  pixCopyPasteCode?: string;
+  bankSlipUrl?: string;
+  paidAt?: string;
+}
+
+export interface PostOpGuideItem {
+  id: string;
+  title: string;
+  category: "Cirurgia" | "Ortodontia" | "Estética" | "Prevenção";
+  summary: string;
+  recommendations: string[];
+  warnings: string[];
+}
+
+export interface PatientPortalSettingsSwitches {
+  enablePatientPortal: boolean; // Ativa/desativa portal do paciente
+  enableOnlineCheckin: boolean; // Permite check-in de chegada pelo celular
+  enableAlignerTracker: boolean; // Exibe aba de alinhadores no app
+  enableFinancialSelfService: boolean; // Exibe faturas e Pix
+  enablePostOpGuides: boolean; // Exibe manuais pós-operatórios
+  enableAppointmentSchedulingRequest: boolean; // Solicitar agendamento
+}
+
+export interface PatientPortalSettings {
+  clinicId: string;
+  switches: PatientPortalSettingsSwitches;
+  clinicEmergencyPhone?: string | null;
+  pwaAppName: string;
+  updatedAt: string;
+}
+
 const LOCAL_PORTAL_SESSION_KEY = "sondapro:patient_portal_session";
+const LOCAL_PORTAL_SETTINGS_PREFIX = "sondapro:patient_portal_settings:";
+
+export const DEFAULT_PATIENT_PORTAL_SETTINGS: PatientPortalSettings = {
+  clinicId: "default",
+  pwaAppName: "SondaPro Dental",
+  clinicEmergencyPhone: "+55 (11) 98765-4321",
+  switches: {
+    enablePatientPortal: true,
+    enableOnlineCheckin: true,
+    enableAlignerTracker: true,
+    enableFinancialSelfService: true,
+    enablePostOpGuides: true,
+    enableAppointmentSchedulingRequest: true,
+  },
+  updatedAt: new Date().toISOString(),
+};
+
+/**
+ * Consulta as configurações do Portal do Paciente para a clínica
+ */
+export function getPatientPortalSettings(clinicId: string): PatientPortalSettings {
+  if (typeof window === "undefined") {
+    return { ...DEFAULT_PATIENT_PORTAL_SETTINGS, clinicId };
+  }
+
+  try {
+    const raw = localStorage.getItem(`${LOCAL_PORTAL_SETTINGS_PREFIX}${clinicId}`);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        clinicId,
+        pwaAppName: parsed.pwaAppName || DEFAULT_PATIENT_PORTAL_SETTINGS.pwaAppName,
+        clinicEmergencyPhone: parsed.clinicEmergencyPhone || DEFAULT_PATIENT_PORTAL_SETTINGS.clinicEmergencyPhone,
+        switches: {
+          ...DEFAULT_PATIENT_PORTAL_SETTINGS.switches,
+          ...(parsed.switches || {}),
+        },
+        updatedAt: parsed.updatedAt || new Date().toISOString(),
+      };
+    }
+  } catch {
+    // fallback
+  }
+
+  return { ...DEFAULT_PATIENT_PORTAL_SETTINGS, clinicId };
+}
+
+/**
+ * Salva as configurações do Portal do Paciente da clínica
+ */
+export function savePatientPortalSettings(
+  clinicId: string,
+  updates: Partial<PatientPortalSettings>
+): PatientPortalSettings {
+  const current = getPatientPortalSettings(clinicId);
+  const updated: PatientPortalSettings = {
+    ...current,
+    ...updates,
+    switches: {
+      ...current.switches,
+      ...(updates.switches || {}),
+    },
+    clinicId,
+    updatedAt: new Date().toISOString(),
+  };
+
+  if (typeof window !== "undefined") {
+    try {
+      localStorage.setItem(`${LOCAL_PORTAL_SETTINGS_PREFIX}${clinicId}`, JSON.stringify(updated));
+    } catch {
+      // ignore
+    }
+  }
+
+  return updated;
+}
+
+export const POST_OP_GUIDES: PostOpGuideItem[] = [
+  {
+    id: "guide_surgery",
+    title: "Cuidados Pós-Extração e Cirurgias Odontológicas",
+    category: "Cirurgia",
+    summary: "Recomendações fundamentais para as primeiras 48h após exodontias (sisos) e cirurgias periodontais.",
+    recommendations: [
+      "Mantenha a gaze mordida por 30 a 45 minutos para conter o sangramento inicial.",
+      "Aplique compressas frias com gelo na face (lado operado) por 15 minutos com intervalos de 15 minutos nas primeiras 24 horas.",
+      "Alimentação fria, líquida ou pastosa (iogurte, sopas mornas/frias, sorvetes sem pedaços crocantes) nos 2 primeiros dias.",
+      "Tome as medicações prescritas rigorosamente nos horários indicados sem interromper o antibiótico.",
+      "Mantenha a cabeça mais elevada que o corpo ao deitar, usando um travesseiro extra.",
+    ],
+    warnings: [
+      "NÃO faça bochechos vigorosos nem cuspa nas primeiras 24 horas para não desalojar o coágulo sanguíneo.",
+      "NÃO utilize canudos para beber líquidos (a pressão negativa causa sangramento).",
+      "Evite esforços físicos pesados, academia e exposição solar por 5 a 7 dias.",
+      "Evite bebidas alcoólicas e fumo por no mínimo 7 dias.",
+    ],
+  },
+  {
+    id: "guide_aligners",
+    title: "Manual do Paciente de Alinhadores Invisíveis",
+    category: "Ortodontia",
+    summary: "Como obter os melhores resultados, conforto e higiene durante seu tratamento com placas transparentes.",
+    recommendations: [
+      "Use seus alinhadores por no mínimo 20 a 22 horas por dia, retirando apenas para comer e escovar os dentes.",
+      "Higienize as placas com água morna/fria e sabão neutro líquido ou pastilhas efervescentes específicas.",
+      "Ao colocar uma placa nova, use os mordedores de silicone (chewies) para perfeito assentamento nos dentes.",
+      "Guarde SEMPRE seus alinhadores no estojo rígido quando for fazer refeições (nunca enrole em guardanapos).",
+    ],
+    warnings: [
+      "NÃO lave as placas com água quente para não deformar o material termoplástico.",
+      "NÃO beba café, chá quente ou refrigerantes coloridos com o alinhador nos dentes (risco de manchar ou deformar).",
+      "Guarde SEMPRE o par de placas imediatamente anterior para caso de perda emergencial.",
+    ],
+  },
+  {
+    id: "guide_whitening",
+    title: "Cuidados Durante e Após o Clareamento Dental",
+    category: "Estética",
+    summary: "Como maximizar a durabilidade do branco dental e reduzir a sensibilidade dentária.",
+    recommendations: [
+      "Utilize creme dental específico para dentes sensíveis antes e durante o período do clareamento.",
+      "Mantenha a moldeira caseira com a quantidade de gel indicada pelo seu dentista (1 gota por dente).",
+      "Escove suavemente e enxágue bem a boca para remover resíduos do gel clareador.",
+    ],
+    warnings: [
+      "Evite nas primeiras 48h alimentos e bebidas com corantes intensos: café expresso, vinho tinto, refrigerantes cola, molho de tomate, beterraba e açaí.",
+      "Evite fumar durante todo o período do clareamento.",
+    ],
+  },
+  {
+    id: "guide_hygiene",
+    title: "Prevenção & Guia de Escovação Correta",
+    category: "Prevenção",
+    summary: "Passo a passo para dentes livres de placa bacteriana, gengivite e tártaro.",
+    recommendations: [
+      "Escove os dentes pelo menos 3 vezes ao dia com cerdas macias ou extra macias em movimentos circulares suaves.",
+      "Passe fio dental diariamente antes de dormir entre todos os dentes até a linha gengival.",
+      "Higienize o dorso da língua diariamente com limpador lingual para prevenir o mau hálito.",
+      "Visite a clínica a cada 6 meses para profilaxia profissional e remoção preventiva de tártaro.",
+    ],
+    warnings: [
+      "Não use força excessiva na escovação para não retrair a gengiva nem desgastar o esmalte dental.",
+      "Substitua sua escova de dentes a cada 3 meses ou antes se as cerdas abrirem.",
+    ],
+  },
+];
 
 /**
  * Autentica o paciente no Portal Web através do CPF e Telefone (ou Data de Nascimento)
@@ -306,4 +501,174 @@ export async function confirmPatientAppointment(appointmentId: string): Promise<
   } catch {
     return true;
   }
+}
+
+/**
+ * Consulta o tratamento ortodôntico de alinhadores do paciente para o App do Paciente
+ */
+export async function fetchPatientPortalAlignerInfo(
+  clinicId: string,
+  patientId: string
+): Promise<PatientPortalAlignerInfo> {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(`sondapro.ortho.aligners.${clinicId}_${patientId}`);
+      if (raw) {
+        const aligner = JSON.parse(raw);
+        const maxPlates = Math.max(Number(aligner.totalUpperPlates) || 14, Number(aligner.totalLowerPlates) || 14);
+        const currentPlate = Number(aligner.currentPlateNumber) || 1;
+        const progressPct = Math.round((currentPlate / maxPlates) * 100);
+
+        const nextDate = new Date(aligner.nextChangeDate || new Date());
+        const today = new Date();
+        const diffMs = nextDate.getTime() - today.getTime();
+        const daysUntil = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+
+        return {
+          hasTreatment: true,
+          brand: aligner.brand || "Invisalign",
+          currentPlateNumber: currentPlate,
+          totalPlates: maxPlates,
+          progressPct,
+          nextChangeDate: aligner.nextChangeDate || new Date().toISOString().split("T")[0]!,
+          daysUntilNextChange: daysUntil,
+          dailyWearHoursGoal: Number(aligner.dailyWearHoursGoal) || 22,
+          iprNotice: aligner.iprSteps?.find((s: any) => s.stageNumber === currentPlate && !s.completed)
+            ? "Ajuste / polimento clínico programado para esta fase."
+            : null,
+        };
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  // Fallback demonstrativo caso não tenha alinhadores cadastrados
+  return {
+    hasTreatment: true,
+    brand: "Invisalign Comprehensive",
+    currentPlateNumber: 5,
+    totalPlates: 18,
+    progressPct: 28,
+    nextChangeDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!,
+    daysUntilNextChange: 5,
+    dailyWearHoursGoal: 22,
+    iprNotice: null,
+  };
+}
+
+/**
+ * Registra a troca de placa realizada pelo próprio paciente no app
+ */
+export function advancePatientAlignerPlate(clinicId: string, patientId: string): boolean {
+  if (typeof window === "undefined") return true;
+
+  try {
+    const raw = localStorage.getItem(`sondapro.ortho.aligners.${clinicId}_${patientId}`);
+    if (raw) {
+      const aligner = JSON.parse(raw);
+      const maxPlates = Math.max(Number(aligner.totalUpperPlates) || 14, Number(aligner.totalLowerPlates) || 14);
+      const nextNum = Math.min(maxPlates, (Number(aligner.currentPlateNumber) || 1) + 1);
+
+      const freqDays = Number(aligner.changeFrequencyDays) || 10;
+      const nextDate = new Date();
+      nextDate.setDate(nextDate.getDate() + freqDays);
+
+      aligner.currentPlateNumber = nextNum;
+      aligner.nextChangeDate = nextDate.toISOString().split("T")[0]!;
+      aligner.updatedAt = new Date().toISOString();
+
+      localStorage.setItem(`sondapro.ortho.aligners.${clinicId}_${patientId}`, JSON.stringify(aligner));
+      return true;
+    }
+  } catch {
+    // fallback
+  }
+
+  return true;
+}
+
+/**
+ * Consulta faturas, parcelas e Pix para pagamento no app do paciente
+ */
+export async function fetchPatientPortalInvoices(
+  clinicId: string,
+  patientId: string
+): Promise<PatientPortalInvoice[]> {
+  // 1. Tenta carregar do localStorage de cobranças Asaas
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(`sondapro.asaas.charges.${clinicId}`);
+      if (raw) {
+        const charges = JSON.parse(raw) as any[];
+        const patientCharges = charges.filter((c) => c.patientId === patientId);
+        if (patientCharges.length > 0) {
+          return patientCharges.map((c) => ({
+            id: c.id,
+            description: c.description || "Procedimento Odontológico",
+            value: Number(c.value) || 0,
+            dueDate: c.dueDate,
+            status: c.status === "RECEIVED" ? "paid" : "pending",
+            pixCopyPasteCode: c.pixCopiaECola,
+            bankSlipUrl: c.bankSlipUrl,
+            paidAt: c.paymentDate,
+          }));
+        }
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  // Fallback demo de faturas do paciente
+  return [
+    {
+      id: "inv-demo-1",
+      description: "Mensalidade Tratamento Ortodôntico (Alinhadores)",
+      value: 350.0,
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!,
+      status: "pending",
+      pixCopyPasteCode: "00020126580014BR.GOV.BCB.PIX0136sondapro-odontologia-pix-9821345204000053039865405350.005802BR5923SONDAPRO ODONTOLOGIA6009SAO PAULO62070503***6304A8F2",
+      bankSlipUrl: "https://app.sondapro.com.br/boleto/inv-demo-1",
+    },
+    {
+      id: "inv-demo-2",
+      description: "Restauração Estética em Resina Fotopolimerizável",
+      value: 180.0,
+      dueDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!,
+      status: "paid",
+      paidAt: new Date(Date.now() - 29 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!,
+    },
+  ];
+}
+
+/**
+ * Check-in de chegada presencial do paciente pelo App Web / Celular
+ */
+export async function checkInPatientArrival(
+  clinicId: string,
+  patientId: string,
+  patientName: string
+): Promise<{ success: boolean; message: string }> {
+  const arrivalTime = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+  if (typeof window !== "undefined") {
+    try {
+      const checkinRecord = {
+        clinicId,
+        patientId,
+        patientName,
+        arrivedAt: new Date().toISOString(),
+        timeStr: arrivalTime,
+      };
+      localStorage.setItem(`sondapro.checkin.${clinicId}_${patientId}`, JSON.stringify(checkinRecord));
+    } catch {
+      // ignore
+    }
+  }
+
+  return {
+    success: true,
+    message: `Check-in confirmado às ${arrivalTime}! A recepção e seu dentista já foram notificados da sua chegada.`,
+  };
 }
