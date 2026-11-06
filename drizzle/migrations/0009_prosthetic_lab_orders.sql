@@ -2,6 +2,25 @@
 -- MIGRATION 0009 (DRIZZLE): CONTROLE DE LABORATÓRIO DE PRÓTESE
 -- ============================================================================
 
+-- Fixed: helper used by policies below did not exist yet. Maps permissions to clinic roles.
+CREATE OR REPLACE FUNCTION public.user_has_permission(_clinic_id UUID, _permission TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT public.has_clinic_permission(
+    _clinic_id,
+    _permission,
+    CASE
+      WHEN _permission LIKE '%.read' THEN ARRAY['owner','admin','dentist','receptionist','assistant','finance']::public.clinic_role[]
+      WHEN _permission LIKE 'settings.%' THEN ARRAY['owner','admin']::public.clinic_role[]
+      ELSE ARRAY['owner','admin','dentist','receptionist']::public.clinic_role[]
+    END
+  )
+$$;
+
 CREATE TABLE IF NOT EXISTS public.prosthetic_lab_orders (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   clinic_id UUID NOT NULL REFERENCES public.clinics(id) ON DELETE CASCADE,
