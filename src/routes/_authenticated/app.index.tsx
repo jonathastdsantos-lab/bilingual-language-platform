@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Target, LayoutDashboard } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { supabase, normalizeSupabaseError } from "@/services/supabase";
 import { buildAdministrativeAlerts } from "@/services/notifications";
 import { calculateAttendanceIndicators, calculateFinancialIndicators } from "@/modules/finance";
@@ -18,6 +19,7 @@ import { EmptyDashboardState } from "@/components/dashboard/EmptyDashboardState"
 import { RevenueTrendChart } from "@/components/charts/RevenueTrendChart";
 import { ProfessionalsBarChart } from "@/components/charts/ProfessionalsBarChart";
 import { AppointmentStatusChart } from "@/components/charts/AppointmentStatusChart";
+import { ClinicalPerformanceDashboard } from "@/components/performance/ClinicalPerformanceDashboard";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   head: () => ({
@@ -34,6 +36,7 @@ export const Route = createFileRoute("/_authenticated/app/")({
 function Dashboard() {
   const { t, dateLocale } = useT();
   const { clinicId, clinicName, hasPermission, units } = useClinic();
+  const [viewMode, setViewMode] = useState<"operational" | "performance">("performance");
   const [period, setPeriod] = useState<DashboardPeriod>("30d");
   const [profFilter, setProfFilter] = useState<string>("all");
 
@@ -188,41 +191,97 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <DashboardFilterBar
-        clinicName={clinicName}
-        period={period}
-        onPeriodChange={setPeriod}
-        professionalId={profFilter}
-        onProfessionalChange={setProfFilter}
-        professionals={allProfs}
-      />
+      {/* SELETOR DE MODO DO DASHBOARD */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b pb-4">
+        <div>
+          <h1 className="font-display text-2xl font-black text-navy dark:text-white">
+            {clinicName}
+          </h1>
+          <p className="text-xs text-muted-foreground">
+            {viewMode === "performance"
+              ? "Cockpit Executivo: Metas do mês, conversão de planos, taxa de ocupação e produtividade clínica."
+              : "Visão Operacional: Atendimentos diários, status de agenda e alertas administrativos."}
+          </p>
+        </div>
 
-      {isEmptyPeriod && (
-        <EmptyDashboardState
-          canManageSettings={hasPermission("settings.manage")}
-          canWritePatients={hasPermission("patients.write")}
+        <div className="flex items-center gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800 w-fit">
+          <Button
+            type="button"
+            variant={viewMode === "performance" ? "default" : "ghost"}
+            size="sm"
+            className="h-8 gap-1.5 text-xs font-bold"
+            onClick={() => setViewMode("performance")}
+          >
+            <Target className="h-3.5 w-3.5" />
+            Performance & Metas
+          </Button>
+          <Button
+            type="button"
+            variant={viewMode === "operational" ? "default" : "ghost"}
+            size="sm"
+            className="h-8 gap-1.5 text-xs font-medium"
+            onClick={() => setViewMode("operational")}
+          >
+            <LayoutDashboard className="h-3.5 w-3.5" />
+            Visão Operacional
+          </Button>
+        </div>
+      </div>
+
+      {viewMode === "performance" ? (
+        <ClinicalPerformanceDashboard
+          clinicId={clinicId}
+          clinicName={clinicName}
+          appointments={rawAppts.map((a) => ({
+            id: a.id,
+            starts_at: a.starts_at,
+            status: a.status,
+            price: a.price,
+            patient_id: null,
+            professional_id: a.professional_id,
+          }))}
+          professionals={allProfs}
+          roomsCount={data?.roomsCount ?? 3}
         />
+      ) : (
+        <>
+          <DashboardFilterBar
+            clinicName={clinicName}
+            period={period}
+            onPeriodChange={setPeriod}
+            professionalId={profFilter}
+            onProfessionalChange={setProfFilter}
+            professionals={allProfs}
+          />
+
+          {isEmptyPeriod && (
+            <EmptyDashboardState
+              canManageSettings={hasPermission("settings.manage")}
+              canWritePatients={hasPermission("patients.write")}
+            />
+          )}
+
+          <FinancialKpiCards
+            metrics={financialMetrics}
+            canViewFinancial={canViewFinancial}
+            dateLocale={dateLocale}
+          />
+
+          <AttendanceKpiCards metrics={attendanceMetrics} />
+
+          <div className="grid gap-6 xl:grid-cols-3">
+            {canViewFinancial && <RevenueTrendChart data={revenueSeries} dateLocale={dateLocale} />}
+            <UpcomingAppointmentsCard items={data?.upcoming ?? []} dateLocale={dateLocale} />
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-3">
+            <ProfessionalsBarChart data={byProfessional} />
+            <AppointmentStatusChart metrics={attendanceMetrics} />
+          </div>
+
+          <AdminAlertsCard alerts={adminAlerts} />
+        </>
       )}
-
-      <FinancialKpiCards
-        metrics={financialMetrics}
-        canViewFinancial={canViewFinancial}
-        dateLocale={dateLocale}
-      />
-
-      <AttendanceKpiCards metrics={attendanceMetrics} />
-
-      <div className="grid gap-6 xl:grid-cols-3">
-        {canViewFinancial && <RevenueTrendChart data={revenueSeries} dateLocale={dateLocale} />}
-        <UpcomingAppointmentsCard items={data?.upcoming ?? []} dateLocale={dateLocale} />
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-3">
-        <ProfessionalsBarChart data={byProfessional} />
-        <AppointmentStatusChart metrics={attendanceMetrics} />
-      </div>
-
-      <AdminAlertsCard alerts={adminAlerts} />
     </div>
   );
 }

@@ -11,9 +11,11 @@ import {
   Clock,
   Sparkles,
   Star,
+  Target,
 } from "lucide-react";
 import { ExecutiveIntelligenceDashboard } from "@/components/reports/ExecutiveIntelligenceDashboard";
 import { ReputationManagementPanel } from "@/components/reputation/ReputationManagementPanel";
+import { ClinicalPerformanceDashboard } from "@/components/performance/ClinicalPerformanceDashboard";
 import { supabase } from "@/services/supabase";
 import { useClinic } from "@/lib/clinic";
 import { useT, formatBRL } from "@/lib/i18n";
@@ -68,7 +70,15 @@ function ReportsPage() {
   const [stockItems, setStockItems] = useState<StockItem[]>([]);
   const [professionals, setProfessionals] = useState<ProfessionalRow[]>([]);
   const [appointments, setAppointments] = useState<
-    Array<{ procedure: string | null; price: number | string | null; status: string }>
+    Array<{
+      id: string;
+      procedure: string | null;
+      price: number | string | null;
+      status: string;
+      starts_at: string;
+      patient_id: string | null;
+      professional_id: string | null;
+    }>
   >([]);
   const [loading, setLoading] = useState(true);
 
@@ -89,7 +99,7 @@ function ReportsPage() {
           .order("name", { ascending: true }),
         supabase
           .from("appointments")
-          .select("procedure, price, status")
+          .select("id, procedure, price, status, starts_at, patient_id, professional_id")
           .eq("clinic_id", clinicId),
       ]);
 
@@ -102,9 +112,13 @@ function ReportsPage() {
       setProfessionals((profsRes.data ?? []) as ProfessionalRow[]);
       setAppointments(
         (apptsRes.data ?? []) as Array<{
+          id: string;
           procedure: string | null;
           price: number | string | null;
           status: string;
+          starts_at: string;
+          patient_id: string | null;
+          professional_id: string | null;
         }>
       );
     } catch (err) {
@@ -296,8 +310,12 @@ function ReportsPage() {
           {t("common.loading")}
         </div>
       ) : (
-        <Tabs defaultValue="intelligence" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-5">
+        <Tabs defaultValue="performance" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-6">
+            <TabsTrigger value="performance" className="gap-2 font-bold text-teal">
+              <Target className="h-4 w-4" />
+              Performance & Metas
+            </TabsTrigger>
             <TabsTrigger value="intelligence" className="gap-2">
               <Sparkles className="h-4 w-4 text-teal" />
               Inteligência & Curva ABC
@@ -319,6 +337,18 @@ function ReportsPage() {
               {t("rep.tabExport")}
             </TabsTrigger>
           </TabsList>
+
+          {/* TAB: DASHBOARD GERENCIAL DE PERFORMANCE */}
+          <TabsContent value="performance" className="space-y-4">
+            <ClinicalPerformanceDashboard
+              clinicId={clinicId}
+              clinicName={clinicName}
+              appointments={appointments}
+              financialEntries={entries}
+              professionals={professionals}
+              roomsCount={3}
+            />
+          </TabsContent>
 
           {/* TAB 0: DASHBOARD EXECUTIVO DE INTELIGÊNCIA ODONTOLÓGICA & CURVA ABC */}
           <TabsContent value="intelligence">
