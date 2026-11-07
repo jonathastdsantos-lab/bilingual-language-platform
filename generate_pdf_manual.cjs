@@ -1,0 +1,866 @@
+const fs = require("fs");
+const path = require("path");
+const { execSync } = require("child_process");
+
+const htmlContent = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>SondaPro — Manual Completo e Relatório Operacional</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+    @page {
+      size: A4;
+      margin: 18mm 15mm 18mm 15mm;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #1e293b;
+      line-height: 1.55;
+      font-size: 10pt;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* CAPA */
+    .cover-page {
+      page-break-after: always;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      background: linear-gradient(135deg, #091a2f 0%, #0d2847 50%, #08203e 100%);
+      color: white;
+      padding: 60px 48px;
+      margin: -18mm -15mm;
+    }
+
+    .cover-brand {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .cover-logo-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #0284c7, #06b6d4);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 26px;
+      color: #ffffff;
+      box-shadow: 0 10px 25px rgba(2, 132, 199, 0.4);
+    }
+
+    .cover-brand-title {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #ffffff;
+    }
+
+    .cover-brand-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(14, 165, 233, 0.2);
+      border: 1px solid rgba(14, 165, 233, 0.4);
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+      color: #38bdf8;
+      margin-top: 4px;
+    }
+
+    .cover-main {
+      margin-top: 60px;
+    }
+
+    .cover-headline {
+      font-size: 40px;
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -1px;
+      color: #ffffff;
+      margin-bottom: 20px;
+    }
+
+    .cover-headline span {
+      color: #38bdf8;
+    }
+
+    .cover-sub {
+      font-size: 15px;
+      color: #94a3b8;
+      max-width: 600px;
+      line-height: 1.6;
+    }
+
+    .cover-compliance-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-top: 40px;
+    }
+
+    .cover-comp-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+
+    .cover-comp-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #38bdf8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .cover-comp-desc {
+      font-size: 10px;
+      color: #cbd5e1;
+      margin-top: 4px;
+      line-height: 1.35;
+    }
+
+    .cover-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      padding-top: 24px;
+      font-size: 11px;
+      color: #64748b;
+    }
+
+    /* CONTEÚDO */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1.5px solid #0284c7;
+      padding-bottom: 8px;
+      margin-bottom: 24px;
+      font-size: 9pt;
+      color: #64748b;
+    }
+
+    .page-header strong {
+      color: #0369a1;
+      font-weight: 700;
+    }
+
+    h1 {
+      font-size: 20pt;
+      font-weight: 800;
+      color: #0f172a;
+      letter-spacing: -0.5px;
+      margin-top: 0;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      font-size: 14pt;
+      font-weight: 700;
+      color: #0369a1;
+      margin-top: 28px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 6px;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 11pt;
+      font-weight: 600;
+      color: #1e293b;
+      margin-top: 18px;
+      margin-bottom: 8px;
+      page-break-after: avoid;
+    }
+
+    p {
+      margin-top: 0;
+      margin-bottom: 10px;
+      color: #334155;
+      text-align: justify;
+    }
+
+    ul, ol {
+      margin-top: 0;
+      margin-bottom: 12px;
+      padding-left: 20px;
+      color: #334155;
+    }
+
+    li {
+      margin-bottom: 4px;
+    }
+
+    .toc {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 30px;
+      page-break-after: always;
+    }
+
+    .toc-title {
+      font-size: 14pt;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 16px;
+    }
+
+    .toc-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 24px;
+      row-gap: 8px;
+      font-size: 9.5pt;
+    }
+
+    .toc-item {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dotted #cbd5e1;
+      padding-bottom: 2px;
+    }
+
+    .toc-item a {
+      color: #0369a1;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 14px;
+      page-break-inside: avoid;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+
+    .callout {
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin: 14px 0;
+      font-size: 9.5pt;
+      page-break-inside: avoid;
+    }
+
+    .callout-info {
+      background: #f0f9ff;
+      border-left: 4px solid #0284c7;
+      color: #0369a1;
+    }
+
+    .callout-warning {
+      background: #fffbeb;
+      border-left: 4px solid #f59e0b;
+      color: #92400e;
+    }
+
+    .callout-success {
+      background: #f0fdf4;
+      border-left: 4px solid #16a34a;
+      color: #15803d;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 14px 0;
+      font-size: 9pt;
+      page-break-inside: avoid;
+    }
+
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 8px 10px;
+      text-align: left;
+    }
+
+    th {
+      background: #f1f5f9;
+      color: #0f172a;
+      font-weight: 700;
+    }
+
+    tr:nth-child(even) {
+      background: #f8fafc;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 7px;
+      border-radius: 9999px;
+      font-size: 8pt;
+      font-weight: 600;
+    }
+
+    .badge-blue { background: #e0f2fe; color: #0369a1; }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-amber { background: #fef3c7; color: #b45309; }
+    .badge-purple { background: #f3e8ff; color: #7e22ce; }
+
+    .code-block {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 8.5pt;
+      line-height: 1.45;
+      margin: 12px 0;
+      overflow-x: auto;
+      page-break-inside: avoid;
+    }
+
+    .page-break {
+      page-break-after: always;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- CAPA EXECUTIVA -->
+  <div class="cover-page">
+    <div class="cover-brand">
+      <div class="cover-logo-icon">S</div>
+      <div>
+        <div class="cover-brand-title">SondaPro</div>
+        <div class="cover-brand-badge">CLINICAL DENTAL INTELLIGENCE SAAS</div>
+      </div>
+    </div>
+
+    <div class="cover-main">
+      <div class="cover-headline">
+        Manual Operacional Completo & <span>Relatório Minucioso</span>
+      </div>
+      <div class="cover-sub">
+        Documento técnico e funcional de referência oficial. Mapeamento detalhado de todos os 18 módulos integrados, matriz de permissões RBAC, régua de automações e conformidade com os conselhos e agências regulatórias nacionais.
+      </div>
+
+      <div class="cover-compliance-grid">
+        <div class="cover-comp-card">
+          <div class="cover-comp-title">CFO 226/2020</div>
+          <div class="cover-comp-desc">Teleorientação, telemonitoramento e TCLE eletrônico obrigatório.</div>
+        </div>
+        <div class="cover-comp-card">
+          <div class="cover-comp-title">ANVISA RDC 67 & 427</div>
+          <div class="cover-comp-desc">Rastreabilidade completa de lotes, validades e registro sanitário.</div>
+        </div>
+        <div class="cover-comp-card">
+          <div class="cover-comp-title">ANS TISS v4.01</div>
+          <div class="cover-comp-desc">Tabela TUSS e exportação de lotes XML com proteção anti-glosa.</div>
+        </div>
+        <div class="cover-comp-card">
+          <div class="cover-comp-title">ICP-BRASIL MP 2.200-2</div>
+          <div class="cover-comp-desc">Assinaturas qualificadas com carimbo de tempo para receitas e laudos.</div>
+        </div>
+        <div class="cover-comp-card">
+          <div class="cover-comp-title">LGPD LEI 13.709/18</div>
+          <div class="cover-comp-desc">Trilha de auditoria imutável e isolamento de dados com RLS estrito.</div>
+        </div>
+        <div class="cover-comp-card">
+          <div class="cover-comp-title">SPLIT GATEWAY</div>
+          <div class="cover-comp-desc">Asaas e Mercado Pago com split automático de comissões sem bitributação.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cover-footer">
+      <div>
+        <strong>Plataforma SondaPro Odonto</strong> • Versão 3.5.0 Production Ready<br>
+        Ambiente: Multi-Tenant Cloud / Supabase PostgreSQL / WebSockets Realtime
+      </div>
+      <div style="text-align: right;">
+        Data de Emissão: 06 de Novembro de 2026<br>
+        Confidencial &bull; Uso Institucional da Clínica
+      </div>
+    </div>
+  </div>
+
+  <!-- SUMÁRIO -->
+  <div class="toc">
+    <div class="toc-title">📋 Sumário Geral do Manual</div>
+    <div class="toc-grid">
+      <div class="toc-item"><span>1. Visão Geral & Arquitetura SaaS</span><strong>Cap. 1</strong></div>
+      <div class="toc-item"><span>2. Governança, RBAC & Permissões</span><strong>Cap. 2</strong></div>
+      <div class="toc-item"><span>3. Agenda Inteligente & Cadeiras</span><strong>Cap. 3</strong></div>
+      <div class="toc-item"><span>4. Prontuário Digital & Odontograma</span><strong>Cap. 4</strong></div>
+      <div class="toc-item"><span>5. Radiografias & OdontoAI</span><strong>Cap. 5</strong></div>
+      <div class="toc-item"><span>6. Ortodontia & Alinhadores</span><strong>Cap. 6</strong></div>
+      <div class="toc-item"><span>7. Ordens de Serviço & Prótese</span><strong>Cap. 7</strong></div>
+      <div class="toc-item"><span>8. Financeiro, Split & Gateways</span><strong>Cap. 8</strong></div>
+      <div class="toc-item"><span>9. Comissões & Repasses de Dentistas</span><strong>Cap. 9</strong></div>
+      <div class="toc-item"><span>10. Estoque Avançado & Lotes ANVISA</span><strong>Cap. 10</strong></div>
+      <div class="toc-item"><span>11. CRM WhatsApp & Automações</span><strong>Cap. 11</strong></div>
+      <div class="toc-item"><span>12. Painel de TV & Recepção Inteligente</span><strong>Cap. 12</strong></div>
+      <div class="toc-item"><span>13. Faturamento TISS (ANS v4.01)</span><strong>Cap. 13</strong></div>
+      <div class="toc-item"><span>14. Assinatura Eletrônica & ICP-Brasil</span><strong>Cap. 14</strong></div>
+      <div class="toc-item"><span>15. Teleodontologia (CFO 226/2020)</span><strong>Cap. 15</strong></div>
+      <div class="toc-item"><span>16. Portal do Paciente Web PWA</span><strong>Cap. 16</strong></div>
+      <div class="toc-item"><span>17. Agendamento Online Público</span><strong>Cap. 17</strong></div>
+      <div class="toc-item"><span>18. Reputação & Google Booster</span><strong>Cap. 18</strong></div>
+      <div class="toc-item"><span>19. Dashboard de Performance & DRE</span><strong>Cap. 19</strong></div>
+      <div class="toc-item"><span>20. Tabela Completa de Automações</span><strong>Cap. 20</strong></div>
+    </div>
+  </div>
+
+  <!-- CAPÍTULO 1 & 2 -->
+  <div class="page-header">
+    <strong>SondaPro Odonto SaaS</strong>
+    <span>Governança & Arquitetura Multi-Tenant</span>
+  </div>
+
+  <h2>1. Visão Geral & Arquitetura da Plataforma</h2>
+  <p>
+    A plataforma <strong>SondaPro</strong> é um ecossistema integrado construído para consultórios individuais, clínicas multidisciplinares e redes de franquias odontológicas. Desenvolvida sob o paradigma <em>Cloud-Native</em> com banco de dados relacional <strong>PostgreSQL</strong>, o sistema garante total isolamento de dados através de <strong>Row Level Security (RLS)</strong> ativado em 100% das tabelas.
+  </p>
+  <p>
+    As comunicações em tempo real — como chamadas na tela da TV da recepção, alertas de chegada de paciente, status de pagamentos via Pix e sala de espera virtual da teleodontologia — operam através de canais bidirecionais de <strong>WebSockets nativos (Supabase Realtime)</strong>, eliminando a necessidade de recarregamento manual de página.
+  </p>
+
+  <h2>2. Matriz de Governança, RBAC e Segurança de Dados</h2>
+  <p>
+    O controle de acesso é baseado em funções (<em>Role-Based Access Control - RBAC</em>). Cada usuário vinculado à clínica recebe um papel com permissões delimitadas no banco de dados através da função de segurança <code>public.user_has_permission(_clinic_id, _permission)</code>.
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Chave de Permissão</th>
+        <th>Owner</th>
+        <th>Admin</th>
+        <th>Dentista</th>
+        <th>Recepção</th>
+        <th>ASB</th>
+        <th>Financeiro</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>dashboard.view</code></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-blue">Próprio</span></td>
+        <td><span class="badge badge-amber">Restrito</span></td>
+        <td><span class="badge badge-amber">Restrito</span></td>
+        <td><span class="badge badge-green">Total</span></td>
+      </tr>
+      <tr>
+        <td><code>appointments.write</code></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-blue">Próprio</span></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-amber">Leitura</span></td>
+        <td><span class="badge badge-amber">Restrito</span></td>
+      </tr>
+      <tr>
+        <td><code>records.write</code> (Prontuário)</td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-amber">Bloqueado</span></td>
+        <td><span class="badge badge-amber">Bloqueado</span></td>
+        <td><span class="badge badge-amber">Bloqueado</span></td>
+      </tr>
+      <tr>
+        <td><code>financial.write</code></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-amber">Bloqueado</span></td>
+        <td><span class="badge badge-amber">Bloqueado</span></td>
+        <td><span class="badge badge-amber">Bloqueado</span></td>
+        <td><span class="badge badge-green">Total</span></td>
+      </tr>
+      <tr>
+        <td><code>stock.write</code></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-blue">Baixa</span></td>
+        <td><span class="badge badge-amber">Bloqueado</span></td>
+        <td><span class="badge badge-green">Total</span></td>
+        <td><span class="badge badge-amber">Bloqueado</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-info">
+    <strong>Proteção LGPD & Sigilo Profissional:</strong> Todos os acessos a dados sensíveis de saúde do paciente geram registros imutáveis na tabela <code>public.system_audit_logs</code>, contendo ID do operador, data, hora, endereço IP e ação realizada.
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- CAPÍTULO 3 & 4 -->
+  <div class="page-header">
+    <strong>SondaPro Odonto SaaS</strong>
+    <span>Módulos Clínicos & Prontuário Digital</span>
+  </div>
+
+  <h2>3. Módulo de Agenda Inteligente & Gestão de Cadeiras</h2>
+  <p>
+    A agenda do SondaPro otimiza o fluxo de atendimento em consultórios individuais ou clínicas com dezenas de cadeiras odontológicas simultâneas.
+  </p>
+  <ul>
+    <li><strong>Visualização por Linha do Tempo e Cadeira:</strong> Permite visualizar a ocupação física dos consultórios para evitar agendamentos concorrentes na mesma cadeira.</li>
+    <li><strong>Classificação Cromática:</strong> Código de cores configurável por procedimento e profissional.</li>
+    <li><strong>Status em Tempo Real:</strong> Transições automáticas entre <code>scheduled</code>, <code>confirmed</code>, <code>waiting</code> (na recepção), <code>in_attendance</code> (no consultório) e <code>completed</code>.</li>
+    <li><strong>Fila de Espera & Encaixes Inteligentes:</strong> Preenchimento imediato de horários liberados por cancelamento através de disparo prioritário.</li>
+  </ul>
+
+  <h2>4. Prontuário Odontológico Digital & Odontograma 2D/3D</h2>
+  <p>
+    Atende com rigor as exigências do Código de Ética Odontológica e do Conselho Federal de Odontologia.
+  </p>
+
+  <div class="card">
+    <h3>Odontograma Interativo FDI Adulto e Decíduo</h3>
+    <p>
+      Permite mapeamento face a face (Oclusal, Mesial, Distal, Vestibular, Palatina/Lingual e Raiz) em todos os dentes (11 a 48 e 51 a 85). Cada face suporta apontamentos de hígido, restauração em resina ou amálgama, lesão de cárie ativa, necessidade endodôntica, dente ausente, prótese ou implante com vínculo direto à tabela oficial TUSS.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Anamnese Estruturada com Alertas de Risco Cirúrgico</h3>
+    <p>
+      Questionário clínico padronizado que detecta e acende alertas visuais imediatos para condições de alto risco: cardiopatias, hipertensão, diabetes, uso contínuo de anticoagulantes, uso de bifosfonatos (risco de osteonecrose), alergias severas (penicilina, dipirona, látex) e gestantes.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Evolução Clínica por Comando de Voz (IA)</h3>
+    <p>
+      O profissional dita a conduta realizada durante ou após o atendimento (ex.: *"Realizada abertura coronária no dente 16, instrumentação rotatória até lima 25.06, irrigação com hipoclorito a 2.5% e medicação intracanal com hidróxido de cálcio"*). O sistema transcreve com precisão terminológica e anexa ao prontuário.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Comparador Estético Antes & Depois</h3>
+    <p>
+      Slider dinâmico interativo para fotos intraorais e de sorriso, permitindo a demonstração instantânea dos resultados estéticos de clareamento, facetas de resina/cerâmica e ortodontia.
+    </p>
+  </div>
+
+  <div class="page-break"></div>
+
+  <!-- CAPÍTULO 5, 6 & 7 -->
+  <div class="page-header">
+    <strong>SondaPro Odonto SaaS</strong>
+    <span>OdontoAI, Ortodontia & Próteses</span>
+  </div>
+
+  <h2>5. Exames, Radiografias & Diagnóstico por IA (OdontoAI)</h2>
+  <p>
+    Módulo de assistência diagnóstica por visão computacional aplicado a radiografias periapicais, panorâmicas e interproximais.
+  </p>
+  <ul>
+    <li><strong>Filtros Radiográficos Avançados:</strong> Controles dinâmicos de brilho, contraste e filtro invertido/negativo para destacar lesões radiolúcidas e reabsorções apicais.</li>
+    <li><strong>Detecção Automatizada:</strong> Mapeamento com *bounding boxes* coloridas identificando cáries interproximais, lesões periapicais, perda óssea alveolar milimétrica, dentes inclusos e cálculos subgengivais.</li>
+    <li><strong>Conversão para Orçamento em 1 Clique:</strong> Gera a proposta de tratamento correspondente associando os respectivos procedimentos TUSS com cálculo de honorários.</li>
+    <li><strong>Laudo com Disclaimer Regulatório CFO:</strong> Emissão de relatório estruturado para apresentação ao paciente no tablet ou envio via WhatsApp.</li>
+  </ul>
+
+  <h2>6. Módulo de Ortodontia & Planejamento de Alinhadores</h2>
+  <p>
+    Gestão completa de ortodontia com alinhadores transparentes (*clear aligners*) e ortodontia corretiva convencional.
+  </p>
+  <ul>
+    <li><strong>Cronograma de Placas & Fases:</strong> Controle do número de pares de placas (ex.: 24 superiores e 20 inferiores) com periodicidade de troca programada (7, 10 ou 14 dias).</li>
+    <li><strong>Mapeamento de IPR e Attachments:</strong> Registro dos dentes que receberam desgastes interproximais controlados e dispositivos de fixação.</li>
+    <li><strong>Acompanhamento no Portal do Paciente:</strong> O paciente avança a placa no aplicativo, registra seu tempo médio diário de uso (recomendado 22h/dia) e envia fotos do sorriso para validação do dentista.</li>
+  </ul>
+
+  <h2>7. Ordens de Serviço de Prótese & Laboratórios</h2>
+  <p>
+    Fluxo operacional para controle de trabalhos terceirizados com laboratórios de prótese dental.
+  </p>
+  <ul>
+    <li><strong>Etapas de Produção:</strong> Acompanhamento de status (Envio de Molde/Scan, Prova de Infraestrutura, Prova de Cerâmica/Cor, Assentamento Final).</li>
+    <li><strong>Gestão de Custos & Prazos:</strong> Controle de valores cobrados pelo protético e vinculação automática com o módulo de comissões para dedução do custo da comissão do dentista parceiro.</li>
+  </ul>
+
+  <div class="page-break"></div>
+
+  <!-- CAPÍTULO 8, 9 & 10 -->
+  <div class="page-header">
+    <strong>SondaPro Odonto SaaS</strong>
+    <span>Financeiro, Comissões & Estoque ANVISA</span>
+  </div>
+
+  <h2>8. Módulo Financeiro, Split & Gateways de Pagamento</h2>
+  <p>
+    O motor financeiro integrado aos gateways <strong>Asaas</strong> e <strong>Mercado Pago</strong> elimina controles manuais e inadimplência.
+  </p>
+  <ul>
+    <li><strong>Split de Pagamentos na Origem:</strong> Ao liquidar um tratamento de R$ 3.000,00, o sistema divide automaticamente a receita (ex.: 60% clínica e 40% dentista parceiro), enviando o valor líquido para cada conta bancária e prevenindo a bitributação da clínica.</li>
+    <li><strong>Carnê Odontológico Parcelado:</strong> Emissão de parcelamentos em até 12x com boletos bancários registrados ou faturas recorrentes no cartão.</li>
+    <li><strong>Pix Dinâmico Instantâneo:</strong> Geração de QR Code e chave Pix Copia e Cola na tela do balcão ou no WhatsApp do paciente, com baixa automática via webhook em menos de 3 segundos.</li>
+    <li><strong>DRE Odontológica Gerencial:</strong> Apuração detalhada de Receita Bruta, Glosas, Deduções de Taxas, Custos de Mercadorias (Insumos consumidos) e Lucro Líquido Real.</li>
+  </ul>
+
+  <h2>9. Comissões de Dentistas & Regras de Repasse Clínico</h2>
+  <p>
+    Modelagem flexível para clínicas que trabalham com cirurgiões-dentistas parceiros e especialistas.
+  </p>
+  <ul>
+    <li><strong>Comissão Bruta vs. Líquida:</strong> Permite configurar se o percentual do profissional incide sobre o valor total ou após desconto dos custos de laboratório e taxas de cartão.</li>
+    <li><strong>Tabela por Especialidade:</strong> Percentuais individualizados para Implantodontia, Ortodontia, Endodontia e Clínica Geral.</li>
+    <li><strong>Gatilho de Liquidação:</strong> O repasse pode ser liberado no momento do pagamento pelo paciente ou após a confirmação da finalização clínica no prontuário.</li>
+  </ul>
+
+  <h2>10. Estoque Clínico Avançado & Lotes ANVISA</h2>
+  <p>
+    Em conformidade com a <strong>RDC 67/2007</strong> e normas de vigilância sanitária para rastreabilidade de medicamentos e produtos médico-odontológicos.
+  </p>
+  <ul>
+    <li><strong>Rastreabilidade de Lote e Validade:</strong> Cadastro obrigatório de Lote, Data de Fabricação, Validade e Registro ANVISA para resinas, anestésicos, fios de sutura, implantes e membranas.</li>
+    <li><strong>Baixa Automática por Procedimento:</strong> Ao marcar um atendimento de implante como concluído na agenda, o sistema deduz automaticamente o implante do lote correspondente.</li>
+    <li><strong>Consumo Inteligente (FEFO):</strong> Prioriza automaticamente o consumo dos produtos com data de validade mais próxima (*First Expired, First Out*).</li>
+    <li><strong>Alertas de Validade Crítica:</strong> Destaca produtos com vencimento nos próximos 30/60 dias e bloqueia baixas de itens vencidos.</li>
+  </ul>
+
+  <div class="page-break"></div>
+
+  <!-- CAPÍTULO 11 & 12 -->
+  <div class="page-header">
+    <strong>SondaPro Odonto SaaS</strong>
+    <span>WhatsApp CRM & Painel de TV</span>
+  </div>
+
+  <h2>11. CRM WhatsApp & Motor de Automações</h2>
+  <p>
+    Comunicação automatizada através de instâncias de WhatsApp conectadas diretamente na clínica (sem depender de digitação manual pela recepção).
+  </p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Disparo Automático</th>
+        <th>Gatilho Temporal</th>
+        <th>Ação / Conteúdo</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Lembrete Prévio D-2</strong></td>
+        <td>48 horas antes da consulta</td>
+        <td>Mensagem informativa com data, horário, unidade e orientações pré-consulta.</td>
+      </tr>
+      <tr>
+        <td><strong>Confirmação Ativa D-1</strong></td>
+        <td>24 horas antes da consulta</td>
+        <td>Mensagem interativa com botões "Confirmar Presença" ou "Solicitar Remarcação".</td>
+      </tr>
+      <tr>
+        <td><strong>Guia Pós-Operatório</strong></td>
+        <td>4 horas após procedimento</td>
+        <td>Envio das orientações ilustradas de pós-operatório (siso, implante, enxerto, etc.).</td>
+      </tr>
+      <tr>
+        <td><strong>Pesquisa NPS</strong></td>
+        <td>24 horas após atendimento</td>
+        <td>Pesquisa com nota de 0 a 10 para monitorar qualidade e satisfação.</td>
+      </tr>
+      <tr>
+        <td><strong>Recall Semestral</strong></td>
+        <td>180 dias sem comparecer</td>
+        <td>Mensagem convidando o paciente para consulta periódica de prevenção e limpeza.</td>
+      </tr>
+      <tr>
+        <td><strong>Alertas do Dono (Owner)</strong></td>
+        <td>Tempo real / Evento crítico</td>
+        <td>Alerta no WhatsApp pessoal do proprietário sobre cancelamentos graves ou notas baixas no NPS.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>12. Painel Multimídia de TV & Recepção Inteligente</h2>
+  <p>
+    Exibição interativa voltada para a sala de espera dos pacientes (/tv e /app/tv), com suporte a telas verticais e horizontais.
+  </p>
+  <ul>
+    <li><strong>Chamador de Paciente por Voz (TTS):</strong> Notificação sonoro-visual com voz humanizada chamando o paciente pelo nome para o consultório designado.</li>
+    <li><strong>Integração com Clima & Notícias:</strong> Exibição dinâmica da previsão do tempo da cidade e manchetes de saúde e atualidades atualizadas a cada hora.</li>
+    <li><strong>Totem de Auto Check-in por QR Code:</strong> O paciente escaneia o QR Code na recepção e o sistema registra sua chegada na agenda, notificando o cirurgião-dentista no consultório.</li>
+  </ul>
+
+  <div class="page-break"></div>
+
+  <!-- CAPÍTULO 13, 14 & 15 -->
+  <div class="page-header">
+    <strong>SondaPro Odonto SaaS</strong>
+    <span>TISS ANS, Assinaturas & Teleodontologia</span>
+  </div>
+
+  <h2>13. Faturamento TISS para Convênios Odontológicos</h2>
+  <p>
+    Em conformidade com o <strong>Padrão TISS v4.01 da ANS</strong> com suporte a tabela <strong>TUSS</strong> e convênios nacionais.
+  </p>
+  <ul>
+    <li><strong>Guias Suportadas:</strong> Guia de Consulta Odontológica, Guia de Tratamento Odontológico (GTO) e Guias de Outras Despesas.</li>
+    <li><strong>Exportação de Lotes XML:</strong> Geração de arquivos XML prontos para transmissão nos portais das operadoras de planos odontológicos.</li>
+    <li><strong>Motor Anti-Glosa:</strong> Pré-validação de campos obrigatórios (número da carteirinha, dente, face, CRO do profissional e autorização prévia).</li>
+  </ul>
+
+  <h2>14. Assinatura Eletrônica & Certificação ICP-Brasil</h2>
+  <p>
+    Eliminação do papel e validade jurídica plena nos termos da <strong>MP 2.200-2/2001</strong> e <strong>Lei 14.063/2020</strong>.
+  </p>
+  <ul>
+    <li><strong>Assinatura Eletrônica na Tela/Celular:</strong> Coleta biométrica de assinatura com registro de endereço IP, timestamp UTC e hash criptográfico SHA-256.</li>
+    <li><strong>Assinatura Digital Qualificada (ICP-Brasil):</strong> Integração com certificados digitais A1/A3 para assinatura de receitas controladas e laudos periciais.</li>
+    <li><strong>Validador Público de Autenticidade (/validar/:code):</strong> Permite que farmácias e pacientes validem a autenticidade do documento escaneando o QR Code.</li>
+  </ul>
+
+  <h2>15. Teleodontologia Integrada (Resolução CFO 226/2020)</h2>
+  <p>
+    Plataforma de vídeo segura e criptografada ponto a ponto para assistência a distância nas três modalidades autorizadas pelo CFO:
+  </p>
+  <ul>
+    <li><strong>Teleorientação Odontológica:</strong> Identificação prévia do momento adequado para atendimento presencial e acolhimento inicial.</li>
+    <li><strong>Telemonitoramento Clínico:</strong> Acompanhamento de tratamentos ortodônticos com alinhadores e pós-operatórios cirúrgicos.</li>
+    <li><strong>Teleinterconsulta:</strong> Parecer técnico emitido entre cirurgiões-dentistas com prontuário conjunto.</li>
+    <li><strong>TCLE Digital Obrigatório:</strong> O paciente assina eletronicamente o consentimento livre e esclarecido antes de iniciar a sessão.</li>
+  </ul>
+
+  <div class="page-break"></div>
+
+  <!-- CAPÍTULO 16, 17, 18, 19 & 20 -->
+  <div class="page-header">
+    <strong>SondaPro Odonto SaaS</strong>
+    <span>Portal PWA, Reputação & DRE</span>
+  </div>
+
+  <h2>16. Portal do Paciente Web PWA & Autoatendimento</h2>
+  <p>
+    Aplicativo leve que funciona no navegador do smartphone do paciente sem necessidade de download na App Store ou Google Play:
+  </p>
+  <ul>
+    <li><strong>Login Simplificado:</strong> Autenticação por CPF e Telefone Celular.</li>
+    <li><strong>Funcionalidades:</strong> Confirmação de presença em consultas, pagamento de faturas via Pix, acompanhamento de placas de alinhador, download de receitas/atestados e guias pós-operatórios.</li>
+  </ul>
+
+  <h2>17. Agendamento Online Público (/agendar/:slug)</h2>
+  <p>
+    Página institucional de alta conversão para captura de novos pacientes pelo Google ou redes sociais, com seleção de unidade, profissional, especialidade e horário disponível.
+  </p>
+
+  <h2>18. Reputação, NPS & Google Review Booster</h2>
+  <p>
+    Automação de fidelização que capta avaliações positivas no Google Meu Negócio:
+  </p>
+  <ul>
+    <li><strong>Promotores (Nota 9 e 10):</strong> Recebem convite direto com link para avaliação de 5 estrelas no perfil do Google da clínica.</li>
+    <li><strong>Detratores (Nota 0 a 6):**</strong> O sistema registra a queixa de forma privada e aciona imediatamente o dono da clínica para reversão.</li>
+  </ul>
+
+  <h2>19. Dashboard de Performance Clínica & DRE Gerencial</h2>
+  <p>
+    Visão executiva em tempo real com os principais indicadores de eficiência da clínica:
+  </p>
+  <ul>
+    <li><strong>Taxa de Ocupação de Cadeiras:</strong> Relação entre horas clínicas disponíveis e horas efetivamente produtivas.</li>
+    <li><strong>Taxa de No-Show / Faltas:</strong> Monitoramento do absenteísmo por especialidade e profissional.</li>
+    <li><strong>Ticket Médio por Procedimento:</strong> Identificação dos tratamentos de maior rentabilidade.</li>
+  </ul>
+
+  <h2>20. Tabela Resumo das Automações em Segundo Plano</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Processo Automatizado</th>
+        <th>Disparador (Trigger)</th>
+        <th>Resultado Produzido</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Confirmação de Consulta</strong></td>
+        <td>24h antes da data agendada</td>
+        <td>Mensagem interativa enviada pelo WhatsApp e atualização do status.</td>
+      </tr>
+      <tr>
+        <td><strong>Baixa de Insumo Clínico</strong></td>
+        <td>Finalização da consulta na agenda</td>
+        <td>Dedução dos materiais do lote correspondente (ANVISA).</td>
+      </tr>
+      <tr>
+        <td><strong>Dispensa da TV da Sala de Espera</strong></td>
+        <td>Dentista clica em "Iniciar Atendimento"</td>
+        <td>Remove a chamada da tela e encerra o aviso sonoro.</td>
+      </tr>
+      <tr>
+        <td><strong>Pesquisa de Satisfação NPS</strong></td>
+        <td>24h após término da consulta</td>
+        <td>Disparo automático no WhatsApp com triagem para Google Reviews.</td>
+      </tr>
+      <tr>
+        <td><strong>Reconciliação Bancária</strong></td>
+        <td>Webhook recebido do Asaas/Mercado Pago</td>
+        <td>Baixa imediata da fatura e distribuição de splits aos dentistas.</td>
+      </tr>
+      <tr>
+        <td><strong>Recall Preventivo</strong></td>
+        <td>180 dias de inatividade clínica</td>
+        <td>Disparo amigável para retorno e profilaxia semestral.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-success" style="margin-top: 30px;">
+    <strong>Documento Homologado:</strong> Plataforma SondaPro Odonto SaaS v3.5.0 pronta para implantação em produção com banco de dados centralizado no Supabase e suporte a multi-unidades.
+  </div>
+
+</body>
+</html>
+`;
+
+const htmlPath = path.join(__dirname, "MANUAL_COMPLETO_PLATAFORMA_SONDAPRO.html");
+const pdfPath = path.join(__dirname, "MANUAL_COMPLETO_PLATAFORMA_SONDAPRO.pdf");
+const artifactDir = "C:\\Users\\DELL\\.gemini\\antigravity\\brain\\15381893-71c4-402e-a996-628b9c250f31";
+const artifactPdfPath = path.join(artifactDir, "MANUAL_COMPLETO_PLATAFORMA_SONDAPRO.pdf");
+
+fs.writeFileSync(htmlPath, htmlContent, "utf8");
+console.log("HTML gravado em:", htmlPath);
+
+const edgePath = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+const edgeArgs = `"${edgePath}" --headless=new --disable-gpu --run-all-compositor-stages-before-draw --print-to-pdf="${pdfPath}" "${htmlPath}"`;
+
+console.log("Gerando PDF com Microsoft Edge Headless...");
+execSync(edgeArgs, { stdio: "inherit" });
+
+if (fs.existsSync(pdfPath)) {
+  const stats = fs.statSync(pdfPath);
+  console.log(`PDF gerado com sucesso! Tamanho: ${Math.round(stats.size / 1024)} KB em: ${pdfPath}`);
+
+  // Copia para o diretório de artefatos
+  try {
+    fs.copyFileSync(pdfPath, artifactPdfPath);
+    console.log("PDF copiado para o diretório de artefatos:", artifactPdfPath);
+  } catch (err) {
+    console.warn("Aviso ao copiar para o diretório de artefatos:", err);
+  }
+} else {
+  console.error("Erro: arquivo PDF não foi gerado.");
+  process.exit(1);
+}

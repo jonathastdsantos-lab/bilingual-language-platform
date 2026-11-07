@@ -112,3 +112,4 @@ export const CFO_226_TCLE_TEXT = `TERMO DE CONSENTIMENTO LIVRE E ESCLARECIDO PAR
 3. PRIVACIDADE E SEGURANÇA DE DADOS (LGPD): Declaro ciência de que a transmissão de áudio, vídeo e fotografias clínicas é realizada em ambiente criptografado e seguro, e que os dados clínicos e imagens coletados serão anexados exclusivamente ao meu prontuário odontológico sob sigilo profissional do Código de Ética Odontológica.
 
 4. AUTONOMIA E CONSENTIMENTO: Autorizo expressamente o cirurgião-dentista a realizar este teleatendimento, ciente de que posso solicitar a qualquer momento a interrupção da sessão e o agendamento de uma consulta presencial.`;
+

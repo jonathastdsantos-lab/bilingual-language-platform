@@ -267,3 +267,4 @@ describe("Módulo de Teleodontologia Integrada (Resolução CFO 226/2020)", () =
     expect(onlyMonit.every((s) => s.modality === "telemonitoramento")).toBe(true);
   });
 });
+
