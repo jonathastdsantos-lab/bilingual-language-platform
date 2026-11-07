@@ -21,3 +21,4 @@ CREATE INDEX IF NOT EXISTS idx_superadmin_audit_logs_admin_email
 
 CREATE INDEX IF NOT EXISTS idx_superadmin_audit_logs_target_clinic
   ON public.platform_superadmin_audit_logs (target_clinic_id);
+

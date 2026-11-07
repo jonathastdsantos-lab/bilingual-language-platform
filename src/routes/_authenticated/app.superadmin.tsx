@@ -64,6 +64,7 @@ import {
   fetchDetailedClinicsOverview,
   fetchSaasPlans,
   fetchSuperadminAuditLogs,
+  logAccessChangeWithAudit,
   MASTER_DEVELOPER_EMAIL,
   superadminCreateClinic,
   updateClinicSubscriptionWithAudit,
@@ -324,6 +325,12 @@ export function SuperAdminPage() {
   // Função: Entrar como a clínica (Impersonate / Suporte)
   const handleImpersonate = (clinic: DetailedPlatformClinic) => {
     localStorage.setItem("sondapro.clinic", clinic.id);
+    void logAccessChangeWithAudit({
+      action: "impersonate_clinic",
+      targetClinicId: clinic.id,
+      targetClinicName: clinic.name,
+      reason: "Sessão de suporte técnico / impersonação autorizada pelo Desenvolvedor",
+    });
     toast.success(`Entrando como a clínica: ${clinic.name} (Modo Suporte)`);
     navigate({ to: "/app" });
   };
