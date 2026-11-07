@@ -47,30 +47,6 @@ AS $$
   );
 $$;
 
-CREATE OR REPLACE FUNCTION public.user_has_permission(_clinic_id UUID, _permission TEXT)
-RETURNS BOOLEAN
-LANGUAGE plpgsql
-STABLE
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF auth.uid() IS NULL THEN
-    RETURN FALSE;
-  END IF;
-
-  IF public.is_platform_superadmin() THEN
-    RETURN TRUE;
-  END IF;
-
-  RETURN EXISTS (
-    SELECT 1 FROM public.clinic_members cm
-    WHERE cm.clinic_id = _clinic_id
-      AND cm.user_id = auth.uid()
-  );
-END $$;
-
-GRANT EXECUTE ON FUNCTION public.user_has_permission(UUID, TEXT) TO authenticated, anon, service_role;
 GRANT EXECUTE ON FUNCTION public.is_platform_superadmin(UUID) TO authenticated, anon, service_role;
 
 create table if not exists public.profiles (
@@ -130,6 +106,48 @@ $$;
 create or replace function public.has_clinic_role(_clinic uuid, _roles public.clinic_role[]) returns boolean language sql stable security definer set search_path = public as $$
   select exists (select 1 from clinic_members where clinic_id = _clinic and user_id = auth.uid() and role = any(_roles))
 $$;
+
+CREATE OR REPLACE FUNCTION public.user_has_permission(_clinic_id UUID, _permission TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF auth.uid() IS NULL THEN
+    RETURN FALSE;
+  END IF;
+
+  IF public.is_platform_superadmin() THEN
+    RETURN TRUE;
+  END IF;
+
+  RETURN EXISTS (
+    SELECT 1 FROM public.clinic_members cm
+    WHERE cm.clinic_id = _clinic_id
+      AND cm.user_id = auth.uid()
+  );
+END $$;
+
+CREATE OR REPLACE FUNCTION public.user_has_permission(_clinic_id TEXT, _permission TEXT)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  IF _clinic_id IS NULL OR _clinic_id = '' THEN
+    RETURN FALSE;
+  END IF;
+  RETURN public.user_has_permission(_clinic_id::uuid, _permission);
+EXCEPTION WHEN OTHERS THEN
+  RETURN FALSE;
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.user_has_permission(UUID, TEXT) TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.user_has_permission(TEXT, TEXT) TO authenticated, anon, service_role;
 
 alter table public.clinics enable row level security;
 alter table public.clinic_members enable row level security;
@@ -1718,14 +1736,32 @@ CREATE POLICY "platform_notes_superadmin" ON public.platform_clinic_notes
 CREATE TABLE IF NOT EXISTS public.platform_superadmin_audit_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   admin_email TEXT NOT NULL,
+  admin_name TEXT,
   action TEXT NOT NULL,
+  category TEXT DEFAULT 'system',
   target_clinic_id UUID REFERENCES public.clinics(id) ON DELETE SET NULL,
+  target_clinic_name TEXT,
+  target_user_email TEXT,
+  old_values JSONB,
+  new_values JSONB,
+  ip_address TEXT,
   details JSONB,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE public.platform_superadmin_audit_logs
+  ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'system',
+  ADD COLUMN IF NOT EXISTS admin_name TEXT,
+  ADD COLUMN IF NOT EXISTS target_clinic_name TEXT,
+  ADD COLUMN IF NOT EXISTS target_user_email TEXT,
+  ADD COLUMN IF NOT EXISTS old_values JSONB,
+  ADD COLUMN IF NOT EXISTS new_values JSONB,
+  ADD COLUMN IF NOT EXISTS ip_address TEXT;
+
 CREATE INDEX IF NOT EXISTS idx_superadmin_audit_logs
   ON public.platform_superadmin_audit_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_superadmin_audit_logs_category
+  ON public.platform_superadmin_audit_logs (category);
 
 ALTER TABLE public.platform_superadmin_audit_logs ENABLE ROW LEVEL SECURITY;
 

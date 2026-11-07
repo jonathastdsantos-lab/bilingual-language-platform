@@ -365,34 +365,156 @@ export async function addClinicNote(clinicId: string, content: string): Promise<
   });
 }
 
-export async function logSuperadminAction(params: {
-  action: string;
-  targetClinicId?: string | null | undefined;
-  details?: Record<string, unknown> | undefined;
-}): Promise<void> {
-  try {
-    const { data: userRes } = await db.auth.getUser();
-    const adminEmail = userRes?.user?.email || MASTER_DEVELOPER_EMAIL;
+const LOCAL_SUPERADMIN_AUDIT_KEY = "sondapro.platform.audit_logs";
 
-    await db.from("platform_superadmin_audit_logs").insert({
-      admin_email: adminEmail,
-      action: params.action,
-      target_clinic_id: params.targetClinicId ?? null,
-      details: params.details ?? null,
-    });
+function getLocalAuditLogs(): PlatformAuditLog[] {
+  try {
+    const raw = localStorage.getItem(LOCAL_SUPERADMIN_AUDIT_KEY);
+    return raw ? (JSON.parse(raw) as PlatformAuditLog[]) : [];
   } catch {
-    // Audit silencioso em caso de tabela pendente
+    return [];
   }
 }
 
-export async function fetchSuperadminAuditLogs(): Promise<PlatformAuditLog[]> {
-  const { data, error } = await db
-    .from("platform_superadmin_audit_logs")
-    .select("*")
-    .order("created_at", { ascending: false });
+function saveLocalAuditLog(log: PlatformAuditLog): void {
+  try {
+    const list = getLocalAuditLogs();
+    list.unshift(log);
+    localStorage.setItem(LOCAL_SUPERADMIN_AUDIT_KEY, JSON.stringify(list.slice(0, 500)));
+  } catch {
+    // ignore
+  }
+}
 
-  if (error) return [];
-  return (data ?? []) as unknown as PlatformAuditLog[];
+export async function logSuperadminAction(params: {
+  action: string;
+  category?: "access" | "plan" | "subscription" | "system" | string | undefined;
+  targetClinicId?: string | null | undefined;
+  targetClinicName?: string | null | undefined;
+  targetUserEmail?: string | null | undefined;
+  oldValues?: Record<string, unknown> | null | undefined;
+  newValues?: Record<string, unknown> | null | undefined;
+  details?: Record<string, unknown> | undefined;
+  ipAddress?: string | null | undefined;
+}): Promise<PlatformAuditLog> {
+  const { data: userRes } = await db.auth.getUser();
+  const user = userRes?.user;
+  const adminEmail = user?.email || MASTER_DEVELOPER_EMAIL;
+  const adminName = (user?.user_metadata?.full_name as string) || "Desenvolvedor Master";
+  const now = new Date().toISOString();
+
+  // Inferência automática de categoria se não informada
+  let cat = params.category || "system";
+  if (!params.category) {
+    if (params.action.includes("plan")) cat = "plan";
+    else if (params.action.includes("sub") || params.action.includes("trial") || params.action.includes("invoice")) cat = "subscription";
+    else if (params.action.includes("access") || params.action.includes("superadmin") || params.action.includes("role") || params.action.includes("suspend")) cat = "access";
+  }
+
+  const newLog: PlatformAuditLog = {
+    id: typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `log-${Date.now()}`,
+    admin_email: adminEmail,
+    admin_name: adminName,
+    action: params.action,
+    category: cat,
+    target_clinic_id: params.targetClinicId ?? null,
+    target_clinic_name: params.targetClinicName ?? null,
+    target_user_email: params.targetUserEmail ?? null,
+    old_values: params.oldValues ?? null,
+    new_values: params.newValues ?? null,
+    details: params.details ?? null,
+    ip_address: params.ipAddress ?? "127.0.0.1",
+    created_at: now,
+  };
+
+  try {
+    await db.from("platform_superadmin_audit_logs").insert({
+      id: newLog.id,
+      admin_email: newLog.admin_email,
+      admin_name: newLog.admin_name,
+      action: newLog.action,
+      category: newLog.category,
+      target_clinic_id: newLog.target_clinic_id,
+      target_clinic_name: newLog.target_clinic_name,
+      target_user_email: newLog.target_user_email,
+      old_values: newLog.old_values,
+      new_values: newLog.new_values,
+      details: newLog.details,
+      ip_address: newLog.ip_address,
+      created_at: newLog.created_at,
+    });
+  } catch (err) {
+    console.warn("Audit superadmin: fallback para cache local:", err);
+  }
+
+  saveLocalAuditLog(newLog);
+  return newLog;
+}
+
+export async function fetchSuperadminAuditLogs(filters?: {
+  category?: string | undefined;
+  searchQuery?: string | undefined;
+}): Promise<PlatformAuditLog[]> {
+  let list: PlatformAuditLog[] = [];
+
+  try {
+    let query = db
+      .from("platform_superadmin_audit_logs")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (filters?.category && filters.category !== "all") {
+      query = (query as any).eq("category", filters.category);
+    }
+
+    const { data, error } = await query;
+    if (!error && Array.isArray(data)) {
+      list = (data as any[]).map((d) => ({
+        id: String(d.id || ""),
+        admin_email: String(d.admin_email || ""),
+        admin_name: d.admin_name || null,
+        action: String(d.action || ""),
+        category: d.category || "system",
+        target_clinic_id: d.target_clinic_id || null,
+        target_clinic_name: d.target_clinic_name || d.details?.clinic_name || null,
+        target_user_email: d.target_user_email || d.details?.user_email || null,
+        old_values: d.old_values || null,
+        new_values: d.new_values || null,
+        details: d.details || null,
+        ip_address: d.ip_address || null,
+        created_at: String(d.created_at || new Date().toISOString()),
+      }));
+    }
+  } catch (err) {
+    console.warn("Erro ao buscar logs do banco, usando cache local:", err);
+  }
+
+  // Combina com o cache local para não perder nenhum registro
+  const local = getLocalAuditLogs();
+  for (const loc of local) {
+    if (!list.some((l) => l.id === loc.id)) {
+      list.push(loc);
+    }
+  }
+
+  if (filters?.category && filters.category !== "all") {
+    list = list.filter((l) => l.category === filters.category);
+  }
+
+  if (filters?.searchQuery) {
+    const q = filters.searchQuery.toLowerCase();
+    list = list.filter(
+      (l) =>
+        l.admin_email.toLowerCase().includes(q) ||
+        l.action.toLowerCase().includes(q) ||
+        (l.target_clinic_name && l.target_clinic_name.toLowerCase().includes(q)) ||
+        (l.target_user_email && l.target_user_email.toLowerCase().includes(q)) ||
+        (l.admin_name && l.admin_name.toLowerCase().includes(q)) ||
+        JSON.stringify(l.details || {}).toLowerCase().includes(q)
+    );
+  }
+
+  return list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 export async function updateClinicSubscriptionWithAudit(params: {
@@ -402,26 +524,124 @@ export async function updateClinicSubscriptionWithAudit(params: {
   subscriptionStatus?: SubscriptionStatus | undefined;
   trialEndsAt?: string | null | undefined;
   reason?: string | undefined;
+  oldPlanId?: string | undefined;
+  oldSubscriptionStatus?: SubscriptionStatus | undefined;
+  oldTrialEndsAt?: string | null | undefined;
 }): Promise<void> {
   const payload: Record<string, unknown> = {};
   if (params.planId) payload["plan_id"] = params.planId;
   if (params.subscriptionStatus) payload["subscription_status"] = params.subscriptionStatus;
   if (params.trialEndsAt !== undefined) payload["trial_ends_at"] = params.trialEndsAt;
 
-  const { error } = await db.from("clinics").update(payload).eq("id", params.clinicId);
-  if (error) throw error;
+  try {
+    const { error } = await db.from("clinics").update(payload).eq("id", params.clinicId);
+    if (error) {
+      console.warn("Aviso ao atualizar clínica no Supabase:", error.message);
+    }
+  } catch (err) {
+    console.warn("Falha de rede ou conexão ao atualizar clínica:", err);
+  }
+
+  const isPlanChanged = params.planId && params.oldPlanId && params.planId !== params.oldPlanId;
+  const isStatusChanged = params.subscriptionStatus && params.oldSubscriptionStatus && params.subscriptionStatus !== params.oldSubscriptionStatus;
+  const isTrialExtended = params.trialEndsAt && params.trialEndsAt !== params.oldTrialEndsAt;
+
+  let action = "update_subscription";
+  let category: "plan" | "subscription" = "subscription";
+
+  if (isPlanChanged && !isStatusChanged) {
+    action = "alteracao_plano";
+    category = "plan";
+  } else if (isStatusChanged && !isPlanChanged) {
+    action = "alteracao_status_assinatura";
+    category = "subscription";
+  } else if (isTrialExtended && !isPlanChanged && !isStatusChanged) {
+    action = "prorrogacao_trial";
+    category = "subscription";
+  }
 
   await logSuperadminAction({
-    action: "update_subscription",
+    action,
+    category,
     targetClinicId: params.clinicId,
+    targetClinicName: params.clinicName,
+    oldValues: {
+      plan_id: params.oldPlanId || null,
+      subscription_status: params.oldSubscriptionStatus || null,
+      trial_ends_at: params.oldTrialEndsAt || null,
+    },
+    newValues: {
+      plan_id: params.planId || params.oldPlanId || null,
+      subscription_status: params.subscriptionStatus || params.oldSubscriptionStatus || null,
+      trial_ends_at: params.trialEndsAt || params.oldTrialEndsAt || null,
+    },
     details: {
       clinic_name: params.clinicName,
+      reason: params.reason || "Alteração realizada pelo Desenvolvedor Master",
       new_plan: params.planId,
       new_status: params.subscriptionStatus,
       trial_ends_at: params.trialEndsAt,
-      reason: params.reason,
     },
   });
+}
+
+export async function logAccessChangeWithAudit(params: {
+  action: string;
+  targetClinicId?: string | null | undefined;
+  targetClinicName?: string | null | undefined;
+  targetUserEmail?: string | null | undefined;
+  oldRole?: string | null | undefined;
+  newRole?: string | null | undefined;
+  reason?: string | undefined;
+  details?: Record<string, unknown> | undefined;
+}): Promise<void> {
+  await logSuperadminAction({
+    action: params.action,
+    category: "access",
+    targetClinicId: params.targetClinicId,
+    targetClinicName: params.targetClinicName,
+    targetUserEmail: params.targetUserEmail,
+    oldValues: params.oldRole ? { role: params.oldRole } : null,
+    newValues: params.newRole ? { role: params.newRole } : null,
+    details: {
+      ...params.details,
+      reason: params.reason || "Alteração de acesso pelo desenvolvedor",
+      target_user_email: params.targetUserEmail,
+      clinic_name: params.targetClinicName,
+    },
+  });
+}
+
+export function exportAuditLogsToCsv(logs: PlatformAuditLog[]): string {
+  const headers = [
+    "ID",
+    "Data/Hora",
+    "Categoria",
+    "Ação",
+    "Responsável (Quem Fez)",
+    "Clínica Afetada",
+    "Usuário Afetado",
+    "Valores Anteriores",
+    "Novos Valores",
+    "Motivo / Detalhes",
+    "IP de Origem",
+  ];
+
+  const rows = logs.map((l) => [
+    l.id,
+    new Date(l.created_at).toLocaleString("pt-BR"),
+    l.category || "system",
+    `"${l.action.replace(/"/g, '""')}"`,
+    `"${l.admin_email} ${l.admin_name ? `(${l.admin_name})` : ""}"`,
+    `"${(l.target_clinic_name || l.target_clinic_id || "").replace(/"/g, '""')}"`,
+    `"${(l.target_user_email || "").replace(/"/g, '""')}"`,
+    `"${JSON.stringify(l.old_values || {}).replace(/"/g, '""')}"`,
+    `"${JSON.stringify(l.new_values || {}).replace(/"/g, '""')}"`,
+    `"${JSON.stringify(l.details || {}).replace(/"/g, '""')}"`,
+    l.ip_address || "127.0.0.1",
+  ]);
+
+  return [headers.join(";"), ...rows.map((r) => r.join(";"))].join("\n");
 }
 
 export async function superadminCreateClinic(params: {

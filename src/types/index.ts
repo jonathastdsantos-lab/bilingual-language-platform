@@ -679,12 +679,21 @@ export interface PlatformClinicNote {
   created_at: string;
 }
 
+export type PlatformAuditCategory = "access" | "plan" | "subscription" | "system";
+
 export interface PlatformAuditLog {
   id: string;
   admin_email: string;
+  admin_name?: string | null | undefined;
   action: string;
+  category?: PlatformAuditCategory | string | null | undefined;
   target_clinic_id: string | null;
+  target_clinic_name?: string | null | undefined;
+  target_user_email?: string | null | undefined;
+  old_values?: Record<string, unknown> | null | undefined;
+  new_values?: Record<string, unknown> | null | undefined;
   details: Record<string, unknown> | null;
+  ip_address?: string | null | undefined;
   created_at: string;
 }
 

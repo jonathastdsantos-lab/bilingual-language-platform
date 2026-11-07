@@ -50,6 +50,7 @@ import { useT } from "@/lib/i18n";
 import { supabase } from "@/services/supabase";
 import { SaasAnalyticsCharts } from "@/components/superadmin/SaasAnalyticsCharts";
 import { GatewayWebhooksPanel } from "@/components/superadmin/GatewayWebhooksPanel";
+import { DeveloperAuditLogPanel } from "@/components/superadmin/DeveloperAuditLogPanel";
 import {
   addClinicNote,
   calculateDetailedPlatformStats,
@@ -218,6 +219,9 @@ export function SuperAdminPage() {
         subscriptionStatus: pendingSubChange.status,
         trialEndsAt: newTrialEnd,
         reason: pendingSubChange.reason || "Alteração pelo Desenvolvedor Master",
+        oldPlanId: pendingSubChange.clinic.plan_id,
+        oldSubscriptionStatus: pendingSubChange.clinic.subscription_status,
+        oldTrialEndsAt: pendingSubChange.clinic.trial_ends_at,
       });
     },
     onSuccess: () => {
@@ -467,7 +471,9 @@ export function SuperAdminPage() {
           <TabsTrigger value="clinics">
             {t("superadmin.tabClinics")} ({clinics.length})
           </TabsTrigger>
-          <TabsTrigger value="audit">{t("superadmin.tabAudit")}</TabsTrigger>
+          <TabsTrigger value="audit">
+            {t("superadmin.tabAudit")} ({auditLogs.length})
+          </TabsTrigger>
           <TabsTrigger value="broadcast">Avisos & Comunicados</TabsTrigger>
           <TabsTrigger value="system">{t("superadmin.tabSystem")}</TabsTrigger>
           <TabsTrigger value="webhooks">Webhooks & Gateways</TabsTrigger>
@@ -796,46 +802,15 @@ export function SuperAdminPage() {
         </TabsContent>
 
         {/* =========================================================================
-            ABA 3: LOGS DE AUDITORIA DO SUPERADMIN
+            ABA 3: LOGS DE AUDITORIA DO SUPERADMIN & DESENVOLVEDOR
         ========================================================================= */}
         <TabsContent value="audit" className="space-y-4">
-          <div className="rounded-2xl border bg-card p-5 shadow-card space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-extrabold text-navy">Histórico de Auditoria do Desenvolvedor</h3>
-                <p className="text-xs text-muted-foreground">
-                  Registro auditável de todas as ações de suporte, suspensão, criação e trocas de plano.
-                </p>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => refetchAudit()}>
-                <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Atualizar Logs
-              </Button>
-            </div>
-
-            {auditLogs.length === 0 ? (
-              <p className="py-6 text-center text-xs text-muted-foreground">
-                Nenhuma ação do desenvolvedor registrada até o momento.
-              </p>
-            ) : (
-              <div className="divide-y rounded-xl border overflow-hidden text-xs">
-                {auditLogs.map((log) => (
-                  <div key={log.id} className="p-3 bg-card hover:bg-muted/10 flex justify-between items-center gap-2">
-                    <div>
-                      <span className="font-bold text-navy uppercase font-mono">{log.action}</span>
-                      <p className="text-muted-foreground">
-                        Por: <b>{log.admin_email}</b> · {new Date(log.created_at).toLocaleString("pt-BR")}
-                      </p>
-                      {log.details && (
-                        <p className="mt-0.5 text-slate-700 font-mono text-[11px]">
-                          {JSON.stringify(log.details)}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <DeveloperAuditLogPanel
+            logs={auditLogs}
+            isLoading={isLoadingAudit}
+            onRefresh={() => refetchAudit()}
+            clinicsList={clinics.map((c) => ({ id: c.id, name: c.name }))}
+          />
         </TabsContent>
 
         {/* =========================================================================
